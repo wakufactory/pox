@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width" /> 
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PolygonExplorerPlayer</title>
+<script src="../wwg/js/WWG.js"></script>
+<script src="../wwg/js/CanvasMatrix.js"></script>
+<script src="../wwg/js/WWModel.js"></script>
+<script src="../wwg/js/Pointer.js"></script>
+<script src="/html5/WBind/WBind.js"></script>
+<script src="/html5/gamepad/GPad.js"></script>
+<script src="poxplayer.js?5"></script>
+<script>
+function $(e){return document.getElementById(e)}
+onload = function() {
+	var poxp = new PoxPlayer('#screen1') ;
+	poxp.load(location.search.substr(1)).then(function(pox) {
+		poxp.init(pox,true) ;
+	})
+}
+</script>
+<style>
+body,html {
+	margin:0 ;
+	width:100% ;
+	height:100% ;
+}
+body {
+	box-sizing: border-box ;
+	font-family:sans-serif ;
+}
+canvas {
+	width:100% ;
+	height:100% ;
+}
+#cc {
+	position:absolute ;
+	top:0;
+	left:0;
+	height:2rem ;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.8 ;
+}
+/* swicth (single checkbox) */
+.oswitch input {
+	display:none ;
+}
+.oswitch .sbtn {
+	font-family:"apple color emoji",sans-serif;
+}
+.oswitch input[type=checkbox] + .sbtn:before {
+	content: "⏸" ;
+}
+.oswitch input[type=checkbox]:checked + .sbtn:before {
+	content: "▶️" ;
+}
+</style>
+<body>
+<div id=cc>
+<label><input type=checkbox id=autorot>rot</label>
+<label><input type=checkbox id=isstereo>stereo</label>
+<span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
+[<span id="fps"></span>FPS]
+</div>
+<canvas id="screen1"></canvas>
+</body>
