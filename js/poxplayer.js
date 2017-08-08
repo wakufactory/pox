@@ -65,7 +65,7 @@ function init(self) {
 	var sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
 	
-	var pixRatio = 1 || window.devicePixelRatio ;
+	var pixRatio = window.devicePixelRatio ;
 	// canvas initialize
 	
 	function cansize() {
