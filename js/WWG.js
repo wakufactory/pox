@@ -325,14 +325,20 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 
 	return new Promise(function(resolve,reject) {
 		if(tex.src) {
-			var img = new Image() ;
-			img.onload = function() {
-				resolve( self.genTex(img,tex.opt) ) ;
+			if(tex.opt && tex.opt.cors) {
+				self.wwg.loadImageAjax(tex.src).then(function(img) {
+					resolve( self.genTex(img,tex.opt)) ;
+				});
+			} else {
+				var img = new Image() ;
+				img.onload = function() {
+					resolve( self.genTex(img,tex.opt) ) ;
+				}
+				img.onerror = function() {
+					reject("cannot load image") ;
+				}
+				img.src = tex.src ;
 			}
-			img.onerror = function() {
-				reject("cannot load image") ;
-			}
-			img.src = tex.src ;
 		} else if(tex.img instanceof Image) {
 			resolve( self.genTex(tex.img,tex.opt) ) 
 		} else if(tex.buffer) {

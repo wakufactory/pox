@@ -382,7 +382,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				mu:u, mv:v }
 			return r ;			
 			
-		},{start:0,end:1.0,div:div*2},{start:0,end:1,div:div}) ;
+		},{start:0,end:1.0,div:div*2},{start:0,end:1,div:div},{ninv:param.ninv}) ;
 		return this ;
 	}	
 	this.obj_v = p 
@@ -397,10 +397,11 @@ WWModel.prototype.primitive  = function(type,param) {
 }
 // generate parametric model by function
 WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
-	pos = [] ;
-	norm = [] ;
-	uv = [] ;
-	indices = [] ;
+	var pos = [] ;
+	var norm = [] ;
+	var uv = [] ;
+	var indices = [] ;
+	var ninv = (opt.ninv)?-1:1 ;
 
 	var du = (pu.end - pu.start)/pu.div ;
 	var dv = (pv.end - pv.start)/pv.div ;
@@ -430,14 +431,15 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 				p.ny = ny/nl ;
 				p.nz = nz/nl ;
 			}
-			norm.push([p.nx, p.ny,p.nz] ) ;
+			norm.push([p.nx*ninv, p.ny*ninv,p.nz*ninv] ) ;
 		}
 	}
 	var d2 = pv.div+1 ;
 	for(var j = 0 ; j < pu.div ; ++j) {
 		var base = j * d2;
 		for(var i = 0 ; i < pv.div ; ++i) {
-			indices.push([base+i,base+i+d2,base+i+d2+1,base+i+1])	
+			if(ninv>0) indices.push([base+i,base+i+d2,base+i+d2+1,base+i+1])	
+			else  indices.push([base+i+1,base+i+d2+1,base+i+d2,base+i])	
 		}	
 
 	}

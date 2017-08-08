@@ -52,16 +52,16 @@ PoxPlayer.prototype.set = function(d) {
 PoxPlayer.prototype.stop = function() {
 	this.active = false ;
 }
-PoxPlayer.prototype.init = function(pox,loaded) {
+PoxPlayer.prototype.cls = function() {
+	if(this.render) this.render.clear() ;
+}
+PoxPlayer.prototype.init = function(pox) {
 	this.active = true ;	
 	var Param = WBind.create() ;
 	this.param = Param ;
 console.log(pox)
 	var can = this.can ;
-	if(loaded) return init(this);
-	else window.addEventListener("DOMContentLoaded",init,false) //onload)
-	
-function init(self) {
+
 	var sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
 	
@@ -82,12 +82,13 @@ function init(self) {
 		alert("wgl not supported") ;
 		return null ;
 	}
+	this.wwg = wwg ;
 	// scene init 
 	var sc ;
 	try {
 		sc = pox.init() ;
 	} catch(err) {
-		return "init error" ;
+		return "init error " + err ;
 	}
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
@@ -99,14 +100,16 @@ function init(self) {
 	Param.camRY = -30 ;
 	Param.camd = 5*sset.scale ;
 	if(pox.param) {
-	if(pox.param.isstereo) Param.bindInput("isStereo",pox.param.isstereo.input) ;
-	if(pox.param.autorot) Param.bindInput("autorot",pox.param.autorot.input) ;
-	if(pox.param.pause) Param.bindInput("pause",pox.param.pause.input) ;
-		if(pox.param.fps) Param.bindHtml("fps",pox.param.fps.html) ;
+		Param.bindInput("isStereo",pox.param.isstereo.input) ;
+		Param.bindInput("autorot",pox.param.autorot.input) ;
+		Param.bindInput("pause",pox.param.pause.input) ;
+		Param.bindHtml("fps",pox.param.fps.html) ;
 	}
 	//create render unit
 	var r = wwg.createRender() ;
+	this.render = r ;
 	r.setRender(sc).then(()=> {
+		console.log(this);
 		console.log(r) ;
 		mouse() ;
 		if(window.GPad) GPad.init() ;	
@@ -116,6 +119,7 @@ function init(self) {
 		var gp ;
 		var ft = lt ;
 		var fc = 0 ;
+		var self = this ;
 		(function loop(){
 			if(self.active) window.requestAnimationFrame(loop) ;
 			if(Param.pause) {
@@ -150,6 +154,7 @@ function init(self) {
 		console.log(err) ;
 	})
 	return null ;
+	
 	// calc camera matrix
 	function camMtx(render,p,sf) {
 		var can = render.wwg.can ;
@@ -289,5 +294,4 @@ function init(self) {
 			Param.setTimer("camRY",rotY,100) ;
 		})		
 	}
-}
 }
