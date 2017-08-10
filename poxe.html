@@ -96,9 +96,9 @@ POXE.reload = ()=> {
 	console.log("reload") ;
 	POXE.POXP.cls() ;
 	POXE.POXP.stop()  ;
-//	POXE.POXP = null ;
-//	POXE.POXP = new PoxPlayer('#screen1') ;
-
+	POXE.POXP = null ;
+	POXE.POXP = new PoxPlayer('#screen1') ;
+	POXE.POXP.setError( POXE.msg) ;
 	var data = {
 		m:POXE.e1.getValue(),
 		vs:POXE.e2.getValue(),

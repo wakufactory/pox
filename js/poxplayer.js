@@ -126,7 +126,7 @@ console.log(r) ;
 			var ct = new Date().getTime() ;
 			var tint = (ct - st) ;
 			fc++ ;
-//console.log(fc);
+console.log(fc);
 			if(ct-ft>=1000) {
 				Param.fps = fc ;
 				fc = 0 ;
