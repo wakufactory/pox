@@ -5,6 +5,17 @@
 
 var PoxPlayer  = function(can) {
 	this.can = document.querySelector(can)  ;
+	var Param = WBind.create() ;
+	this.param = Param ;
+
+	Param.bindInput("isStereo","#isstereo") ;
+	Param.bindInput("autorot","#autorot") ;
+	Param.bindInput("pause","#pause") ;
+	Param.bindHtml("fps","#fps") ;
+
+	// canvas initialize
+	this.resize() ;
+	window.addEventListener("resize",()=>{this.resize()}) ;
 }
 PoxPlayer.prototype.load = function(d) {
 	return new Promise((resolve,reject) => {
@@ -31,21 +42,25 @@ PoxPlayer.prototype.set = function(d) {
 	var m = d.m ;
 	var VS = d.vs ;
 	var FS = d.fs ;
-
+	// wwg initialize
+	var wwg = new WWG() ;
+	if(/*!wwg.init2(can) &&*/ !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+		alert("wgl not supported") ;
+		return null ;
+	}
+	this.wwg = wwg ;
+	this.active = true ;	
 	var POX = {} ;
+	POX.src = d ;
+	this.pox = POX ;
+	POX.setScene = (scene)=> {
+		this.setScene(scene) ;
+	}
 	try {
 		eval(m);
 	}catch(err) {
 		this.emsg = ("eval error "+err);
 		return null ;
-	}
-	POX.src = d ;
-
-	POX.param = {
-		"pause":{"input":"#pause"},
-		"autorot":{"input":"#autorot"},
-		"isstereo":{"input":"#isstereo"},
-		"fps":{"html":"#fps"}
 	}
 	return POX ;
 }
@@ -55,62 +70,37 @@ PoxPlayer.prototype.stop = function() {
 PoxPlayer.prototype.cls = function() {
 	if(this.render) this.render.clear() ;
 }
-PoxPlayer.prototype.init = function(pox) {
-	this.active = true ;	
-	var Param = WBind.create() ;
-	this.param = Param ;
-console.log(pox)
+PoxPlayer.prototype.resize = function() {
+	var pixRatio = window.devicePixelRatio 
+	this.can.width= this.can.offsetWidth*pixRatio ;
+	this.can.height = this.can.offsetHeight*pixRatio ;
+	console.log("canvas:"+this.can.width+" x "+this.can.height);		
+}
+
+PoxPlayer.prototype.setScene = function(sc) {
+//	console.log(sc) ;
+	var wwg = this.wwg ;
+	var pox = this.pox ;
 	var can = this.can ;
-
-	var sset = pox.setting || {} ;
-	if(!sset.scale) sset.scale = 1.0 ;
-	
-	var pixRatio = window.devicePixelRatio ;
-	// canvas initialize
-	
-	function cansize() {
-		can.width= can.offsetWidth*pixRatio ;
-		can.height = can.offsetHeight*pixRatio ;
-		console.log("canvas:"+can.width+" x "+can.height);		
-	}
-	cansize() ;
-	window.addEventListener("resize",cansize) ;
-
-	// wwg initialize
-	var wwg = new WWG() ;
-	if(/*!wwg.init2(can) &&*/ !wwg.init(can)) {
-		alert("wgl not supported") ;
-		return null ;
-	}
-	this.wwg = wwg ;
-	// scene init 
-	var sc ;
-	try {
-		sc = pox.init() ;
-	} catch(err) {
-		return "init error " + err ;
-	}
+	var Param = this.param ;
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
-
+	var sset = pox.setting || {} ;
+	if(!sset.scale) sset.scale = 1.0 ;
 	//bind params 
 
 	Param.camRX = 30 ;
 	Param.camRY = -30 ;
 	Param.camd = 5*sset.scale ;
-	if(pox.param) {
-		Param.bindInput("isStereo",pox.param.isstereo.input) ;
-		Param.bindInput("autorot",pox.param.autorot.input) ;
-		Param.bindInput("pause",pox.param.pause.input) ;
-		Param.bindHtml("fps",pox.param.fps.html) ;
-	}
+
 	//create render unit
 	var r = wwg.createRender() ;
 	this.render = r ;
 	r.setRender(sc).then(()=> {
-		console.log(this);
-		console.log(r) ;
+		
+console.log(r) ;
+	
 		mouse() ;
 		if(window.GPad) GPad.init() ;	
 		//draw loop
@@ -230,7 +220,7 @@ console.log(pox)
 	var gz = Param.camd ;
 	function mouse() {
 		//mouse intraction
-		var mag = 300*pixRatio/can.width;
+		var mag = 300*window.devicePixelRatio /can.width;
 		var keymag= 2 ;
 		var m = new Pointer(can,{
 			down:function(d) {

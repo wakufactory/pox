@@ -12,19 +12,18 @@
 <script src="js/Pointer.js"></script>
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
-<script src="js/poxplayer.js?9"></script>
+<script src="js/poxplayer.js?"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.0/ace.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
 POXE = {} ;
-onload = function() {
-	
+onload = ()=> {
 	POXE.POXP = new PoxPlayer('#screen1') ;
 
 	POXE.ace() ;		//editor init
 
 	if(location.search.match(/\?.+\.json/)) {
-		POXE.POXP.load(location.search.substr(1)).then(function(pox){
+		POXE.POXP.load(location.search.substr(1)+"?").then((pox)=>{
 			POXE.set(pox) ;
 			location.href ="?" ;
 		}) ;
@@ -33,22 +32,22 @@ onload = function() {
 		var data ;
 		if(s) data = JSON.parse(s) ;
 		else data = {"m":"//settings\nPOX.setting={\n\tname:\"sample_basic\",\n\tscale:1.0\n};\nPOX.init=function(){\n//scenedata\n\tvar r3=1.0/Math.sqrt(3);\n\n\tvar scene={\n\t\tenv:{clear_color:[0.2,0.2,0.4,1.0],cull:false},\n\t\tvs_uni:{\n\t\t\tcol:[1.0,0.2,1.0,1.0]\n\t\t},\n\t\tfs_uni:{\n\t\t\tlvec:[1.0,1.0,1.0],\n\t\t\tmode:0\n\t\t},\n\t\tmodel:[\n\t\t\t{geo:{mode:\"tri\",\n\t\t\t\tvtx_at:[\"position\",\"norm\"],\n\t\t\t\tvtx:[1,0,0,r3,r3,r3,0,1,0,r3,r3,r3,0,0,1,r3,r3,r3],\n\t\t\t\tidx:[0,1,2]},\n\t\t\t\tvs_uni:{col:[1.0,0.0,0.0,1.0]}},\n\t\n\t\t{name:\"axis\",\n\t\t\tgeo:{mode:\"lines\",\n\t\t\t\tvtx_at:[\"position\"],\n\t\t\t\tvtx:[0,0,0,200,0,0,0,0,0,0,200,0,0,0,0,0,0,200]},\n\t\t\tfs_uni:{bcolor:[1.0,1.0,1.0,1.0],mode:1}},\n\t\t]\n\t}\n\treturn scene;\n}\n//sceneupdate\nPOX.update=function(render,cam,time){\n\tvar ret={};\n\treturn ret;\n\tvar m=render.getModelData(0);\n\trender.data.model[0].mm=new CanvasMatrix4().rotate(time/5060,1,0,0);\n\treturn ret;\n}\t\n","vs":"attribute vec3 position;\nattribute vec3 norm;\nattribute vec2 uv ;\n\nuniform mat4 mvpMatrix;\nuniform mat4 invMatrix;\nuniform vec4 col ;\n\nvarying vec3 tnorm ;\nvarying vec4 color ;\n\nvoid main() {\n\tvec2 uv2 = uv ;\n\tcolor = col ;\n\ttnorm = (invMatrix * vec4(norm,0.0)).xyz ;\n\tgl_Position = mvpMatrix * vec4(position, 1.0) ;\n}\n","fs":"precision highp float;\nuniform int mode ;\nuniform vec4 bcolor ;\nuniform vec3 eyevec ;\nuniform vec3 lvec ;\t\n\nvarying vec3 tnorm ;\nvarying vec4 color ;\n\nvoid main() {\n\tvec3 col = color.xyz ;\n\tvec3 norm = normalize(tnorm) ;\n\tfloat diff= clamp((dot(norm,normalize(lvec))+0.5)/1.5,0.0,1.0);\n\tfloat spec= pow(clamp(dot(norm,normalize(normalize(lvec)+normalize(eyevec))),0.0,1.0),60.0);\n\tvec3 fcolor = col * (diff * 0.8 + 0.2) + vec3(0.6,0.6,1.0)*(spec * 0.8);\n\tgl_FragColor = (mode!=1) ? vec4(fcolor,color.w):vec4(bcolor.x,bcolor.y,bcolor.z,1.0);\n}\n","version":"0.1"} ;
-		console.log(data);
-		POXE.POXP.load(data).then(function(pox){
+//		console.log(data);
+		POXE.POXP.load(data).then((pox)=>{
 			POXE.set(pox) ;
 		}) ;
 	}
 
-	$("b_apply").addEventListener("click", function(){
+	$("b_apply").addEventListener("click", ()=>{
 		POXE.reload() ;
 	})
 
-	$("l_load").addEventListener("change", function(ev){
+	$("l_load").addEventListener("change", (ev)=>{
 		console.log(this.value) ;
 		var f = ev.target.files ;
 		var reader = new FileReader();
 
-		reader.onload = (function(e) {
+		reader.onload = (e)=> {
 			var obj ;
 			try {
 				obj = JSON.parse(e.target.result) ;
@@ -56,19 +55,35 @@ onload = function() {
 				POXE.msg("parse err "+err) ;
 				return ;
 			}
-			POXE.POXP.load(obj).then(function(pox){
+			POXE.POXP.load(obj).then((pox)=>{
 				POXE.set(pox) ;
 			}) ;
-		});
+		};
 		reader.readAsText(f[0]);
 	})
-
+	
+	$("b_cap").addEventListener("click", ()=>{
+		$("l_cap").setAttribute("download", POXE.setting.name+".png");
+		var img = $("screen1").toDataURL() ;
+		$("l_cap").href = img ;
+		$("cap_thumb").src = img ;
+	})
+	$("editor").addEventListener("change", (ev)=>{
+		if(ev.target.checked) {
+			$("editp").style.display = "none" ;
+			$("viewp").style.width = "100%" ;
+		} else {
+			$("editp").style.display = "flex" ;
+			$("viewp").style.width = "50%" ;
+		}
+		POXE.POXP.resize() ;
+	})
 }
-POXE.msg = function(msg) {
+POXE.msg = (msg)=> {
 	$("msgc").innerHTML += msg + "<br/>" ;
 	$("msg").scrollTop = $("msgc").offsetHeight ;
 }
-POXE.save = function(data) {
+POXE.save = (data)=> {
 	data.version = "0.1" ;
 	var d = JSON.stringify(data) ;
 	localStorage.setItem("poxe_save",d) ;
@@ -76,10 +91,10 @@ POXE.save = function(data) {
 	$("l_save").href = "data:application/json;charset=UTF-8,"+ encodeURI(d) ;
 }
 
-POXE.reload = function() {
+POXE.reload = ()=> {
 	console.log("reload") ;
-	POXE.POXP.stop()  ;
 	POXE.POXP.cls() ;
+	POXE.POXP.stop()  ;
 	POXE.POXP = null ;
 	POXE.POXP = new PoxPlayer('#screen1') ;
 
@@ -88,13 +103,13 @@ POXE.reload = function() {
 		vs:POXE.e2.getValue(),
 		fs:POXE.e3.getValue()
 	}
-	POXE.POXP.load(data).then(function(pox){
+	POXE.POXP.load(data).then((pox)=>{
 		POXE.set(pox,false) ;
 		POXE.POXP.param.pause = false ;
 	}) ;
 
 }
-POXE.set = function(pox,edit=true) {
+POXE.set = (pox,edit=true)=> {
 	console.log(pox);
 	if(pox===null) {
 		POXE.msg(POXE.POXP.emsg);
@@ -108,18 +123,17 @@ POXE.set = function(pox,edit=true) {
 		POXE.e2.setValue(pox.src.vs,-1) ;
 		POXE.e3.setValue(pox.src.fs,-1) ;
 	}
-	var ret = POXE.POXP.init(pox,true) ;
-	if(ret!==null) {
-		POXE.msg(ret);
-	} else POXE.msg("init ok");
+//	var ret = POXE.POXP.init(pox,true) ;
+//	if(ret ) POXE.msg(ret ) ;
+//	else 	POXE.msg("init ok");
 }
-POXE.ace = function() {
+POXE.ace = ()=> {
 	var fontsize = 14 ;
 	var theme = "ace/theme/xcode" ;
 	var keybind = {
 	    name: 'save',
 	    bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
-	    exec: function(editor) {
+	    exec: (editor)=> {
 	        POXE.reload() ;
 	    },
 	}
@@ -172,7 +186,7 @@ div.view {
 	position:relative ;
 	display:flex ;
 	flex-direction: column;
-	width:50% ;
+	width:50%;
 	height:100% ;
 }
 div.view canvas {
@@ -194,6 +208,7 @@ div.edit textarea {
 	color:#eee ;
 	background-color:#222 ;
 	opacity:0.8 ;
+	vertical-align:baseline;
 }
 #ec {
 	height:2rem ;
@@ -208,6 +223,11 @@ div.edit textarea {
 #msgc {
 	padding-left:1rem ;
 	line-height:100% ;
+}
+#cap_thumb {
+	height:1.5rem ;
+	border:1px dotted #eee ;
+	vertical-align: bottom;
 }
 label,button {
 	cursor:pointer ;	
@@ -262,21 +282,27 @@ label,button {
 .oswitch .sbtn {
 	font-family:"apple color emoji",sans-serif;
 }
-.oswitch input[type=checkbox] + .sbtn:before {
+.oswitch input[id=pause] + .sbtn:before {
 	content: "⏸" ;
 }
-.oswitch input[type=checkbox]:checked + .sbtn:before {
+.oswitch input[id=pause]:checked + .sbtn:before {
 	content: "▶️" ;
 }
-
+.oswitch input[id=editor] + .sbtn:before {
+	content: "⬅️" ;
+}
+.oswitch input[id=editor]:checked + .sbtn:before {
+	content: "➡️" ;
+}
 </style>
 <body>
-<div class=edit>
+<div class=edit id=editp>
 
 <div id=ec>
 <button id=b_apply>APPLY</button>&nbsp;
 <a href="" id=l_save download="save.json"><button>Save</button></a>
  Load<input type=file id=l_load>
+
 </div>
 <ul class=tabs>
   <li>
@@ -297,12 +323,14 @@ label,button {
 </ul> 
 <div id=msg><div id=msgc></div></div>
 </div>
-<div class=view>
+<div class=view id=viewp>
 <div id=cc>
+<span class=oswitch><label><input type=checkbox id=editor><span class=sbtn></span></label></span>
 <label><input type=checkbox id=autorot>rot</label>
 <label><input type=checkbox id=isstereo>stereo</label>
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
 [<span id="fps"></span>FPS]
+ <button id=b_cap>CAP</button><a href="" id=l_cap> <img id="cap_thumb" /></a></a>
 </div>
 <canvas id="screen1"></canvas>
 </div>

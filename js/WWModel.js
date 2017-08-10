@@ -401,7 +401,7 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 	var norm = [] ;
 	var uv = [] ;
 	var indices = [] ;
-	var ninv = (opt.ninv)?-1:1 ;
+	var ninv = (opt && opt.ninv)?-1:1 ;
 
 	var du = (pu.end - pu.start)/pu.div ;
 	var dv = (pv.end - pv.start)/pv.div ;
