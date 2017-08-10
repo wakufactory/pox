@@ -19,7 +19,8 @@ function $(e){return document.getElementById(e)}
 POXE = {} ;
 onload = ()=> {
 	POXE.POXP = new PoxPlayer('#screen1') ;
-
+	POXE.POXP.setError( POXE.msg) ;
+	
 	POXE.ace() ;		//editor init
 
 	if(location.search.match(/\?.+\.json/)) {
@@ -95,8 +96,8 @@ POXE.reload = ()=> {
 	console.log("reload") ;
 	POXE.POXP.cls() ;
 	POXE.POXP.stop()  ;
-	POXE.POXP = null ;
-	POXE.POXP = new PoxPlayer('#screen1') ;
+//	POXE.POXP = null ;
+//	POXE.POXP = new PoxPlayer('#screen1') ;
 
 	var data = {
 		m:POXE.e1.getValue(),
@@ -110,12 +111,13 @@ POXE.reload = ()=> {
 
 }
 POXE.set = (pox,edit=true)=> {
-	console.log(pox);
+
 	if(pox===null) {
 		POXE.msg(POXE.POXP.emsg);
 		return ;
 	}
 	POXE.msg("eval ok") ;
+	console.log(pox);
 	POXE.setting = pox.setting ;
 	POXE.save(pox.src) ;
 	if(edit) {

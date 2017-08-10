@@ -19,6 +19,8 @@ onload = function() {
 	var poxp = new PoxPlayer('#screen1') ;
 	poxp.load(location.search.substr(1)).then(function(pox) {
 
+	}).catch(function(err) {
+		alert(err) ;
 	})
 }
 </script>

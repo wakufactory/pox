@@ -76,7 +76,9 @@ PoxPlayer.prototype.resize = function() {
 	this.can.height = this.can.offsetHeight*pixRatio ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		
 }
-
+PoxPlayer.prototype.setError = function(err) {
+	this.errCb = err ;
+}
 PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(sc) ;
 	var wwg = this.wwg ;
@@ -100,7 +102,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	r.setRender(sc).then(()=> {
 		
 console.log(r) ;
-	
+		if(this.errCb) this.errCb("scene set ok") ;
 		mouse() ;
 		if(window.GPad) GPad.init() ;	
 		//draw loop
@@ -140,8 +142,9 @@ console.log(r) ;
 			lt = ct ;
 			Param.updateTimer() ;
 		})();		
-	}).catch(function(err){
+	}).catch((err)=>{
 		console.log(err) ;
+		if(this.errCb) this.errCb(err) ;
 	})
 	return null ;
 	
