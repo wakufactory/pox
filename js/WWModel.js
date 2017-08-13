@@ -193,7 +193,14 @@ WWModel.prototype.normLines = function() {
 }
 // mult 4x4 matrix
 WWModel.prototype.multMatrix4 = function(m4) {
-	
+	var inv = new CanvasMatrix4(m4).invert().transpose() ;
+	for(var i=0;i<this.obj_v.length;i++) {
+		var v = this.obj_v[i] ;
+		var vx = m4.m11 * v[0] + m4.m21 * v[1] + m4.m31 * v[2] + m4.m41 ;
+		var vy = m4.m12 * v[0] + m4.m22 * v[1] + m4.m32 * v[2] + m4.m42 ;
+		var vz = m4.m13 * v[0] + m4.m23 * v[1] + m4.m33 * v[2] + m4.m43 ;
+		this.obj_v[i] = [vx,vy,vz] ;
+	}
 }
 WWModel.prototype.mergeModels = function(models) {
 	var m = this ;
@@ -256,7 +263,7 @@ WWModel.prototype.primitive  = function(type,param) {
 		}
 		break;
 	case "cylinder":
-		for(var i = 0 ; i < div ; ++i) {
+		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
 			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
 			p.push([x,wy,z])
@@ -266,15 +273,13 @@ WWModel.prototype.primitive  = function(type,param) {
 			n.push([x*ninv,0,z*ninv,0])
 			t.push([v,0])			
 		}
-		for(var j =0; j < div-1 ;j++) {
+		for(var j =0; j < div ;j++) {
 			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
-		if(ninv<0) s.push([j*2,0,1,j*2+1])
-		else s.push([j*2,j*2+1,1,0])
 		break; 
 	case "cone":
-		for(var i = 0 ; i < div ; ++i) {
+		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
 			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
 			p.push([0,wy,0])
@@ -284,12 +289,10 @@ WWModel.prototype.primitive  = function(type,param) {
 			n.push([x*ninv,0,z*ninv,0])
 			t.push([v,0])			
 		}
-		for(var j =0; j < div-1 ;j++) {
+		for(var j =0; j < div ;j++) {
 			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
-		if(ninv<0) s.push([j*2,0,1,j*2+1])
-		else s.push([j*2,j*2+1,1,0])
 		break; 
 	case "disc":
 		for(var i = 0 ; i < div ; ++i) {
@@ -310,7 +313,7 @@ WWModel.prototype.primitive  = function(type,param) {
 	case "plane":
 		p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
 		n = [[0,1,0],[0,1,0],[0,1,0],[0,1,0]]
-		t = [[1,1],[1,0],[0,0],[0,1]]
+		t = [[1,0],[1,1],[0,1],[0,0]]
 		s = [[0,1,2],[2,3,0]]
 		break ;
 	case "box":

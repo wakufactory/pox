@@ -92,9 +92,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 	if(!sset.scale) sset.scale = 1.0 ;
 	//bind params 
 
-	Param.camRX = 30 ;
-	Param.camRY = -30 ;
-	Param.camd = 5*sset.scale ;
+	if(Param.camRX===undefined) Param.camRX = 30 ;
+	if(Param.camRY===undefined) Param.camRY = -30 ;
+	if(Param.camd===undefined) Param.camd = 5*sset.scale ;
 
 	//create render unit
 	var r = wwg.createRender() ;
