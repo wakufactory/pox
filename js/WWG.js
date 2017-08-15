@@ -121,7 +121,7 @@ WWG.prototype.Render = function(wwg) {
 	this.modelCount = 0 ;
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
-//	console.log("set "+type+"("+pos+") = "+value) ;
+//	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -276,14 +276,14 @@ WWG.prototype.Render.prototype.setUniValues = function(data) {
 		for(var i in data.vs_uni) {
 			if(this.vs_uni[i]) {
 				this.setUnivec(this.vs_uni[i], data.vs_uni[i]) ;
-			} else return false ;
+			}  ;
 		}
 	}
 	if(data.fs_uni) {
 		for(var i in data.fs_uni) {
 			if(this.fs_uni[i]) {
 				this.setUnivec(this.fs_uni[i], data.fs_uni[i]) ;
-			} else return false ;
+			}  ;
 		}
 	}
 	return true ;

@@ -188,7 +188,9 @@ console.log(r) ;
 			var m = new CanvasMatrix4(d.bm) ;
 			if(d.mm) m.multRight(d.mm) ;
 			mod[i] = {
-				vs_uni:{mvpMatrix:new CanvasMatrix4(m).
+				vs_uni:{
+					modelMatrix:new CanvasMatrix4(m).getAsWebGLFloatArray(),
+					mvpMatrix:new CanvasMatrix4(m).
 						multRight(cam.camM).getAsWebGLFloatArray(),
 					invMatrix:new CanvasMatrix4(m).
 						invert().transpose().getAsWebGLFloatArray()},
