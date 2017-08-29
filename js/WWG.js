@@ -437,9 +437,9 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 					reject("no uniform name") ;
 					return ;
 				}
-				if(self.env.cull) gl.enable(gl.CULL_FACE);
-				if(self.env.face_cw) gl.frontFace(gl.CW);	
-				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST);	
+				if(self.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+				if(self.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
+				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
 		
 				//set model 
 				for(var i =0;i<data.model.length;i++) {
@@ -687,7 +687,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			cmodel.preFunction(gl,cmodel,this.obuf[b]) ;
 		}
 		var gmode = this.wwg.dmodes[geo.mode]
-		if(!gmode) {
+		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
 				return false ;
 		}

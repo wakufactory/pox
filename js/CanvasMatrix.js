@@ -730,3 +730,11 @@ CanvasMatrix4.prototype._makeAdjoint = function()
     this.m34  = - this._determinant3x3(a1, a2, a3, b1, b2, b3, d1, d2, d3);
     this.m44  =   this._determinant3x3(a1, a2, a3, b1, b2, b3, c1, c2, c3);
 }
+
+CanvasMatrix4.prototype.multVec4 = function(x,y,z,w) {
+	var xx = this.m11*x + this.m21*y + this.m31*z + this.m41*w ;
+	var yy = this.m12*x + this.m22*y + this.m32*z + this.m42*w ;
+	var zz = this.m13*x + this.m23*y + this.m33*z + this.m43*w ;
+	var ww = this.m14*x + this.m24*y + this.m34*z + this.m44*w ;
+	return [xx,yy,zz,ww] ;
+}
