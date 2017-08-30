@@ -686,6 +686,10 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(cmodel.preFunction) {
 			cmodel.preFunction(gl,cmodel,this.obuf[b]) ;
 		}
+		if(cmodel.blend!==undefined) {
+			gl.enable(gl.BLEND) ;
+			if(cmodel.blend=="alpha") gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+		}
 		var gmode = this.wwg.dmodes[geo.mode]
 		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
@@ -701,6 +705,9 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(this.wwg.ext_vao) this.wwg.vao_bind(null);
 		else {
 			
+		}
+		if(cmodel.blend!==undefined) {
+			gl.disable(gl.BLEND) ;
 		}
 		if(cmodel.postFunction) {
 			cmodel.postFunction(gl,cmodel) ;
