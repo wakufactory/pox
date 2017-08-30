@@ -75,7 +75,7 @@ PoxPlayer.prototype.set = function(d) {
 	}
 	this.wwg = wwg ;
 	this.active = true ;	
-	var POX = {src:d,can:this.can} ;
+	var POX = {src:d,can:this.can,wwg:wwg} ;
 	this.pox = POX ;
 
 	POX.setScene = (scene)=> {
