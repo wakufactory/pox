@@ -8,6 +8,7 @@ var PoxPlayer  = function(can) {
 	this.pixRatio = window.devicePixelRatio ;
 	var Param = WBind.create() ;
 	this.param = Param ;
+	if(window.WAS!=undefined) this.synth = new WAS.synth() 
 
 	Param.bindInput("isStereo","#isstereo") ;
 	Param.bindInput("autorot","#autorot") ;
@@ -46,7 +47,7 @@ PoxPlayer.prototype.load = function(d) {
 	return new Promise((resolve,reject) => {
 		if(typeof d == "string") {
 			var req = new XMLHttpRequest();
-			req.open("get",location.search.substr(1),true) ;
+			req.open("get",d,true) ;
 			req.responseType = "json" ;
 			req.onload = () => {
 				if(req.status==200) {
@@ -63,7 +64,7 @@ PoxPlayer.prototype.load = function(d) {
 		} else resolve(d) ;
 	})
 }
-PoxPlayer.prototype.set = function(d) { 
+PoxPlayer.prototype.set = function(d,param={}) { 
 	var m = d.m ;
 	var VS = d.vs ;
 	var FS = d.fs ;
@@ -75,22 +76,29 @@ PoxPlayer.prototype.set = function(d) {
 	}
 	this.wwg = wwg ;
 	this.active = true ;	
-	var POX = {src:d,can:this.can,wwg:wwg} ;
+	var POX = {src:d,can:this.can,wwg:wwg,synth:this.synth,param:param} ;
 	this.pox = POX ;
 
 	POX.setScene = (scene)=> {
 		this.setScene(scene) ;
 	}
+	POX.log = (msg)=> {
+		if(this.errCb) this.errCb(msg) ;
+	}
 	try {
-		eval(m);
+		eval(m);	 //EVALUATE CODE
 	}catch(err) {
 		this.emsg = ("eval error "+err);
 		return null ;
 	}
 	return POX ;
 }
+PoxPlayer.prototype.setPacked = function(param={}) { 
+	
+}
 PoxPlayer.prototype.stop = function() {
 	this.active = false ;
+	if(this.synth) this.synth.close() ;
 }
 PoxPlayer.prototype.cls = function() {
 	if(this.render) this.render.clear() ;
@@ -198,6 +206,10 @@ console.log(r) ;
 			var camY = Math.sin(cam.camRX*RAD)*camd ; 
 			var camZ = Math.cos(cam.camRY*RAD)*camd*Math.cos(cam.camRX*RAD)
 			var cx = 0 ,cy = 0, cz = 0 ;
+			if(camd<0) {
+				cx = camX*2 ;cy = camY*2 ;cz = camZ*2 ;
+			}
+
 			var upx = 0.,upy = 1 ,upz = 0. ;
 		}
 
@@ -248,20 +260,26 @@ console.log(r) ;
 			if(!Param.pause) update = scene.update(render,cam,time,-1)
 			camm = camMtx(render,cam,-1) ;
 			if(update.vs_uni==undefined) update.vs_uni = {} ;
+			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 1 ;
+			update.fs_uni.stereo = 1 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
 			if(!Param.pause) update = scene.update(render,cam,time,1)
 			camm = camMtx(render,cam,1) ;
 			if(update.vs_uni==undefined) update.vs_uni = {} ;
+			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 2 ;
+			update.fs_uni.stereo = 2 ;
 			render.draw(modelMtx(render,camm,update),true) ;
 		} else {
 			render.gl.viewport(0,0,can.width,can.height) ;
 			if(!Param.pause) update = scene.update(render,cam,time,0)
 			camm = camMtx(render,cam,0) ;
 			if(update.vs_nui==undefined) update.vs_uni = {} ;
+			if(update.fs_nui==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 0 ;
+			update.fs_uni.stereo = 0 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 		}
 	}
@@ -304,7 +322,7 @@ console.log(r) ;
 			wheel:function(d) {
 				if(Param.pause) return true;
 				cam.camd += d/30*sset.scale ;
-				if(cam.camd<0) cam.camd = 0 ;
+//				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;
 			},
