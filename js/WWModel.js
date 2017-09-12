@@ -510,7 +510,7 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 }
 
 // other utils 
-WWModel.HSV2RGB = function( H, S, V ) {
+WWModel.HSV2RGB = function( H, S, V ,a) {
 	var ih;
 	var fl;
 	var m, n;
@@ -531,7 +531,7 @@ WWModel.HSV2RGB = function( H, S, V ) {
 		case 4: rr = n; gg = m; bb = V; break;
 		case 5: rr = V; gg = m; bb = n; break;
 	}
-	return [rr,gg,bb,1.0] ;
+	return [rr,gg,bb,(a===undefined)?1.0:a] ;
 }
 WWModel.snormal = function(pa) {
 	var yx = pa[1][0]-pa[0][0];
