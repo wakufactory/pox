@@ -8,6 +8,14 @@ var PoxPlayer  = function(can) {
 	this.pixRatio = window.devicePixelRatio ;
 	var Param = WBind.create() ;
 	this.param = Param ;
+	// wwg initialize
+	var wwg = new WWG() ;
+	if(/*!wwg.init2(can) &&*/ !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+		alert("wgl not supported") ;
+		return null ;
+	}
+	this.wwg = wwg ;
+
 	if(window.WAS!=undefined) this.synth = new WAS.synth() 
 
 	Param.bindInput("isStereo","#isstereo") ;
@@ -32,7 +40,9 @@ var PoxPlayer  = function(can) {
 		camAngle:60,		//cam angle(deg) 
 		camNear:0.01, 	//near
 		camFar:1000, 	//far
+		camGyro:true, // use gyro
 		sbase:0.05 	//streobase 
+		
 	} ;
 	// canvas initialize
 	this.resize() ;
@@ -68,15 +78,8 @@ PoxPlayer.prototype.set = function(d,param={}) {
 	var m = d.m ;
 	var VS = d.vs ;
 	var FS = d.fs ;
-	// wwg initialize
-	var wwg = new WWG() ;
-	if(/*!wwg.init2(can) &&*/ !wwg.init(this.can,{preserveDrawingBuffer: true})) {
-		alert("wgl not supported") ;
-		return null ;
-	}
-	this.wwg = wwg ;
-	this.active = true ;	
-	var POX = {src:d,can:this.can,wwg:wwg,synth:this.synth,param:param} ;
+
+	var POX = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	this.pox = POX ;
 	function V3add() {
 		var x=0,y=0,z=0 ;
@@ -118,7 +121,7 @@ PoxPlayer.prototype.setPacked = function(param={}) {
 	
 }
 PoxPlayer.prototype.stop = function() {
-	this.active = false ;
+	window.cancelAnimationFrame(this.loop) ; 
 	if(this.synth) this.synth.close() ;
 }
 PoxPlayer.prototype.cls = function() {
@@ -156,6 +159,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		
 console.log(r) ;
 		if(this.errCb) this.errCb("scene set ok") ;
+		if(this.renderStart) this.renderStart() ;
 		mouse(cam) ;
 		if(window.GPad) GPad.init() ;	
 		//draw loop
@@ -166,7 +170,7 @@ console.log(r) ;
 		var fc = 0 ;
 		var self = this ;
 		(function loop(){
-			if(self.active) window.requestAnimationFrame(loop) ;
+			self.loop = window.requestAnimationFrame(loop) ;
 			if(Param.pause) {
 				Param.fps=0;
 				return ;
@@ -204,6 +208,7 @@ console.log(r) ;
 		var aspect = can.width/(can.height*((Param.isStereo)?2:1)) ;
 		var ret = {};
 //console.log(cam);
+//console.log(cam.camRX+"/"+cam.camRY) ;
 		if(cam.camMode=="fix") {
 			var cx = cam.camVX ;
 			var cy = cam.camVY ;
@@ -219,7 +224,7 @@ console.log(r) ;
 			var cy = -Math.sin(cam.camRX*RAD)*1 ; 
 			var cz = -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)
 			var camX = 0 ,camY = 0, camZ = 0 ;
-			var upx = 0,upy = 1 ,upz = 0 ;		
+			var upx =0 ,upy = 1 ,upz = 0 ;		
 		} else {
 		// bird camera mode 
 			var camd=  cam.camd ;
@@ -240,10 +245,14 @@ console.log(r) ;
 			var xy = -upx * (camZ-cz) + upz * (camX-cx);
 			var xz =  upx * (camY-cy) - upy * (camX-cx);
 			var mag = Math.sqrt(xx * xx + xy * xy + xz * xz);
-			xx /= mag ; xy /=mag ; xz /= mag ;
-			camX += xx*dx ;
-			camY += xy*dx ;
-			camZ += xz*dx ;
+			xx *= dx/mag ; xy *=dx/mag ; xz *= dx/mag ;
+//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
+			camX += xx ;
+			camY += xy ;
+			camZ += xz ;
+			cx += xx ;
+			cy += xy ;
+			cz += xz ;
 		}
 		var camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
 		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz).
@@ -316,7 +325,9 @@ console.log(r) ;
 	}
 	// mouse and key intaraction
 	var rotX = cam.camRX ,rotY = cam.camRY ;
+	var gev=null,gx=0,gy=0 ;
 	var gz = cam.camd ;
+	var dragging = false ;
 	function mouse(cam) {
 		//mouse intraction
 		var mag = 300*pixRatio /can.width;
@@ -326,6 +337,7 @@ console.log(r) ;
 				if(Param.pause) return true;
 				rotX = cam.camRX
 				rotY = cam.camRY
+				dragging = true ;
 				if(pox.event) pox.event("down",{sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
 				return false ;
 			},
@@ -335,18 +347,26 @@ console.log(r) ;
 				cam.camRY = rotY+d.dx*mag ;
 				if(cam.camRX>89)cam.camRX=89 ;
 				if(cam.camRX<-89)cam.camRX=-89 ;
+
 				if(pox.event) pox.event("move",{ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			up:function(d) {
 				rotX += d.dy*mag ;
 				rotY += d.dx*mag; 
+				if(gev!==null) {
+					gx = gev.rx - rotX ;
+					gy = gev.ry - rotY ;
+					console.log(gx+"/"+gy) ;
+				}
+				dragging = false ;
 				if(pox.event) pox.event("up",{dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
 				return false ;
 			},
 			out:function(d) {
 				rotX += d.dy*mag ;
 				rotY += d.dx*mag; 
+				dragging = false ;
 				if(pox.event) pox.event("out",{dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
@@ -360,13 +380,27 @@ console.log(r) ;
 			gesture:function(z,r) {
 				if(Param.pause) return true;
 				if(z==0) {
-					gz = cam.camd ;
+					gz = cam.camd ; 
 					return false ;
 				}
 				cam.camd = gz / z ;
 				if(pox.event) pox.event("gesture",z) ;
 				return false ;
 			},
+			gyro:function(ev) {
+				if(Param.pause || !cam.camGyro) return true;
+				if(ev.rx===null) return true ;
+				gev = ev ;
+				if(dragging) return true ;
+//				console.log(ev) ;
+				cam.camRX = ev.rx - gx;
+				cam.camRY = ev.ry - gy ;
+//		console.log(gx+"/"+gy) ;
+				if(cam.camRX>89)cam.camRX=89 ;
+				if(cam.camRX<-89)cam.camRX=-89 ;
+
+				return false ;
+			}
 		})
 		WBind.addev(window,"keydown", function(ev){
 //			console.log("key"+ev.keyCode);

@@ -8,20 +8,27 @@
 <title>PolygonExplorerPlayer</title>
 <script src="js/WWG.js"></script>
 <script src="js/CanvasMatrix.js"></script>
-<script src="js/WWModel.js"></script>
+<script src="js/WWModel.js?"></script>
 <script src="js/Pointer.js"></script>
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
-<script src="js/poxplayer.js?8"></script>
+<script src="js/was.js"></script>
+<script src="js/poxplayer.js?11"></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
 	var poxp = new PoxPlayer('#screen1') ;
 	poxp.load(location.search.substr(1)).then(function(src) {
-		poxp.set(src) ;
+		poxp.set(src)
+
 	}).catch(function(err) {
+		document.getElementById("loading").style.display = "none" ;
+
 		alert(err) ;
 	})
+	poxp.renderStart = function() {
+		document.getElementById("loading").style.display = "none" ;		
+	}
 }
 </script>
 <style>
@@ -33,6 +40,7 @@ body,html {
 body {
 	box-sizing: border-box ;
 	font-family:sans-serif ;
+	background-color:black;
 }
 canvas {
 	width:100% ;
@@ -46,6 +54,17 @@ canvas {
 	color:#eee ;
 	background-color:#222 ;
 	opacity:0.8 ;
+}
+#loading {
+	position:absolute ;
+	top:0;
+	left:0;
+	width:100% ;
+	height:100% ;	
+}
+#loading img {
+	margin-top:calc(50vh - 33px) ;
+	margin-left:calc(50vw  - 33px);
 }
 /* swicth (single checkbox) */
 .oswitch input {
@@ -68,5 +87,6 @@ canvas {
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
 [<span id="fps"></span>FPS]
 </div>
+<div id=loading><img src="guruguru.gif"></div>
 <canvas id="screen1"></canvas>
 </body>
