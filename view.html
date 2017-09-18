@@ -17,18 +17,21 @@
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
+	var q = location.search.substr(1).split("&") ;
 	var poxp = new PoxPlayer('#screen1') ;
-	poxp.load(location.search.substr(1)).then(function(src) {
+	poxp.load(q[0]).then(function(src) {
 		poxp.set(src)
-
 	}).catch(function(err) {
-		document.getElementById("loading").style.display = "none" ;
-
+		$("loading").style.display = "none" ;
 		alert(err) ;
 	})
 	poxp.renderStart = function() {
-		document.getElementById("loading").style.display = "none" ;		
+		$("loading").style.display = "none" ;		
 	}
+	window.addEventListener("deviceorientation", function(ev) {
+		var or = window.orientation ;
+		$("cc").style.display = (or==90||or==-90)&&poxp.param.isStereo?"none":"block" ;
+	})
 }
 </script>
 <style>

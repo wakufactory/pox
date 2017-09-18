@@ -122,7 +122,6 @@ PoxPlayer.prototype.setPacked = function(param={}) {
 }
 PoxPlayer.prototype.stop = function() {
 	window.cancelAnimationFrame(this.loop) ; 
-	if(this.synth) this.synth.close() ;
 }
 PoxPlayer.prototype.cls = function() {
 	if(this.render) this.render.clear() ;
@@ -372,7 +371,7 @@ console.log(r) ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/30*sset.scale ;
+				cam.camd += d/40*sset.scale ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;

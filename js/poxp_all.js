@@ -244,7 +244,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 				reject("link error:"+gl.getProgramInfoLog(program)); return false;
 			}
 			ret.program = program ;
-//			gl.useProgram(program);
+			gl.useProgram(program);
 		
 			var vr = parse_shader(vss) ;	
 //			console.log(vr) ;
@@ -422,7 +422,6 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 		if(!gl) { reject("no init") ;return ;}
 		var pr = [] ;
 		self.setShader({fshader:data.fshader,vshader:data.vshader}).then(function(ret) {
-			
 			//set program
 			self.vshader = ret.vshader ;
 			self.fshader = ret.fshader ;
@@ -441,12 +440,12 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 			Promise.all(pr).then(function(result) {
 //				console.log(result) ;
 				self.texobj = result ;
-				
 				// set initial values
 				if(!self.setUniValues(data)) {
 					reject("no uniform name") ;
 					return ;
 				}
+				
 				if(self.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 				if(self.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
 				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
@@ -1240,7 +1239,7 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 }
 
 // other utils 
-WWModel.HSV2RGB = function( H, S, V ) {
+WWModel.HSV2RGB = function( H, S, V ,a) {
 	var ih;
 	var fl;
 	var m, n;
@@ -1261,7 +1260,7 @@ WWModel.HSV2RGB = function( H, S, V ) {
 		case 4: rr = n; gg = m; bb = V; break;
 		case 5: rr = V; gg = m; bb = n; break;
 	}
-	return [rr,gg,bb,1.0] ;
+	return [rr,gg,bb,(a===undefined)?1.0:a] ;
 }
 WWModel.snormal = function(pa) {
 	var yx = pa[1][0]-pa[0][0];
@@ -2077,30 +2076,65 @@ Pointer = function(t,cb) {
 			}
 		},false)	
 	}
-	t.addEventListener("contextmenu", function(ev){
-		if(cb.contextmenu) {
+	if(cb.contextmenu) {
+		t.addEventListener("contextmenu", function(ev){
 			if(!cb.contextmenu({px:ev.offsetX,py:ev.offsetY})) ev.preventDefault() ;
-		}
-	},false ) ;
-	t.addEventListener("wheel", function(ev){
-		if(cb.wheel) {
+		},false )
+	}
+	if(cb.wheel) {
+		t.addEventListener("wheel", function(ev){
 			if(!cb.wheel(ev.deltaY)) ev.preventDefault() ;
-		}
-	},false ) ;
-	t.addEventListener("gesturestart", function(ev){
-		gesture = true ;
-		if(cb.gesture) {
+		},false ) ;
+	}
+	if(cb.gesture) {
+		t.addEventListener("gesturestart", function(ev){
+			gesture = true ;
 			if(!cb.gesture(0,0)) ev.preventDefault() ;
-		}
-	})
-	t.addEventListener("gesturechange", function(ev){
-		if(cb.gesture) {
+		})
+		t.addEventListener("gesturechange", function(ev){
+		
 			if(!cb.gesture(ev.scale,ev.rotation)) ev.preventDefault() ;
-		}
-	})
-	t.addEventListener("gestureend", function(ev){
-		gesture = false ;
-	})
+		})
+		t.addEventListener("gestureend", function(ev){
+			gesture = false ;
+		})
+	}
+	if(cb.gyro) {
+		window.addEventListener("deviceorientation", function(ev) {
+			var or = window.orientation ;
+			var rx,ry,rz ;
+			rx = null ;ry = null; rz = null ;
+			switch( or ){
+				case 90:
+					if(ev.gamma<0) {
+						rx = ev.gamma+90 ;
+						ry = 180-ev.alpha ;
+						rz = ev.beta+180 ;						
+					} else {
+						rx = ev.gamma-90 ;
+						ry = 360-ev.alpha ;
+						rz = ev.beta ;						
+					}
+					break ;
+				case -90:
+					if(ev.gamma<0) {
+						rx = -ev.gamma-90 ;
+						ry = 180-ev.alpha ;
+						rz = -ev.beta+180 ;	
+					} else {
+						rx = -ev.gamma+90 ;
+						ry = 360-ev.alpha ;
+						rz = -ev.beta ;						
+					}
+
+					break ;	
+				default:
+		
+			}
+
+			cb.gyro({rx:rx,ry:ry,rz:rz,orientation:or}) ;
+		})
+	}
 }
 GPad = {conn:false} ;
 
@@ -2544,6 +2578,14 @@ var PoxPlayer  = function(can) {
 	this.pixRatio = window.devicePixelRatio ;
 	var Param = WBind.create() ;
 	this.param = Param ;
+	// wwg initialize
+	var wwg = new WWG() ;
+	if(/*!wwg.init2(can) &&*/ !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+		alert("wgl not supported") ;
+		return null ;
+	}
+	this.wwg = wwg ;
+
 	if(window.WAS!=undefined) this.synth = new WAS.synth() 
 
 	Param.bindInput("isStereo","#isstereo") ;
@@ -2568,7 +2610,9 @@ var PoxPlayer  = function(can) {
 		camAngle:60,		//cam angle(deg) 
 		camNear:0.01, 	//near
 		camFar:1000, 	//far
+		camGyro:true, // use gyro
 		sbase:0.05 	//streobase 
+		
 	} ;
 	// canvas initialize
 	this.resize() ;
@@ -2604,16 +2648,30 @@ PoxPlayer.prototype.set = function(d,param={}) {
 	var m = d.m ;
 	var VS = d.vs ;
 	var FS = d.fs ;
-	// wwg initialize
-	var wwg = new WWG() ;
-	if(/*!wwg.init2(can) &&*/ !wwg.init(this.can,{preserveDrawingBuffer: true})) {
-		alert("wgl not supported") ;
-		return null ;
-	}
-	this.wwg = wwg ;
-	this.active = true ;	
-	var POX = {src:d,can:this.can,wwg:wwg,synth:this.synth,param:param} ;
+
+	var POX = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	this.pox = POX ;
+	function V3add() {
+		var x=0,y=0,z=0 ;
+		for(var i=0;i<arguments.length;i++) {
+			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
+		}
+		return [x,y,z] ;
+	}
+	function V3len(v) {
+		return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) ;
+	}
+	function V3norm(v,s) {
+		var l = V3len(v) ;
+		if(s===undefined) s = 1 ;
+		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
+	}
+	function V3mult(v,s) {
+		return [v[0]*s,v[1]*s,v[2]*s] ;
+	}
+	function V3dot(v1,v2) {
+		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
+	}
 
 	POX.setScene = (scene)=> {
 		this.setScene(scene) ;
@@ -2633,8 +2691,7 @@ PoxPlayer.prototype.setPacked = function(param={}) {
 	
 }
 PoxPlayer.prototype.stop = function() {
-	this.active = false ;
-	if(this.synth) this.synth.close() ;
+	window.cancelAnimationFrame(this.loop) ; 
 }
 PoxPlayer.prototype.cls = function() {
 	if(this.render) this.render.clear() ;
@@ -2671,6 +2728,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		
 console.log(r) ;
 		if(this.errCb) this.errCb("scene set ok") ;
+		if(this.renderStart) this.renderStart() ;
 		mouse(cam) ;
 		if(window.GPad) GPad.init() ;	
 		//draw loop
@@ -2681,7 +2739,7 @@ console.log(r) ;
 		var fc = 0 ;
 		var self = this ;
 		(function loop(){
-			if(self.active) window.requestAnimationFrame(loop) ;
+			self.loop = window.requestAnimationFrame(loop) ;
 			if(Param.pause) {
 				Param.fps=0;
 				return ;
@@ -2719,6 +2777,7 @@ console.log(r) ;
 		var aspect = can.width/(can.height*((Param.isStereo)?2:1)) ;
 		var ret = {};
 //console.log(cam);
+//console.log(cam.camRX+"/"+cam.camRY) ;
 		if(cam.camMode=="fix") {
 			var cx = cam.camVX ;
 			var cy = cam.camVY ;
@@ -2734,7 +2793,7 @@ console.log(r) ;
 			var cy = -Math.sin(cam.camRX*RAD)*1 ; 
 			var cz = -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)
 			var camX = 0 ,camY = 0, camZ = 0 ;
-			var upx = 0,upy = 1 ,upz = 0 ;		
+			var upx =0 ,upy = 1 ,upz = 0 ;		
 		} else {
 		// bird camera mode 
 			var camd=  cam.camd ;
@@ -2755,10 +2814,14 @@ console.log(r) ;
 			var xy = -upx * (camZ-cz) + upz * (camX-cx);
 			var xz =  upx * (camY-cy) - upy * (camX-cx);
 			var mag = Math.sqrt(xx * xx + xy * xy + xz * xz);
-			xx /= mag ; xy /=mag ; xz /= mag ;
-			camX += xx*dx ;
-			camY += xy*dx ;
-			camZ += xz*dx ;
+			xx *= dx/mag ; xy *=dx/mag ; xz *= dx/mag ;
+//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
+			camX += xx ;
+			camY += xy ;
+			camZ += xz ;
+			cx += xx ;
+			cy += xy ;
+			cz += xz ;
 		}
 		var camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
 		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz).
@@ -2774,6 +2837,16 @@ console.log(r) ;
 			var d = render.getModelData(i) ;
 			var m = new CanvasMatrix4(d.bm) ;
 			if(d.mm) m.multRight(d.mm) ;
+			if(render.data.group) {
+				var g = render.data.group ;
+				for(var gi = 0 ;gi < g.length;gi++) {
+					var gg = g[gi] ;
+					if(!gg.bm) continue ;
+					for(var ggi=0;ggi<gg.model.length;ggi++) {
+						if(render.getModelIdx(gg.model[ggi])==i) m.multRight(gg.bm) ;
+					}
+				}
+			}
 			mod[i] = {
 				vs_uni:{
 					modelMatrix:new CanvasMatrix4(m).getAsWebGLFloatArray(),
@@ -2821,7 +2894,9 @@ console.log(r) ;
 	}
 	// mouse and key intaraction
 	var rotX = cam.camRX ,rotY = cam.camRY ;
+	var gev=null,gx=0,gy=0 ;
 	var gz = cam.camd ;
+	var dragging = false ;
 	function mouse(cam) {
 		//mouse intraction
 		var mag = 300*pixRatio /can.width;
@@ -2831,6 +2906,7 @@ console.log(r) ;
 				if(Param.pause) return true;
 				rotX = cam.camRX
 				rotY = cam.camRY
+				dragging = true ;
 				if(pox.event) pox.event("down",{sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
 				return false ;
 			},
@@ -2840,24 +2916,32 @@ console.log(r) ;
 				cam.camRY = rotY+d.dx*mag ;
 				if(cam.camRX>89)cam.camRX=89 ;
 				if(cam.camRX<-89)cam.camRX=-89 ;
+
 				if(pox.event) pox.event("move",{ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			up:function(d) {
 				rotX += d.dy*mag ;
 				rotY += d.dx*mag; 
+				if(gev!==null) {
+					gx = gev.rx - rotX ;
+					gy = gev.ry - rotY ;
+					console.log(gx+"/"+gy) ;
+				}
+				dragging = false ;
 				if(pox.event) pox.event("up",{dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
 				return false ;
 			},
 			out:function(d) {
 				rotX += d.dy*mag ;
 				rotY += d.dx*mag; 
+				dragging = false ;
 				if(pox.event) pox.event("out",{dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/30*sset.scale ;
+				cam.camd += d/40*sset.scale ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;
@@ -2865,13 +2949,27 @@ console.log(r) ;
 			gesture:function(z,r) {
 				if(Param.pause) return true;
 				if(z==0) {
-					gz = cam.camd ;
+					gz = cam.camd ; 
 					return false ;
 				}
 				cam.camd = gz / z ;
 				if(pox.event) pox.event("gesture",z) ;
 				return false ;
 			},
+			gyro:function(ev) {
+				if(Param.pause || !cam.camGyro) return true;
+				if(ev.rx===null) return true ;
+				gev = ev ;
+				if(dragging) return true ;
+//				console.log(ev) ;
+				cam.camRX = ev.rx - gx;
+				cam.camRY = ev.ry - gy ;
+//		console.log(gx+"/"+gy) ;
+				if(cam.camRX>89)cam.camRX=89 ;
+				if(cam.camRX<-89)cam.camRX=-89 ;
+
+				return false ;
+			}
 		})
 		WBind.addev(window,"keydown", function(ev){
 //			console.log("key"+ev.keyCode);

@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerEditor</title>
-<script src="js/WWG.js?1"></script>
+<script src="js/WWG.js?2"></script>
 <script src="js/CanvasMatrix.js"></script>
 <script src="js/WWModel.js?1"></script>
 <script src="js/Pointer.js"></script>
@@ -97,9 +97,6 @@ POXE.reload = ()=> {
 	console.log("reload") ;
 	POXE.POXP.cls() ;
 	POXE.POXP.stop()  ;
-	POXE.POXP = null ;
-	POXE.POXP = new PoxPlayer('#screen1') ;
-	POXE.POXP.setError( POXE.msg) ;
 	var data = {
 		m:POXE.e1.getValue(),
 		vs:POXE.e2.getValue(),
@@ -123,10 +120,6 @@ POXE.set = (src,edit=true)=> {
 	console.log(pox);
 	POXE.setting = pox.setting ;
 	POXE.save(pox.src) ;
-
-//	var ret = POXE.POXP.init(pox,true) ;
-//	if(ret ) POXE.msg(ret ) ;
-//	else 	POXE.msg("init ok");
 }
 POXE.ace = ()=> {
 	var fontsize = 14 ;

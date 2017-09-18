@@ -244,7 +244,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 				reject("link error:"+gl.getProgramInfoLog(program)); return false;
 			}
 			ret.program = program ;
-//			gl.useProgram(program);
+			gl.useProgram(program);
 		
 			var vr = parse_shader(vss) ;	
 //			console.log(vr) ;
@@ -422,7 +422,6 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 		if(!gl) { reject("no init") ;return ;}
 		var pr = [] ;
 		self.setShader({fshader:data.fshader,vshader:data.vshader}).then(function(ret) {
-			
 			//set program
 			self.vshader = ret.vshader ;
 			self.fshader = ret.fshader ;
@@ -441,12 +440,12 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 			Promise.all(pr).then(function(result) {
 //				console.log(result) ;
 				self.texobj = result ;
-				
 				// set initial values
 				if(!self.setUniValues(data)) {
 					reject("no uniform name") ;
 					return ;
 				}
+				
 				if(self.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 				if(self.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
 				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
