@@ -32,6 +32,9 @@ onload = function() {
 		var or = window.orientation ;
 		$("cc").style.display = (or==90||or==-90)&&poxp.param.isStereo?"none":"block" ;
 	})
+	$("b_edit").addEventListener("click",function(ev) {
+		location.href="poxe.html?"+q ;
+	})
 }
 </script>
 <style>
@@ -96,7 +99,7 @@ canvas {
 <label><input type=checkbox id=autorot>rot</label>
 <label><input type=checkbox id=isstereo>stereo</label>
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
-[<span id="fps"></span>FPS]
+[<span id="fps"></span>FPS]<button id=b_edit>EDIT</button>
 </div>
 <div id=loading><img src="guruguru.gif"></div>
 <canvas id="screen1"></canvas>
