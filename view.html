@@ -30,7 +30,9 @@ onload = function() {
 	}
 	window.addEventListener("deviceorientation", function(ev) {
 		var or = window.orientation ;
-		$("cc").style.display = (or==90||or==-90)&&poxp.param.isStereo?"none":"block" ;
+		var d = (or==90||or==-90)&&poxp.param.isStereo?"none":"block" ;
+		$("cc").style.display = d ;
+		$("footer").style.display = d ;
 	})
 	$("b_edit").addEventListener("click",function(ev) {
 		location.href="poxe.html?"+q ;
