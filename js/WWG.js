@@ -162,6 +162,9 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			}
 			this.gl.activeTexture(this.gl.TEXTURE0+uni.texunit);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[value]);
+			if(this.data.texture[value].video) {
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.data.texture[value].video);	
+			}
 			this.gl.uniform1i(uni.pos,uni.texunit) ;
 			break ;
 	}
@@ -295,7 +298,7 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 	var tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-	gl.generateMipmap(gl.TEXTURE_2D);
+	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
 	switch(option.flevel) {
 	case 0:
@@ -347,6 +350,8 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 			}
 		} else if(tex.img instanceof Image) {
 			resolve( self.genTex(tex.img,tex.opt) ) 
+		} else if(tex.video ) {
+			resolve( self.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
 		} else if(tex.buffer) {
 			if(tex.mrt!=undefined) {
 				resolve( tex.buffer.fb.t[tex.mrt])
