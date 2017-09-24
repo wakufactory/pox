@@ -15,16 +15,17 @@ navigator.mediaDevices.enumerateDevices().then(function(s) {
  		}
  	}
  })
+var stream ;
 function v() {
 	navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(function(st) {
 		console.log("get stream") ;
+		stream = st ;
 		var video = document.createElement('video');
+		document.body.appendChild(video) ;
 		video.addEventListener('canplay', function(){
 			console.log("canplay")
 		})
-		video.src = window.URL.createObjectURL(st);
-//		video.load() ;
-		document.body.appendChild(video) ;
+		video.src = window.URL.createObjectURL(stream);
 	})
 }
 }
