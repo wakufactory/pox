@@ -17,7 +17,7 @@ navigator.mediaDevices.enumerateDevices().then(function(s) {
  })
 var stream ;
 function v() {
-	document.body.addEventListener("touchstart", function() {
+//	document.body.addEventListener("touchstart", function() {
 	navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(function(st) {
 		console.log("get stream") ;
 		stream = st ;
@@ -31,7 +31,7 @@ function v() {
 //		video.src = window.URL.createObjectURL(stream);
 		
 	})
-	})
+//	})
 }
 }
 </script>
