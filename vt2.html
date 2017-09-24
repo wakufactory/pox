@@ -11,14 +11,14 @@ navigator.mediaDevices.enumerateDevices().then(function(s) {
  	for(var i=0;i<s.length;i++) {
  		if(s[i].kind =="videoinput") {
  			console.log(s[i].label+"/"+s[i].deviceId)
- 			v() ;
+ 			v(s[i].deviceId) ;
  		}
  	}
  })
 var stream ;
-function v() {
+function v(id) {
 //	document.body.addEventListener("touchstart", function() {
-	navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(function(st) {
+	navigator.mediaDevices.getUserMedia({video: {deviceId:id}, audio: false}).then(function(st) {
 		console.log("get stream") ;
 		stream = st ;
 		var video = document.createElement('video');
@@ -27,9 +27,11 @@ function v() {
 		video.addEventListener('canplay', function(){
 			console.log("canplay")
 		})
-		video.srcObject = stream ;
-//		video.src = window.URL.createObjectURL(stream);
-		
+		try {
+			video.src = window.URL.createObjectURL(stream);
+		} catch(err) {
+			video.srcObject = st ;
+		}
 	})
 //	})
 }
