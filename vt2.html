@@ -22,6 +22,7 @@ function v() {
 		console.log("get stream") ;
 		stream = st ;
 		var video = document.createElement('video');
+		video.setAttribute("autoplay", true)
 		document.body.appendChild(video) ;
 		video.addEventListener('canplay', function(){
 			console.log("canplay")
