@@ -11,13 +11,13 @@ navigator.mediaDevices.enumerateDevices().then(function(s) {
  	for(var i=0;i<s.length;i++) {
  		if(s[i].kind =="videoinput") {
  			console.log(s[i].label+"/"+s[i].deviceId)
- 			v(s[i].deviceId) ;
+ 			
  		}
  	}
  })
 var stream ;
-function v(id) {
-//	document.body.addEventListener("touchstart", function() {
+v() ;
+function v() {
 	navigator.mediaDevices.getUserMedia({video: {facingMode: { exact: "environment" }}, audio: false}).then(function(st) {
 		console.log("get stream") ;
 		stream = st ;
@@ -33,7 +33,6 @@ function v(id) {
 			video.srcObject = st ;
 		}
 	})
-//	})
 }
 }
 </script>
