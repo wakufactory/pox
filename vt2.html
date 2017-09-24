@@ -17,7 +17,7 @@ navigator.mediaDevices.enumerateDevices().then(function(s) {
  })
 var stream ;
 function v() {
-	document.body.addEventListener("mousedown", function() {
+	document.body.addEventListener("touchstart", function() {
 	navigator.mediaDevices.getUserMedia({video: true, audio: false}).then(function(st) {
 		console.log("get stream") ;
 		stream = st ;
