@@ -28,6 +28,7 @@ function v() {
 			console.log("canplay")
 		})
 		video.src = window.URL.createObjectURL(stream);
+		video.srcObject = stream ;
 	})
 	})
 }
