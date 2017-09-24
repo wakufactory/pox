@@ -23,6 +23,7 @@ function v() {
 		stream = st ;
 		var video = document.createElement('video');
 		video.setAttribute("autoplay", true)
+		video.setAttribute("playsinline",true)
 		document.body.appendChild(video) ;
 		video.addEventListener('canplay', function(){
 			console.log("canplay")
