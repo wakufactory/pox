@@ -18,7 +18,7 @@ navigator.mediaDevices.enumerateDevices().then(function(s) {
 var stream ;
 v() ;
 function v() {
-	navigator.mediaDevices.getUserMedia({video: {facingMode: { exact: "environment" }}, audio: false}).then(function(st) {
+	navigator.mediaDevices.getUserMedia({video: {facingMode:"environment" }, audio: false}).then(function(st) {
 		console.log("get stream") ;
 		stream = st ;
 		var video = document.createElement('video');
