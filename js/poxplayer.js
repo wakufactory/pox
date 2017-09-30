@@ -122,6 +122,7 @@ PoxPlayer.prototype.setPacked = function(param={}) {
 }
 PoxPlayer.prototype.stop = function() {
 	window.cancelAnimationFrame(this.loop) ; 
+	if(this.pox.unload) this.pox.unload() ;
 }
 PoxPlayer.prototype.cls = function() {
 	if(this.render) this.render.clear() ;
