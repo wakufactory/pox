@@ -6,20 +6,23 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
-<script src="js/WWG.js"></script>
+<script src="ga.js"></script>
+<script src="js/WWG.js?3"></script>
 <script src="js/CanvasMatrix.js"></script>
 <script src="js/WWModel.js?"></script>
 <script src="js/Pointer.js"></script>
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
-<script src="js/poxplayer.js?11"></script>
+<script src="js/poxplayer.js?13"></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
 	var q = location.search.substr(1).split("&") ;
 	var poxp = new PoxPlayer('#screen1') ;
+	var ss ;
 	poxp.load(q[0]).then(function(src) {
+		ss = src ;
 		poxp.set(src)
 	}).catch(function(err) {
 		$("loading").style.display = "none" ;
@@ -28,6 +31,9 @@ onload = function() {
 	poxp.renderStart = function() {
 		$("loading").style.display = "none" ;		
 	}
+	poxp.setError( function(msg) {
+		console.log(msg) ;
+	})
 	window.addEventListener("deviceorientation", function(ev) {
 		var or = window.orientation ;
 		var d = (or==90||or==-90)&&poxp.param.isStereo?"none":"block" ;
@@ -96,6 +102,7 @@ canvas {
 	content: "▶️" ;
 }
 </style>
+</head>
 <body>
 <div id=cc>
 <label><input type=checkbox id=autorot>rot</label>
@@ -106,4 +113,15 @@ canvas {
 <div id=loading><img src="guruguru.gif"></div>
 <canvas id="screen1"></canvas>
 <div id=footer>Made by <a href="http://wakufactory.jp/wgl/pox/ ">PoExE</a></div>
+<!--
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-19823181-1', 'auto');
+  ga('send', 'pageview');
+</script>
+-->
 </body>
+</html>
