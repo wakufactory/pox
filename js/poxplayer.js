@@ -143,7 +143,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.scene = sc ;
 	var sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
-	cam.camd = 5*sset.scale ;
+	cam.camd = cam.camd*sset.scale ;
 	if(sset.cam!==undefined) {
 		for(var k in sset.cam) {
 			cam[k] = sset.cam[k] ;
@@ -372,7 +372,7 @@ console.log(r) ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/40*sset.scale ;
+				cam.camd += d/100*sset.scale ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;
