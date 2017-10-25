@@ -383,7 +383,14 @@ WWModel.prototype.primitive  = function(type,param) {
 		]
 		break ;
 	case "mesh":
-		
+		this.parametricModel( function(u,v) {
+			var r = {
+				px:(u-0.5)*wx, py:0, pz:(v-0.5)*wz,
+				nx:0, ny:1, nz:0,
+				mu:u, mv:v }
+			return r ;
+		},{start:1.0,end:0,div:div},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		return this ;		
 		break ;
 	case "torus":
 		this.parametricModel( function(u,v) {
