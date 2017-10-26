@@ -171,11 +171,12 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 }
 
 WWG.prototype.Render.prototype.setShader = function(data) {
+	var tu = 0 ;
 	function parse_shader(src) {
 		var l = src.split("\n") ;
 		var uni = [] ;
 		var att = [] ;
-		var tu = 0 ;
+
 		for(i=0;i<l.length;i++) {
 			var ln = l[i] ;
 			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
