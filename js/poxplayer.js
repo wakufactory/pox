@@ -37,7 +37,8 @@ var PoxPlayer  = function(can) {
 		camRX:30,
 		camRY:-30,
 		camd:5,
-		camAngle:60,		//cam angle(deg) 
+		camAngle:60,	//cam angle(deg) 
+		camWidth:1.0,
 		camNear:0.01, 	//near
 		camFar:1000, 	//far
 		camGyro:true, // use gyro
@@ -255,8 +256,9 @@ console.log(r) ;
 			cz += xz ;
 		}
 		var camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
-		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz).
-			perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
+		if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		else camM = camM.pallarel(cam.camWidth,aspect, cam.camNear, cam.camFar) ;
 
 		return {camX:camX,camY:camY,camZ:camZ,camM:camM} ;
 	}
