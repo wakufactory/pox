@@ -1,10 +1,16 @@
 //WBind 
 // license MIT
 // 2017 wakufactory 
-WBind = {} 
+WBind = { } 
 
-WBind.create = function() {
-	return new WBind.obj ;
+WBind.create = function(init) {
+	var obj = new WBind.obj ;
+	if(init!==undefined) {
+		for(var i in init) {
+			obj[i] = init[i] ;
+		}
+	}
+	return obj ;
 }
 WBind.obj = function() {
 	this.prop = {} ;
@@ -45,7 +51,7 @@ WBind._getval = function(e) {
 // bind innerHTML
 WBind.obj.prototype.bindHtml= function(name,elem,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	this._elem[name] = e ;
 	if(!func) func={} ;
 	this._func[name] = func ;
@@ -72,12 +78,12 @@ WBind.obj.prototype.bindHtml= function(name,elem,func) {
 	})
 	if((e instanceof NodeList || Array.isArray(e))) this.prop[name] = e[0].innerHTML ;
 	else this.prop[name] = e.innerHTML ;
-	return true ;
+	return this ;
 }
 //bind css
 WBind.obj.prototype.bindStyle= function(name,elem,css,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	this._elem[name] = e ;
 	if(!func) func={} ;
 	this._func[name] = func ;	
@@ -103,12 +109,12 @@ WBind.obj.prototype.bindStyle= function(name,elem,css,func) {
 	})
 	if((e instanceof NodeList || Array.isArray(e))) this.prop[name] = e[0].style[css] ;
 	else this.prop[name] = e.style[css] ;
-	return true ;	
+	return this ;	
 }
 //bind attribute
 WBind.obj.prototype.bindAttr= function(name,elem,attr,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	this._elem[name] = e ;
 	if(!func) func={} ;
 	this._func[name] = func ;	
@@ -134,12 +140,12 @@ WBind.obj.prototype.bindAttr= function(name,elem,attr,func) {
 	})
 	if((e instanceof NodeList || Array.isArray(e))) this.prop[name] = e[0].getAttribute(attr) ;
 	else this.prop[name] = e.getAttribute(attr) ;
-	return true ;	
+	return this ;	
 }
 // bind input
 WBind.obj.prototype.bindInput= function(name,elem,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	if(!func) func={} ;
 	this._func[name] = func ;
 	if((e instanceof NodeList || Array.isArray(e))&&
@@ -256,7 +262,7 @@ WBind.obj.prototype.bindInput= function(name,elem,func) {
 		}
 		else e.value = v ;	
 	}
-	return true ;
+	return this ;
 }
 
 WBind.obj.prototype.getCheck = function(name) {
@@ -322,6 +328,7 @@ WBind.obj.prototype.setTimer = function(name,to,ttime,opt) {
 	var o =  {from:cd,to:to,st:now+delay,et:now+delay+ttime,opt:opt} ;
 	this._tobjs[name] = o ;
 //	WBind.log(o) ;
+	return this ;
 }
 WBind.obj.prototype.clearTimer = function(name) {
 	delete(this._tobjs[name])
