@@ -76,10 +76,11 @@ PoxPlayer.prototype.load = function(d) {
 	})
 }
 PoxPlayer.prototype.set = function(d,param={}) { 
-	var m = d.m ;
+	
+	return new Promise((resolve,reject) => {
 	var VS = d.vs ;
 	var FS = d.fs ;
-
+	console.log("set")
 	var POX = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	this.pox = POX ;
 	function V3add() {
@@ -110,13 +111,40 @@ PoxPlayer.prototype.set = function(d,param={}) {
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
 	}
-	try {
-		eval(m);	 //EVALUATE CODE
-	}catch(err) {
-		this.emsg = ("eval error "+err);
-		return null ;
-	}
-	return POX ;
+	this.parseJS(d.m).then((m)=> {
+		try {
+			eval(m);	 //EVALUATE CODE
+		}catch(err) {
+			this.emsg = ("eval error "+err);
+			console.log("eval error "+err)
+			resolve(null);
+		}
+		resolve(POX) ;
+	})
+	
+	})
+}
+PoxPlayer.prototype.parseJS = function(src) {
+
+	return new Promise((resolve,reject) => {
+		var s = src.split("\n") ;
+		var inc = [] ;
+		for(var v of s) {
+			if(v.match(/^\/\/\@INCLUDE\("(.+)"\)/)) {
+				inc.push( this.wwg.loadAjax(RegExp.$1)) ;
+			} 
+		}
+		Promise.all(inc).then((res)=>{
+			var ret = [] ;
+			var c = 0 ;
+			for(var v of s) {
+				if(v.match(/^\/\/\@INCLUDE\("(.+)"\)/)) {
+					ret = ret.concat(res[c++].split("\n"))
+				} else ret.push(v) ;
+			}
+			resolve( ret.join("\n"))  ;
+		})
+	})
 }
 PoxPlayer.prototype.setPacked = function(param={}) { 
 	
@@ -347,8 +375,8 @@ console.log(r) ;
 				if(Param.pause) return true;
 				cam.camRX = rotX+d.dy*mag ;
 				cam.camRY = rotY+d.dx*mag ;
-				if(cam.camRX>89)cam.camRX=89 ;
-				if(cam.camRX<-89)cam.camRX=-89 ;
+				if(cam.camRX>90)cam.camRX=90;
+				if(cam.camRX<-90)cam.camRX=-90;
 
 				if(pox.event) pox.event("move",{ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;

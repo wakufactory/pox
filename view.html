@@ -7,14 +7,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
 <script src="ga.js"></script>
-<script src="js/WWG.js?3"></script>
-<script src="js/CanvasMatrix.js"></script>
+<script src="js/WWG.js?4"></script>
+<script src="js/CanvasMatrix.js?"></script>
 <script src="js/WWModel.js?"></script>
 <script src="js/Pointer.js"></script>
-<script src="js/WBind.js"></script>
+<script src="js/WBind.js?"></script>
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
-<script src="js/poxplayer.js?13"></script>
+<script src="js/poxplayer.js?14"></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
@@ -23,7 +23,9 @@ onload = function() {
 	var ss ;
 	poxp.load(q[0]).then(function(src) {
 		ss = src ;
-		poxp.set(src)
+		poxp.set(src).then(function(pox){
+			if(pox.setting.copyright) $("footer").innerHTML += "&nbsp;&nbsp;"+pox.setting.copyright;
+		})
 	}).catch(function(err) {
 		$("loading").style.display = "none" ;
 		alert(err) ;
