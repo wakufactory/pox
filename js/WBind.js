@@ -345,8 +345,9 @@ WBind.obj.prototype.updateTimer = function() {
 			if(o.opt.sfx) v = v + o.opt.sfx ;
 			this[name] = v ;
 //			WBind.log("timeup "+o.key) ;
-			if(o.opt.efunc) o.opt.efunc(o.to) ;
 			delete(this._tobjs[name]) ;
+			if(o.opt.efunc) o.opt.efunc(o.to) ;
+
 		} else {
 			var t = (now-o.st)/(o.et-o.st) ;
 			if(o.opt.tfunc) {
