@@ -31,7 +31,7 @@ onload = ()=> {
 
 	if(location.search.match(/\?.+\.json/)) {
 		POXE.POXP.load(location.search.substr(1)+"?").then((src)=>{
-			POXE.set(src) ;
+			POXE.save(src) ; ;
 			location.href ="?" ;
 		}) ;
 	} else {
