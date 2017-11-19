@@ -308,15 +308,17 @@ console.log(r) ;
 					}
 				}
 			}
-			mod[i] = {
+			var uni = {
 				vs_uni:{
 					modelMatrix:new CanvasMatrix4(m).getAsWebGLFloatArray(),
 					mvpMatrix:new CanvasMatrix4(m).
 						multRight(cam.camM).getAsWebGLFloatArray(),
 					invMatrix:new CanvasMatrix4(m).
 						invert().transpose().getAsWebGLFloatArray()},
-				fs_uni:{eyevec:[cam.camX,cam.camY,cam.camZ]}
+					eyevec:[cam.camX,cam.camY,cam.camZ]
 			}
+			uni.fs_uni = uni.vs_uni
+			mod[i]  = uni ;
 		}
 		update.model = mod ;
 		return update ;		
