@@ -162,17 +162,21 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			}
 			this.gl.activeTexture(this.gl.TEXTURE0+uni.texunit);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[value]);
+			if(this.data.texture && this.data.texture[value].video) {
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.data.texture[value].video);	
+			}
 			this.gl.uniform1i(uni.pos,uni.texunit) ;
 			break ;
 	}
 }
 
 WWG.prototype.Render.prototype.setShader = function(data) {
+	var tu = 0 ;
 	function parse_shader(src) {
 		var l = src.split("\n") ;
 		var uni = [] ;
 		var att = [] ;
-		var tu = 0 ;
+
 		for(i=0;i<l.length;i++) {
 			var ln = l[i] ;
 			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
@@ -295,7 +299,7 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 	var tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-	gl.generateMipmap(gl.TEXTURE_2D);
+	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
 	switch(option.flevel) {
 	case 0:
@@ -347,6 +351,8 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 			}
 		} else if(tex.img instanceof Image) {
 			resolve( self.genTex(tex.img,tex.opt) ) 
+		} else if(tex.video ) {
+			resolve( self.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
 		} else if(tex.buffer) {
 			if(tex.mrt!=undefined) {
 				resolve( tex.buffer.fb.t[tex.mrt])
@@ -1112,7 +1118,14 @@ WWModel.prototype.primitive  = function(type,param) {
 		]
 		break ;
 	case "mesh":
-		
+		this.parametricModel( function(u,v) {
+			var r = {
+				px:(u-0.5)*wx, py:0, pz:(v-0.5)*wz,
+				nx:0, ny:1, nz:0,
+				mu:u, mv:v }
+			return r ;
+		},{start:1.0,end:0,div:div},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		return this ;		
 		break ;
 	case "torus":
 		this.parametricModel( function(u,v) {
@@ -1786,12 +1799,12 @@ CanvasMatrix4.prototype.multLeft = function(mat)
 
 CanvasMatrix4.prototype.ortho = function(left, right, bottom, top, near, far)
 {
-    var tx = (left + right) / (left - right);
+    var tx = (left + right) / (right - left);
     var ty = (top + bottom) / (top - bottom);
     var tz = (far + near) / (far - near);
     
     var matrix = new CanvasMatrix4();
-    matrix.m11 = 2 / (left - right);
+    matrix.m11 = 2 / (right - left);
     matrix.m12 = 0;
     matrix.m13 = 0;
     matrix.m14 = 0;
@@ -1805,7 +1818,7 @@ CanvasMatrix4.prototype.ortho = function(left, right, bottom, top, near, far)
     matrix.m34 = 0;
     matrix.m41 = tx;
     matrix.m42 = ty;
-    matrix.m43 = tz;
+    matrix.m43 = -tz;
     matrix.m44 = 1;
     
     this.multRight(matrix);
@@ -1853,7 +1866,15 @@ CanvasMatrix4.prototype.perspective = function(fovy, aspect, zNear, zFar)
     this.frustum(left, right, bottom, top, zNear, zFar);
     return this ;
 }
-
+CanvasMatrix4.prototype.pallarel = function(width, aspect, zNear, zFar)
+{
+    var right = width/2;
+    var left = -right;
+	var top = right / aspect ;
+	var bottom = -top ;
+    this.ortho(left, right, bottom, top, zNear, zFar);
+    return this ;
+}
 CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, centerz, upx, upy, upz)
 {
     var matrix = new CanvasMatrix4();
@@ -2166,10 +2187,16 @@ GPad.get = function(pad) {
 }//WBind 
 // license MIT
 // 2017 wakufactory 
-WBind = {} 
+WBind = { } 
 
-WBind.create = function() {
-	return new WBind.obj ;
+WBind.create = function(init) {
+	var obj = new WBind.obj ;
+	if(init!==undefined) {
+		for(var i in init) {
+			obj[i] = init[i] ;
+		}
+	}
+	return obj ;
 }
 WBind.obj = function() {
 	this.prop = {} ;
@@ -2210,7 +2237,7 @@ WBind._getval = function(e) {
 // bind innerHTML
 WBind.obj.prototype.bindHtml= function(name,elem,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	this._elem[name] = e ;
 	if(!func) func={} ;
 	this._func[name] = func ;
@@ -2237,12 +2264,12 @@ WBind.obj.prototype.bindHtml= function(name,elem,func) {
 	})
 	if((e instanceof NodeList || Array.isArray(e))) this.prop[name] = e[0].innerHTML ;
 	else this.prop[name] = e.innerHTML ;
-	return true ;
+	return this ;
 }
 //bind css
 WBind.obj.prototype.bindStyle= function(name,elem,css,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	this._elem[name] = e ;
 	if(!func) func={} ;
 	this._func[name] = func ;	
@@ -2268,12 +2295,12 @@ WBind.obj.prototype.bindStyle= function(name,elem,css,func) {
 	})
 	if((e instanceof NodeList || Array.isArray(e))) this.prop[name] = e[0].style[css] ;
 	else this.prop[name] = e.style[css] ;
-	return true ;	
+	return this ;	
 }
 //bind attribute
 WBind.obj.prototype.bindAttr= function(name,elem,attr,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	this._elem[name] = e ;
 	if(!func) func={} ;
 	this._func[name] = func ;	
@@ -2299,12 +2326,12 @@ WBind.obj.prototype.bindAttr= function(name,elem,attr,func) {
 	})
 	if((e instanceof NodeList || Array.isArray(e))) this.prop[name] = e[0].getAttribute(attr) ;
 	else this.prop[name] = e.getAttribute(attr) ;
-	return true ;	
+	return this ;	
 }
 // bind input
 WBind.obj.prototype.bindInput= function(name,elem,func) {
 	var e = WBind._getobj(elem);
-	if(!e) return false ;
+	if(!e) return this ;
 	if(!func) func={} ;
 	this._func[name] = func ;
 	if((e instanceof NodeList || Array.isArray(e))&&
@@ -2421,7 +2448,7 @@ WBind.obj.prototype.bindInput= function(name,elem,func) {
 		}
 		else e.value = v ;	
 	}
-	return true ;
+	return this ;
 }
 
 WBind.obj.prototype.getCheck = function(name) {
@@ -2468,6 +2495,9 @@ WBind.obj.prototype.bindAll = function(selector,base) {
 }
 //bind timer
 WBind.obj.prototype.setTimer = function(name,to,ttime,opt) {
+	if(Array.isArray(to)) {
+		return this.setTimerM(name,to) ;
+	}
 	if(!opt) opt = {} ;
 	var cd ;
 	var sfx = null ;
@@ -2480,13 +2510,42 @@ WBind.obj.prototype.setTimer = function(name,to,ttime,opt) {
 		}
 		else cd = 0 ;	
 	} ;
-	if(cd == to) return ;
+	if(cd == to) return this;
 	var delay = 0 ;
 	if(opt.delay) delay = opt.delay ;
 	var now = new Date().getTime() ;
 	var o =  {from:cd,to:to,st:now+delay,et:now+delay+ttime,opt:opt} ;
-	this._tobjs[name] = o ;
+	this._tobjs[name] = {tl:[o],tc:0} ;
 //	WBind.log(o) ;
+	return this ;
+}
+WBind.obj.prototype.setTimerM = function(name,s) {
+	var o = [] ;
+	var now = new Date().getTime() ;
+	var cd = this[name] ;
+	for(var i=0;i<s.length;i++) {
+		var to = s[i].to ;
+		var ttime = s[i].time ;
+		var opt = s[i].opt ;
+		if(!opt) opt = {} ;
+
+		var sfx = null ;
+		if(isNaN(cd)) {
+			if(cd.match(/^([0-9\-\.]+)(.*)$/)) {
+				cd = parseFloat(RegExp.$1) ;
+				opt.sfx = RegExp.$2 ;
+			}
+			else cd = 0 ;	
+		} ;
+//		if(cd == to) continue ;
+		var delay = 0 ;
+		if(opt.delay) delay = opt.delay ;
+		o.push({from:cd,to:to,st:now+delay,et:now+delay+ttime,opt:opt}) ;
+		cd = to ;
+	}
+	this._tobjs[name] = {tl:o,tc:0} ;
+	console.log(o);
+	return this ;
 }
 WBind.obj.prototype.clearTimer = function(name) {
 	delete(this._tobjs[name])
@@ -2494,8 +2553,10 @@ WBind.obj.prototype.clearTimer = function(name) {
 WBind.obj.prototype.updateTimer = function() {
 	var now = new Date().getTime() ;
 	for(var name in this._tobjs) {
-		var o = this._tobjs[name] ;
-		if(o==null) continue ;
+		var obj = (this._tobjs[name])
+		var o = obj.tl[obj.tc] ;
+//		console.log(o);
+		if(o===undefined) continue ;
 		
 		if(o.st>now) continue ;
 		if(o.et<=now) {
@@ -2503,8 +2564,10 @@ WBind.obj.prototype.updateTimer = function() {
 			if(o.opt.sfx) v = v + o.opt.sfx ;
 			this[name] = v ;
 //			WBind.log("timeup "+o.key) ;
+			obj.tc++ ;
+			if(this._tobjs[name].tl.length<obj.tc) delete(this._tobjs[name]) ;
 			if(o.opt.efunc) o.opt.efunc(o.to) ;
-			delete(this._tobjs[name]) ;
+
 		} else {
 			var t = (now-o.st)/(o.et-o.st) ;
 			if(o.opt.tfunc) {
@@ -2607,7 +2670,8 @@ var PoxPlayer  = function(can) {
 		camRX:30,
 		camRY:-30,
 		camd:5,
-		camAngle:60,		//cam angle(deg) 
+		camAngle:60,	//cam angle(deg) 
+		camWidth:1.0,
 		camNear:0.01, 	//near
 		camFar:1000, 	//far
 		camGyro:true, // use gyro
@@ -2645,10 +2709,11 @@ PoxPlayer.prototype.load = function(d) {
 	})
 }
 PoxPlayer.prototype.set = function(d,param={}) { 
-	var m = d.m ;
+	
+	return new Promise((resolve,reject) => {
 	var VS = d.vs ;
 	var FS = d.fs ;
-
+	console.log("set")
 	var POX = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	this.pox = POX ;
 	function V3add() {
@@ -2679,19 +2744,47 @@ PoxPlayer.prototype.set = function(d,param={}) {
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
 	}
-	try {
-		eval(m);	 //EVALUATE CODE
-	}catch(err) {
-		this.emsg = ("eval error "+err);
-		return null ;
-	}
-	return POX ;
+	this.parseJS(d.m).then((m)=> {
+		try {
+			eval(m);	 //EVALUATE CODE
+		}catch(err) {
+			this.emsg = ("eval error "+err);
+			console.log("eval error "+err)
+			resolve(null);
+		}
+		resolve(POX) ;
+	})
+	
+	})
+}
+PoxPlayer.prototype.parseJS = function(src) {
+
+	return new Promise((resolve,reject) => {
+		var s = src.split("\n") ;
+		var inc = [] ;
+		for(var v of s) {
+			if(v.match(/^\/\/\@INCLUDE\("(.+)"\)/)) {
+				inc.push( this.wwg.loadAjax(RegExp.$1)) ;
+			} 
+		}
+		Promise.all(inc).then((res)=>{
+			var ret = [] ;
+			var c = 0 ;
+			for(var v of s) {
+				if(v.match(/^\/\/\@INCLUDE\("(.+)"\)/)) {
+					ret = ret.concat(res[c++].split("\n"))
+				} else ret.push(v) ;
+			}
+			resolve( ret.join("\n"))  ;
+		})
+	})
 }
 PoxPlayer.prototype.setPacked = function(param={}) { 
 	
 }
 PoxPlayer.prototype.stop = function() {
 	window.cancelAnimationFrame(this.loop) ; 
+	if(this.pox.unload) this.pox.unload() ;
 }
 PoxPlayer.prototype.cls = function() {
 	if(this.render) this.render.clear() ;
@@ -2712,7 +2805,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.scene = sc ;
 	var sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
-	cam.camd = 5*sset.scale ;
+	cam.camd = cam.camd*sset.scale ;
 	if(sset.cam!==undefined) {
 		for(var k in sset.cam) {
 			cam[k] = sset.cam[k] ;
@@ -2824,8 +2917,9 @@ console.log(r) ;
 			cz += xz ;
 		}
 		var camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
-		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz).
-			perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
+		if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		else camM = camM.pallarel(cam.camWidth,aspect, cam.camNear, cam.camFar) ;
 
 		return {camX:camX,camY:camY,camZ:camZ,camM:camM} ;
 	}
@@ -2847,15 +2941,17 @@ console.log(r) ;
 					}
 				}
 			}
-			mod[i] = {
+			var uni = {
 				vs_uni:{
 					modelMatrix:new CanvasMatrix4(m).getAsWebGLFloatArray(),
 					mvpMatrix:new CanvasMatrix4(m).
 						multRight(cam.camM).getAsWebGLFloatArray(),
 					invMatrix:new CanvasMatrix4(m).
 						invert().transpose().getAsWebGLFloatArray()},
-				fs_uni:{eyevec:[cam.camX,cam.camY,cam.camZ]}
+					eyevec:[cam.camX,cam.camY,cam.camZ]
 			}
+			uni.fs_uni = uni.vs_uni
+			mod[i]  = uni ;
 		}
 		update.model = mod ;
 		return update ;		
@@ -2914,8 +3010,8 @@ console.log(r) ;
 				if(Param.pause) return true;
 				cam.camRX = rotX+d.dy*mag ;
 				cam.camRY = rotY+d.dx*mag ;
-				if(cam.camRX>89)cam.camRX=89 ;
-				if(cam.camRX<-89)cam.camRX=-89 ;
+				if(cam.camRX>90)cam.camRX=90;
+				if(cam.camRX<-90)cam.camRX=-90;
 
 				if(pox.event) pox.event("move",{ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
@@ -2941,7 +3037,7 @@ console.log(r) ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/40*sset.scale ;
+				cam.camd += d/100*sset.scale ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;
@@ -2974,6 +3070,9 @@ console.log(r) ;
 		WBind.addev(window,"keydown", function(ev){
 //			console.log("key"+ev.keyCode);
 			if(Param.pause) return true ;
+			if(pox.event) {
+				if(!pox.event("key",ev)) return true ;
+			}
 			var z = cam.camd ;
 			if(ev.altKey) {
 				switch(ev.keyCode) {
@@ -2988,7 +3087,7 @@ console.log(r) ;
 					case 40:cam.camRX += keymag ; if(cam.camRX>90) cam.camRX = 90 ; break ;
 				}
 			}
-			if(pox.event) pox.event("key",ev) ;
+			
 			return true ;
 		})		
 	}

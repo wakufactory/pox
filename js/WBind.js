@@ -309,6 +309,9 @@ WBind.obj.prototype.bindAll = function(selector,base) {
 }
 //bind timer
 WBind.obj.prototype.setTimer = function(name,to,ttime,opt) {
+	if(Array.isArray(to)) {
+		return this.setTimerM(name,to) ;
+	}
 	if(!opt) opt = {} ;
 	var cd ;
 	var sfx = null ;
@@ -321,13 +324,41 @@ WBind.obj.prototype.setTimer = function(name,to,ttime,opt) {
 		}
 		else cd = 0 ;	
 	} ;
-	if(cd == to) return ;
+	if(cd == to) return this;
 	var delay = 0 ;
 	if(opt.delay) delay = opt.delay ;
 	var now = new Date().getTime() ;
 	var o =  {from:cd,to:to,st:now+delay,et:now+delay+ttime,opt:opt} ;
-	this._tobjs[name] = o ;
+	this._tobjs[name] = {tl:[o],tc:0} ;
 //	WBind.log(o) ;
+	return this ;
+}
+WBind.obj.prototype.setTimerM = function(name,s) {
+	var o = [] ;
+	var now = new Date().getTime() ;
+	var cd = this[name] ;
+	for(var i=0;i<s.length;i++) {
+		var to = s[i].to ;
+		var ttime = s[i].time ;
+		var opt = s[i].opt ;
+		if(!opt) opt = {} ;
+
+		var sfx = null ;
+		if(isNaN(cd)) {
+			if(cd.match(/^([0-9\-\.]+)(.*)$/)) {
+				cd = parseFloat(RegExp.$1) ;
+				opt.sfx = RegExp.$2 ;
+			}
+			else cd = 0 ;	
+		} ;
+//		if(cd == to) continue ;
+		var delay = 0 ;
+		if(opt.delay) delay = opt.delay ;
+		o.push({from:cd,to:to,st:now+delay,et:now+delay+ttime,opt:opt}) ;
+		cd = to ;
+	}
+	this._tobjs[name] = {tl:o,tc:0} ;
+	console.log(o);
 	return this ;
 }
 WBind.obj.prototype.clearTimer = function(name) {
@@ -336,8 +367,10 @@ WBind.obj.prototype.clearTimer = function(name) {
 WBind.obj.prototype.updateTimer = function() {
 	var now = new Date().getTime() ;
 	for(var name in this._tobjs) {
-		var o = this._tobjs[name] ;
-		if(o==null) continue ;
+		var obj = (this._tobjs[name])
+		var o = obj.tl[obj.tc] ;
+//		console.log(o);
+		if(o===undefined) continue ;
 		
 		if(o.st>now) continue ;
 		if(o.et<=now) {
@@ -345,7 +378,8 @@ WBind.obj.prototype.updateTimer = function() {
 			if(o.opt.sfx) v = v + o.opt.sfx ;
 			this[name] = v ;
 //			WBind.log("timeup "+o.key) ;
-			delete(this._tobjs[name]) ;
+			obj.tc++ ;
+			if(this._tobjs[name].tl.length<obj.tc) delete(this._tobjs[name]) ;
 			if(o.opt.efunc) o.opt.efunc(o.to) ;
 
 		} else {

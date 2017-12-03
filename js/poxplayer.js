@@ -437,6 +437,9 @@ console.log(r) ;
 		WBind.addev(window,"keydown", function(ev){
 //			console.log("key"+ev.keyCode);
 			if(Param.pause) return true ;
+			if(pox.event) {
+				if(!pox.event("key",ev)) return true ;
+			}
 			var z = cam.camd ;
 			if(ev.altKey) {
 				switch(ev.keyCode) {
@@ -451,7 +454,7 @@ console.log(r) ;
 					case 40:cam.camRX += keymag ; if(cam.camRX>90) cam.camRX = 90 ; break ;
 				}
 			}
-			if(pox.event) pox.event("key",ev) ;
+			
 			return true ;
 		})		
 	}
