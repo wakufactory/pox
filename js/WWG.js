@@ -45,6 +45,7 @@ WWG.prototype.init = function(canvas,opt) {
 	if(this.ext_mrt) {
 		this.mrt_att = this.ext_mrt.COLOR_ATTACHMENT0_WEBGL ;
 		this.mrt_draw = function(b,d){return this.ext_mrt.drawBuffersWEBGL(b,d)} ;
+	this.ext_i32 = gl.getExtension('OES_element_index_uint')
 	}
 
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
@@ -492,6 +493,10 @@ WWG.prototype.Render.prototype.i16Array = function(ar) {
 	if(ar instanceof Int16Array) return ar ;
 	else return new Int16Array(ar) ;
 }
+WWG.prototype.Render.prototype.i32Array = function(ar) {
+	if(ar instanceof Uint32Array) return ar ;
+	else return new Uint32Array(ar) ;
+}
 WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	var gl = this.gl
 	var geo = obj.geo ;
@@ -514,6 +519,7 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		tl += this.wwg.vsize[this.vs_att[geo.vtx_at[i]].type] ;
 	}
 	tl = tl*4 ;
+
 	ret.ats = ats ;
 	ret.tl = tl ;
 	var ofs = 0 ;
@@ -568,8 +574,15 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	}
 	if(flag && geo.idx) {
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
-		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
+		if(geo.vtx.length/(ret.tl/4) > 65535 && this.wwg.ext_i32) {
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
+			this.i32Array(geo.idx),gl.STATIC_DRAW ) ;
+			ret.i32 = true ;
+		} else {
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
 			this.i16Array(geo.idx),gl.STATIC_DRAW ) ;
+			ret.i32 = false ;
+		}
 	}
 	if(flag && inst) {
 		gl.bindBuffer(gl.ARRAY_BUFFER, ibuf) ;
@@ -711,10 +724,10 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 				return false ;
 		}
 		if(cmodel.inst) {
-			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
+			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 		} else {
-			if(geo.idx) gl.drawElements(gmode, geo.idx.length, gl.UNSIGNED_SHORT, ofs);
+			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
 			else gl.drawArrays(gmode, ofs,geo.vtx.length/3);
 		}
 		if(this.wwg.ext_vao) this.wwg.vao_bind(null);
