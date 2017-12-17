@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.2" ;
+	this.version = "0.9.3" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -45,6 +45,7 @@ WWG.prototype.init = function(canvas,opt) {
 	if(this.ext_mrt) {
 		this.mrt_att = this.ext_mrt.COLOR_ATTACHMENT0_WEBGL ;
 		this.mrt_draw = function(b,d){return this.ext_mrt.drawBuffersWEBGL(b,d)} ;
+	this.ext_i32 = gl.getExtension('OES_element_index_uint')
 	}
 
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
@@ -492,6 +493,10 @@ WWG.prototype.Render.prototype.i16Array = function(ar) {
 	if(ar instanceof Int16Array) return ar ;
 	else return new Int16Array(ar) ;
 }
+WWG.prototype.Render.prototype.i32Array = function(ar) {
+	if(ar instanceof Uint32Array) return ar ;
+	else return new Uint32Array(ar) ;
+}
 WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	var gl = this.gl
 	var geo = obj.geo ;
@@ -514,6 +519,7 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		tl += this.wwg.vsize[this.vs_att[geo.vtx_at[i]].type] ;
 	}
 	tl = tl*4 ;
+
 	ret.ats = ats ;
 	ret.tl = tl ;
 	var ofs = 0 ;
@@ -568,8 +574,15 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	}
 	if(flag && geo.idx) {
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
-		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
+		if(geo.vtx.length/(ret.tl/4) > 65535 && this.wwg.ext_i32) {
+				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
+			this.i32Array(geo.idx),gl.STATIC_DRAW ) ;
+			ret.i32 = true ;
+		} else {
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
 			this.i16Array(geo.idx),gl.STATIC_DRAW ) ;
+			ret.i32 = false ;
+		}
 	}
 	if(flag && inst) {
 		gl.bindBuffer(gl.ARRAY_BUFFER, ibuf) ;
@@ -711,10 +724,10 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 				return false ;
 		}
 		if(cmodel.inst) {
-			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
+			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 		} else {
-			if(geo.idx) gl.drawElements(gmode, geo.idx.length, gl.UNSIGNED_SHORT, ofs);
+			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
 			else gl.drawArrays(gmode, ofs,geo.vtx.length/3);
 		}
 		if(this.wwg.ext_vao) this.wwg.vao_bind(null);
@@ -2687,7 +2700,7 @@ PoxPlayer.prototype.resize = function() {
 	this.can.height = this.can.offsetHeight*this.pixRatio  ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		
 }
-PoxPlayer.prototype.load = function(d) {
+PoxPlayer.prototype.load = async function(d) {
 	return new Promise((resolve,reject) => {
 		if(typeof d == "string") {
 			var req = new XMLHttpRequest();
@@ -2698,7 +2711,7 @@ PoxPlayer.prototype.load = function(d) {
 	//				console.log(req.response) ;
 					resolve(req.response) ;
 				} else {
-					relect("Ajax error:"+req.statusText) ;					
+					reject("Ajax error:"+req.statusText) ;					
 				}
 			}
 			req.onerror = ()=> {
@@ -2708,9 +2721,9 @@ PoxPlayer.prototype.load = function(d) {
 		} else resolve(d) ;
 	})
 }
-PoxPlayer.prototype.set = function(d,param={}) { 
+PoxPlayer.prototype.set = async function(d,param={}) { 
 	
-	return new Promise((resolve,reject) => {
+//	return new Promise((resolve,reject) => {
 	var VS = d.vs ;
 	var FS = d.fs ;
 	console.log("set")
@@ -2744,18 +2757,19 @@ PoxPlayer.prototype.set = function(d,param={}) {
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
 	}
-	this.parseJS(d.m).then((m)=> {
+//	this.parseJS(d.m).then((m)=> {
+	var m = await this.parseJS(d.m) ;
 		try {
 			eval(m);	 //EVALUATE CODE
 		}catch(err) {
 			this.emsg = ("eval error "+err);
 			console.log("eval error "+err)
-			resolve(null);
+			return(null);
 		}
-		resolve(POX) ;
-	})
+		return(POX) ;
+//	})
 	
-	})
+//	})
 }
 PoxPlayer.prototype.parseJS = function(src) {
 
@@ -2805,7 +2819,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.scene = sc ;
 	var sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
-	cam.camd = cam.camd*sset.scale ;
 	if(sset.cam!==undefined) {
 		for(var k in sset.cam) {
 			cam[k] = sset.cam[k] ;
@@ -2826,35 +2839,36 @@ console.log(r) ;
 		if(window.GPad) GPad.init() ;	
 		//draw loop
 		var st = new Date().getTime() ;
-		var lt = st ;
-		var gp ;
-		var ft = lt ;
+		var tt = 0 ;
+		var rt = 0 ;
+		var ft = st ;
 		var fc = 0 ;
+		var gp ;
+
 		var self = this ;
 		(function loop(){
 			self.loop = window.requestAnimationFrame(loop) ;
+			var ct = new Date().getTime() ;
 			if(Param.pause) {
 				Param.fps=0;
+				tt = rt ;
+				st = ct ;
 				return ;
 			}
-			if(window.GPad && (gp = GPad.get())) {
-				cam.camRY += gp.axes[2] ;
-				cam.camRX += gp.axes[3] ;
-				cam.camd += gp.axes[1]/10 ;
-			}
-			var ct = new Date().getTime() ;
-			var tint = (ct - st) ;
+			rt = tt + ct-st ;
 			fc++ ;
-//console.log(fc);
 			if(ct-ft>=1000) {
 				Param.fps = fc ;
 				fc = 0 ;
 				ft = ct ; 
 			}
-			if(Param.autorot) cam.camRY += (ct-lt)/100 ;
-
-			update(r,pox,cam,ct) ;
-			lt = ct ;
+			if(Param.autorot) cam.camRY = (rt/100)%360;
+			if(window.GPad && (gp = GPad.get())) {
+				cam.camRY += gp.axes[2] ;
+				cam.camRX += gp.axes[3] ;
+				cam.camd += gp.axes[1]/10 ;
+			}
+			update(r,pox,cam,rt) ;
 			Param.updateTimer() ;
 		})();		
 	}).catch((err)=>{
@@ -2889,7 +2903,7 @@ console.log(r) ;
 			var upx =0 ,upy = 1 ,upz = 0 ;		
 		} else {
 		// bird camera mode 
-			var camd=  cam.camd ;
+			var camd=  cam.camd*sset.scale ;
 			var camX = -Math.sin(cam.camRY*RAD)*camd*Math.cos(cam.camRX*RAD)
 			var camY = Math.sin(cam.camRX*RAD)*camd ; 
 			var camZ = Math.cos(cam.camRY*RAD)*camd*Math.cos(cam.camRX*RAD)
@@ -2948,12 +2962,14 @@ console.log(r) ;
 						multRight(cam.camM).getAsWebGLFloatArray(),
 					invMatrix:new CanvasMatrix4(m).
 						invert().transpose().getAsWebGLFloatArray()},
-					eyevec:[cam.camX,cam.camY,cam.camZ]
+					eyevec:[cam.camX,cam.camY,cam.camZ],
 			}
 			uni.fs_uni = uni.vs_uni
+			uni.fs_uni.resolution = [can.width,can.height]
 			mod[i]  = uni ;
 		}
 		update.model = mod ;
+//	console.log(update) ;
 		return update ;		
 	}
 	// update scene
@@ -2981,8 +2997,8 @@ console.log(r) ;
 			render.gl.viewport(0,0,can.width,can.height) ;
 			if(!Param.pause) update = scene.update(render,cam,time,0)
 			camm = camMtx(render,cam,0) ;
-			if(update.vs_nui==undefined) update.vs_uni = {} ;
-			if(update.fs_nui==undefined) update.fs_uni = {} ;
+			if(update.vs_uni===undefined) update.vs_uni = {} ;
+			if(update.fs_uni===undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 0 ;
 			update.fs_uni.stereo = 0 ;
 			render.draw(modelMtx(render,camm,update),false) ;
@@ -3037,7 +3053,7 @@ console.log(r) ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/100*sset.scale ;
+				cam.camd += d/100 ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;
@@ -3076,8 +3092,8 @@ console.log(r) ;
 			var z = cam.camd ;
 			if(ev.altKey) {
 				switch(ev.keyCode) {
-					case 38:cam.camd = cam.camd - keymag*sset.scale ; if(cam.camd<0) cam.camd = 0 ; break ;
-					case 40:cam.camd = cam.camd + keymag*sset.scale ; break ;
+					case 38:cam.camd = cam.camd - keymag; if(cam.camd<0) cam.camd = 0 ; break ;
+					case 40:cam.camd = cam.camd + keymag ; break ;
 				}				
 			} else {
 				switch(ev.keyCode) {
