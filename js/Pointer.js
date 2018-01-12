@@ -26,7 +26,7 @@ Pointer = function(t,cb) {
 		self.dx = self.dy = 0 ;
 		self.s = pos(ev) ;
 		self.lastd = self.s ;
-		if(cb.down) if(!cb.down({sx:self.s.x,sy:self.s.y})) ev.preventDefault() ;	
+		if(cb.down) if(!cb.down({x:self.s.x,y:self.s.y,sx:self.s.x,sy:self.s.y})) ev.preventDefault() ;	
 	}
 	function setevent() {
 		if(touch) {
@@ -41,13 +41,15 @@ Pointer = function(t,cb) {
 			EV_M = "mousemove" ;	
 		}
 		t.addEventListener(EV_E, function(ev) {
+			var c = pos(ev) ;
 			var d = (ev.type=="touchend")?self.lastd:pos(ev) ;
 			self.mf = false ;
-			if(cb.up) if(!cb.up({ex:d.x,ey:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
+			if(cb.up) if(!cb.up({x:c.x,y:c.y,ex:d.x,ey:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
 		},false);
 		t.addEventListener(EV_O, function(ev) {
 			self.mf = false ;
-			if(cb.out) if(!cb.out({dx:self.dx,dy:self.dy})) ev.preventDefault() ;
+			var c = pos(ev) ;
+			if(cb.out) if(!cb.out({x:c.x,y:c.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
 		},false);
 		t.addEventListener(EV_M, function(ev) {
 			if(gesture) return ;
@@ -56,7 +58,7 @@ Pointer = function(t,cb) {
 			if(self.mf) {
 				self.dx = (d.x-self.s.x) ;
 				self.dy = (d.y-self.s.y) ;
-				if(cb.move) if(!cb.move({ox:d.x,oy:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
+				if(cb.move) if(!cb.move({x:d.x,y:d.y,ox:d.x,oy:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
 			}
 		},false)	
 	}
