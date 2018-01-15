@@ -338,6 +338,7 @@ console.log(r) ;
 			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 1 ;
 			update.fs_uni.stereo = 1 ;
+			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
 			if(!Param.pause) update = scene.update(render,cam,time,1)
@@ -346,6 +347,7 @@ console.log(r) ;
 			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 2 ;
 			update.fs_uni.stereo = 2 ;
+			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),true) ;
 		} else {
 			render.gl.viewport(0,0,can.width,can.height) ;
@@ -355,6 +357,7 @@ console.log(r) ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 0 ;
 			update.fs_uni.stereo = 0 ;
+			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 		}
 	}
@@ -373,7 +376,7 @@ console.log(r) ;
 				rotX = cam.camRX
 				rotY = cam.camRY
 				dragging = true ;
-				if(pox.event) pox.event("down",{sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
+				if(pox.event) pox.event("down",{x:d.x*pixRatio,y:d.y*pixRatio,sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
 				return false ;
 			},
 			move:function(d) {
@@ -383,7 +386,7 @@ console.log(r) ;
 				if(cam.camRX>90)cam.camRX=90;
 				if(cam.camRX<-90)cam.camRX=-90;
 
-				if(pox.event) pox.event("move",{ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
+				if(pox.event) pox.event("move",{x:d.x*pixRatio,y:d.y*pixRatio,ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			up:function(d) {
@@ -395,19 +398,19 @@ console.log(r) ;
 					console.log(gx+"/"+gy) ;
 				}
 				dragging = false ;
-				if(pox.event) pox.event("up",{dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
+				if(pox.event) pox.event("up",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
 				return false ;
 			},
 			out:function(d) {
 				rotX += d.dy*mag ;
 				rotY += d.dx*mag; 
 				dragging = false ;
-				if(pox.event) pox.event("out",{dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
+				if(pox.event) pox.event("out",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/100 ;
+				cam.camd += d/100 * sset.scale ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;
