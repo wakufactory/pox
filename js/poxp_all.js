@@ -2076,7 +2076,7 @@ Pointer = function(t,cb) {
 		self.dx = self.dy = 0 ;
 		self.s = pos(ev) ;
 		self.lastd = self.s ;
-		if(cb.down) if(!cb.down({sx:self.s.x,sy:self.s.y})) ev.preventDefault() ;	
+		if(cb.down) if(!cb.down({x:self.s.x,y:self.s.y,sx:self.s.x,sy:self.s.y})) ev.preventDefault() ;	
 	}
 	function setevent() {
 		if(touch) {
@@ -2091,13 +2091,15 @@ Pointer = function(t,cb) {
 			EV_M = "mousemove" ;	
 		}
 		t.addEventListener(EV_E, function(ev) {
+			var c = pos(ev) ;
 			var d = (ev.type=="touchend")?self.lastd:pos(ev) ;
 			self.mf = false ;
-			if(cb.up) if(!cb.up({ex:d.x,ey:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
+			if(cb.up) if(!cb.up({x:c.x,y:c.y,ex:d.x,ey:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
 		},false);
 		t.addEventListener(EV_O, function(ev) {
 			self.mf = false ;
-			if(cb.out) if(!cb.out({dx:self.dx,dy:self.dy})) ev.preventDefault() ;
+			var c = pos(ev) ;
+			if(cb.out) if(!cb.out({x:c.x,y:c.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
 		},false);
 		t.addEventListener(EV_M, function(ev) {
 			if(gesture) return ;
@@ -2106,7 +2108,7 @@ Pointer = function(t,cb) {
 			if(self.mf) {
 				self.dx = (d.x-self.s.x) ;
 				self.dy = (d.y-self.s.y) ;
-				if(cb.move) if(!cb.move({ox:d.x,oy:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
+				if(cb.move) if(!cb.move({x:d.x,y:d.y,ox:d.x,oy:d.y,dx:self.dx,dy:self.dy})) ev.preventDefault() ;
 			}
 		},false)	
 	}
@@ -2933,7 +2935,7 @@ console.log(r) ;
 		var camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
 		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
 		if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
-		else camM = camM.pallarel(cam.camWidth,aspect, cam.camNear, cam.camFar) ;
+		else camM = camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
 
 		return {camX:camX,camY:camY,camZ:camZ,camM:camM} ;
 	}
@@ -2984,6 +2986,7 @@ console.log(r) ;
 			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 1 ;
 			update.fs_uni.stereo = 1 ;
+			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
 			if(!Param.pause) update = scene.update(render,cam,time,1)
@@ -2992,6 +2995,7 @@ console.log(r) ;
 			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 2 ;
 			update.fs_uni.stereo = 2 ;
+			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),true) ;
 		} else {
 			render.gl.viewport(0,0,can.width,can.height) ;
@@ -3001,6 +3005,7 @@ console.log(r) ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 0 ;
 			update.fs_uni.stereo = 0 ;
+			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 		}
 	}
@@ -3019,7 +3024,7 @@ console.log(r) ;
 				rotX = cam.camRX
 				rotY = cam.camRY
 				dragging = true ;
-				if(pox.event) pox.event("down",{sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
+				if(pox.event) pox.event("down",{x:d.x*pixRatio,y:d.y*pixRatio,sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
 				return false ;
 			},
 			move:function(d) {
@@ -3029,7 +3034,7 @@ console.log(r) ;
 				if(cam.camRX>90)cam.camRX=90;
 				if(cam.camRX<-90)cam.camRX=-90;
 
-				if(pox.event) pox.event("move",{ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
+				if(pox.event) pox.event("move",{x:d.x*pixRatio,y:d.y*pixRatio,ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			up:function(d) {
@@ -3041,19 +3046,19 @@ console.log(r) ;
 					console.log(gx+"/"+gy) ;
 				}
 				dragging = false ;
-				if(pox.event) pox.event("up",{dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
+				if(pox.event) pox.event("up",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
 				return false ;
 			},
 			out:function(d) {
 				rotX += d.dy*mag ;
 				rotY += d.dx*mag; 
 				dragging = false ;
-				if(pox.event) pox.event("out",{dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
+				if(pox.event) pox.event("out",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
 				return false ;
 			},
 			wheel:function(d) {
 				if(Param.pause) return true;
-				cam.camd += d/100 ;
+				cam.camd += d/100 * sset.scale ;
 //				if(cam.camd<0) cam.camd = 0 ;
 				if(pox.event) pox.event("wheel",d) ;
 				return false ;

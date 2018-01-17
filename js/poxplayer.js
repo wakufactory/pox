@@ -287,7 +287,7 @@ console.log(r) ;
 		var camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
 		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
 		if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
-		else camM = camM.pallarel(cam.camWidth,aspect, cam.camNear, cam.camFar) ;
+		else camM = camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
 
 		return {camX:camX,camY:camY,camZ:camZ,camM:camM} ;
 	}
