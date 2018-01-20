@@ -315,8 +315,8 @@ console.log(r) ;
 					mvpMatrix:new CanvasMatrix4(m).
 						multRight(cam.camM).getAsWebGLFloatArray(),
 					invMatrix:new CanvasMatrix4(m).
-						invert().transpose().getAsWebGLFloatArray()},
-					eyevec:[cam.camX,cam.camY,cam.camZ],
+						invert().transpose().getAsWebGLFloatArray(),
+					eyevec:[cam.camX,cam.camY,cam.camZ]}
 			}
 			uni.fs_uni = uni.vs_uni
 			uni.fs_uni.resolution = [can.width,can.height]
