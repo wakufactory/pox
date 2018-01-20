@@ -136,20 +136,67 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 		case "vec2":
 			this.gl.uniform2fv(uni.pos, this.f32Array(value)) ;
 			break ;
+		case "vec2v":
+			for(let i=0;i<uni.dim;i++) {
+				this.gl.uniform2fv(uni.pos[i], this.f32Array(value[i])) ;
+			}
+			break ;
 		case "vec3":
 			this.gl.uniform3fv(uni.pos, this.f32Array(value)) ;
+			break ;
+		case "vec3v":
+			for(let i=0;i<uni.dim;i++) {
+				this.gl.uniform3fv(uni.pos[i], this.f32Array(value[i])) ;
+			}
 			break ;
 		case "vec4":
 			this.gl.uniform4fv(uni.pos, this.f32Array(value)) ;
 			break ;
+		case "vec4v":
+			for(let i=0;i<uni.dim;i++) {
+				this.gl.uniform4fv(uni.pos[i], this.f32Array(value[i])) ;
+			}
+			break ;
 		case "int":
+		case "bool":
 			this.gl.uniform1i(uni.pos,value) ;
+			break ;
+		case "ivec2":
+		case "bvec2":
+			this.gl.uniform2iv(uni.pos, this.i16Array(value)) ;
+			break ;
+		case "ivec2v":
+		case "bvec2v":
+			for(let i=0;i<uni.dim;i++) {
+				this.gl.uniform2iv(uni.pos[i], this.i32Array(value[i])) ;
+			}
+			break ;
+		case "ivec3":
+		case "bvec3":
+			this.gl.uniform3iv(uni.pos, this.i16Array(value)) ;
+			break ;
+		case "ivec3v":
+		case "bvec3v":
+			for(let i=0;i<uni.dim;i++) {
+				this.gl.uniform3iv(uni.pos[i], this.i32Array(value[i])) ;
+			}
+			break ;
+		case "ivec4":
+		case "bvec4":
+			this.gl.uniform4iv(uni.pos, this.i16Array(value)) ;
+			break ;
+		case "ivec4v":
+		case "bvec4v":
+			for(let i=0;i<uni.dim;i++) {
+				this.gl.uniform4iv(uni.pos[i], this.i32Array(value[i])) ;
+			}
+			break ;
+		case "intv":
+		case "boolv":
+			this.gl.uniform1iv(uni.pos,this.i16Array(value)) ;
 			break ;
 		case "float":
 			this.gl.uniform1f(uni.pos,value) ;
-			break ;
-		case "intv":
-			this.gl.uniform1iv(uni.pos,this.i16Array(value)) ;
 			break ;
 		case "floatv":
 			this.gl.uniform1fv(uni.pos,this.f32Array(value)) ;
@@ -184,6 +231,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 				var u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
+					u.dim = parseInt(RegExp.$3.substr(1)) ;
 				}
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
@@ -260,7 +308,16 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.vs_uni = {} ;
 			for(var i in vr.uni) {
-				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
+				if(vr.uni[i].dim>0) {
+					vr.uni[i].pos = [] ;
+					for(let ai=0;ai<vr.uni[i].dim;ai++) {
+						vr.uni[i].pos.push(
+							gl.getUniformLocation(program,vr.uni[i].name+"["+ai+"]")
+						)
+					}
+				} else {
+					vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
+				}
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
@@ -268,7 +325,16 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 //			console.log(fr);	
 			ret.fs_uni = {} ;
 			for(var i in fr.uni) {
-				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
+				if(fr.uni[i].dim>0) {
+					fr.uni[i].pos = [] ;
+					for(let ai=0;ai<fr.uni[i].dim;ai++) {
+						fr.uni[i].pos.push(
+							gl.getUniformLocation(program,fr.uni[i].name+"["+ai+"]")
+						)
+					}
+				} else {
+					fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
+				}
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
