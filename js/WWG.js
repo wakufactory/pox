@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.3" ;
+	this.version = "0.9.4" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -123,6 +123,8 @@ WWG.prototype.Render = function(wwg) {
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 //	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
+	let ar = [] ;
+	if(uni.dim>0) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -137,25 +139,19 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			this.gl.uniform2fv(uni.pos, this.f32Array(value)) ;
 			break ;
 		case "vec2v":
-			for(let i=0;i<uni.dim;i++) {
-				this.gl.uniform2fv(uni.pos[i], this.f32Array(value[i])) ;
-			}
+			this.gl.uniform2fv(uni.pos, this.f32Array(ar)) ;
 			break ;
 		case "vec3":
 			this.gl.uniform3fv(uni.pos, this.f32Array(value)) ;
 			break ;
 		case "vec3v":
-			for(let i=0;i<uni.dim;i++) {
-				this.gl.uniform3fv(uni.pos[i], this.f32Array(value[i])) ;
-			}
+			this.gl.uniform3fv(uni.pos, this.f32Array(ar))
 			break ;
 		case "vec4":
 			this.gl.uniform4fv(uni.pos, this.f32Array(value)) ;
 			break ;
 		case "vec4v":
-			for(let i=0;i<uni.dim;i++) {
-				this.gl.uniform4fv(uni.pos[i], this.f32Array(value[i])) ;
-			}
+			this.gl.uniform4fv(uni.pos, this.f32Array(ar)) ;
 			break ;
 		case "int":
 		case "bool":
@@ -167,9 +163,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			break ;
 		case "ivec2v":
 		case "bvec2v":
-			for(let i=0;i<uni.dim;i++) {
-				this.gl.uniform2iv(uni.pos[i], this.i32Array(value[i])) ;
-			}
+			this.gl.uniform2iv(uni.pos, this.i16Array(ar)) ;
 			break ;
 		case "ivec3":
 		case "bvec3":
@@ -177,9 +171,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			break ;
 		case "ivec3v":
 		case "bvec3v":
-			for(let i=0;i<uni.dim;i++) {
-				this.gl.uniform3iv(uni.pos[i], this.i32Array(value[i])) ;
-			}
+			this.gl.uniform3iv(uni.pos, this.i16Array(ar)) ;
 			break ;
 		case "ivec4":
 		case "bvec4":
@@ -187,9 +179,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			break ;
 		case "ivec4v":
 		case "bvec4v":
-			for(let i=0;i<uni.dim;i++) {
-				this.gl.uniform4iv(uni.pos[i], this.i32Array(value[i])) ;
-			}
+			this.gl.uniform4iv(uni.pos, this.i16Array(ar)) ;
 			break ;
 		case "intv":
 		case "boolv":
@@ -308,16 +298,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.vs_uni = {} ;
 			for(var i in vr.uni) {
-				if(vr.uni[i].dim>0) {
-					vr.uni[i].pos = [] ;
-					for(let ai=0;ai<vr.uni[i].dim;ai++) {
-						vr.uni[i].pos.push(
-							gl.getUniformLocation(program,vr.uni[i].name+"["+ai+"]")
-						)
-					}
-				} else {
-					vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
-				}
+				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
@@ -325,16 +306,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 //			console.log(fr);	
 			ret.fs_uni = {} ;
 			for(var i in fr.uni) {
-				if(fr.uni[i].dim>0) {
-					fr.uni[i].pos = [] ;
-					for(let ai=0;ai<fr.uni[i].dim;ai++) {
-						fr.uni[i].pos.push(
-							gl.getUniformLocation(program,fr.uni[i].name+"["+ai+"]")
-						)
-					}
-				} else {
-					fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
-				}
+				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
