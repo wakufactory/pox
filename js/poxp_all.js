@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.3" ;
+	this.version = "0.9.4" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -123,6 +123,8 @@ WWG.prototype.Render = function(wwg) {
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 //	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
+	let ar = [] ;
+	if(uni.dim>0) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -136,20 +138,55 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 		case "vec2":
 			this.gl.uniform2fv(uni.pos, this.f32Array(value)) ;
 			break ;
+		case "vec2v":
+			this.gl.uniform2fv(uni.pos, this.f32Array(ar)) ;
+			break ;
 		case "vec3":
 			this.gl.uniform3fv(uni.pos, this.f32Array(value)) ;
+			break ;
+		case "vec3v":
+			this.gl.uniform3fv(uni.pos, this.f32Array(ar))
 			break ;
 		case "vec4":
 			this.gl.uniform4fv(uni.pos, this.f32Array(value)) ;
 			break ;
+		case "vec4v":
+			this.gl.uniform4fv(uni.pos, this.f32Array(ar)) ;
+			break ;
 		case "int":
+		case "bool":
 			this.gl.uniform1i(uni.pos,value) ;
+			break ;
+		case "ivec2":
+		case "bvec2":
+			this.gl.uniform2iv(uni.pos, this.i16Array(value)) ;
+			break ;
+		case "ivec2v":
+		case "bvec2v":
+			this.gl.uniform2iv(uni.pos, this.i16Array(ar)) ;
+			break ;
+		case "ivec3":
+		case "bvec3":
+			this.gl.uniform3iv(uni.pos, this.i16Array(value)) ;
+			break ;
+		case "ivec3v":
+		case "bvec3v":
+			this.gl.uniform3iv(uni.pos, this.i16Array(ar)) ;
+			break ;
+		case "ivec4":
+		case "bvec4":
+			this.gl.uniform4iv(uni.pos, this.i16Array(value)) ;
+			break ;
+		case "ivec4v":
+		case "bvec4v":
+			this.gl.uniform4iv(uni.pos, this.i16Array(ar)) ;
+			break ;
+		case "intv":
+		case "boolv":
+			this.gl.uniform1iv(uni.pos,this.i16Array(value)) ;
 			break ;
 		case "float":
 			this.gl.uniform1f(uni.pos,value) ;
-			break ;
-		case "intv":
-			this.gl.uniform1iv(uni.pos,this.i16Array(value)) ;
 			break ;
 		case "floatv":
 			this.gl.uniform1fv(uni.pos,this.f32Array(value)) ;
@@ -184,6 +221,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 				var u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
+					u.dim = parseInt(RegExp.$3.substr(1)) ;
 				}
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
@@ -2963,8 +3001,8 @@ console.log(r) ;
 					mvpMatrix:new CanvasMatrix4(m).
 						multRight(cam.camM).getAsWebGLFloatArray(),
 					invMatrix:new CanvasMatrix4(m).
-						invert().transpose().getAsWebGLFloatArray()},
-					eyevec:[cam.camX,cam.camY,cam.camZ],
+						invert().transpose().getAsWebGLFloatArray(),
+					eyevec:[cam.camX,cam.camY,cam.camZ]}
 			}
 			uni.fs_uni = uni.vs_uni
 			uni.fs_uni.resolution = [can.width,can.height]
