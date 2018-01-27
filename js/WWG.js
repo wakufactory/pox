@@ -712,6 +712,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(update) {
 			// set modified values
 			this.pushUniValues(update) ;
+			this.pushUniValues(cmodel);
 			if(update.model) {
 				var model =update.model[b] ;
 				if(model) this.pushUniValues(model) ;
