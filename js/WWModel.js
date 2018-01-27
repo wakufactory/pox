@@ -25,7 +25,7 @@ WWModel.prototype.loadAjax = function(src) {
 	})
 }
 // load .obj file
-WWModel.prototype.loadObj = function(path,scale) {
+WWModel.prototype.loadObj = async function(path,scale) {
 	var self = this ;
 	if(!scale) scale=1.0 ;
 	return new Promise(function(resolve,reject) {
