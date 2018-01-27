@@ -25,6 +25,7 @@ onload = function() {
 		ss = src ;
 		poxp.set(src).then(function(pox){
 			if(pox.setting.copyright) $("footer").innerHTML += "&nbsp;&nbsp;"+pox.setting.copyright;
+			poxp.setParam($('pui'))
 		})
 	}).catch(function(err) {
 		$("loading").style.display = "none" ;
@@ -64,12 +65,21 @@ canvas {
 }
 #cc {
 	position:absolute ;
+	width:17rem ;
 	top:0;
 	left:0;
-	height:2rem ;
 	color:#eee ;
 	background-color:#222 ;
 	opacity:0.8 ;
+}
+#pui input[type=range] {
+	width:10rem ;
+}
+#pui div.t {
+	float:left;
+	width:3rem ;
+	padding-left:0.2rem ;
+	overflow:hidden ;
 }
 #loading {
 	position:absolute ;
@@ -98,7 +108,7 @@ canvas {
 	font-family:"apple color emoji",sans-serif;
 }
 .oswitch input[type=checkbox] + .sbtn:before {
-	content: "⏸" ;
+	content: "⏸" 
 }
 .oswitch input[type=checkbox]:checked + .sbtn:before {
 	content: "▶️" ;
@@ -111,6 +121,7 @@ canvas {
 <label><input type=checkbox id=isstereo>stereo</label>
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
 [<span id="fps"></span>FPS]<button id=b_edit>EDIT</button>
+<div id=pui></div>
 </div>
 <div id=loading><img src="guruguru.gif"></div>
 <canvas id="screen1"></canvas>

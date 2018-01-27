@@ -75,6 +75,7 @@ PoxPlayer.prototype.load = async function(d) {
 		} else resolve(d) ;
 	})
 }
+
 PoxPlayer.prototype.set = async function(d,param={}) { 
 	
 //	return new Promise((resolve,reject) => {
@@ -120,6 +121,7 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 			console.log("eval error "+err)
 			return(null);
 		}
+		if(POX.init) POX.init() ;
 		return(POX) ;
 //	})
 	
@@ -160,6 +162,63 @@ PoxPlayer.prototype.cls = function() {
 PoxPlayer.prototype.setError = function(err) {
 	this.errCb = err ;
 }
+PoxPlayer.prototype.setParam = function(dom) {
+	let param = this.pox.setting.param ;
+	if(param===undefined) return ;
+	this.uparam = WBind.create()
+	let input = [] ;
+	for(let i in param) {
+		let p = param[i] ;
+		let name = (p.name)?p.name:i ;
+		let type = (p.type)?p.type:"range" 
+		input.push(
+			`<div class=t>${name}</div> <input type=${type} id="${i}" min=0 max=100  /><span id=${"d_"+i}></span><br/>`
+		)
+	}
+	dom.innerHTML = input.join("") 
+	function _tohex(v) {
+		let s = (v*255).toString(16) ;
+		if(s.length==1) s = "0"+s ;
+		return s ;
+	}
+	for(let i in param) {
+		this.uparam.bindInput(i,"#"+i)
+		this.uparam.setFunc(i,{
+			set:(v)=> {
+				let ret = v ;
+				if(param[i].type=="color") {
+					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
+				} else  ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+//				console.log(ret)
+				return ret 	
+			},
+			get:(v)=> {
+				let ret ;
+				if(param[i].type=="color" ) {
+					if(typeof v =="string" && v.match(/#[0-9A-F]+/i)) {
+						ret =[parseInt(v.substr(1,2),16)/255,parseInt(v.substr(3,2),16)/255,parseInt(v.substr(5,2),16)/255] ;
+					} else ret = v ;
+				} else ret = v*(param[i].max-param[i].min)/100+param[i].min
+				if(param[i].type=="color" && v ) {
+					$('d_'+i).innerHTML = ret.map((v)=>v.toString().substr(0,5)) ;
+				} else $('d_'+i).innerHTML = ret.toString().substr(0,5) ;
+				
+				return ret ;
+			},
+			input:(v)=>{
+				return 
+				if(param[i].type=="color") {
+					console.log(v)
+					if(v) $('d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
+				} else $('d_'+i).innerHTML = v.toString().substr(0,5) ;
+			}
+		})
+		this.uparam[i] = param[i].value ;
+	}
+	this.pox.param = this.uparam ;
+	console.log(this.uparam);
+}
+
 PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(sc) ;
 	var wwg = this.wwg ;
