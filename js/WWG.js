@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.4" ;
+	this.version = "0.9.5" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -756,6 +756,9 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			gl.enable(gl.BLEND) ;
 			if(cmodel.blend=="alpha") gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 		}
+		if(cmodel.cull!==undefined) {
+			if(cmodel.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+		}
 		var gmode = this.wwg.dmodes[geo.mode]
 		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
@@ -774,6 +777,9 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.blend!==undefined) {
 			gl.disable(gl.BLEND) ;
+		}
+		if(cmodel.cull!==undefined) {
+			if(this.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 		}
 		if(cmodel.postFunction) {
 			cmodel.postFunction(gl,cmodel) ;
