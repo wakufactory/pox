@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.4" ;
+	this.version = "0.9.5" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -712,6 +712,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(update) {
 			// set modified values
 			this.pushUniValues(update) ;
+			this.pushUniValues(cmodel);
 			if(update.model) {
 				var model =update.model[b] ;
 				if(model) this.pushUniValues(model) ;
@@ -756,6 +757,9 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			gl.enable(gl.BLEND) ;
 			if(cmodel.blend=="alpha") gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 		}
+		if(cmodel.cull!==undefined) {
+			if(cmodel.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+		}
 		var gmode = this.wwg.dmodes[geo.mode]
 		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
@@ -774,6 +778,9 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.blend!==undefined) {
 			gl.disable(gl.BLEND) ;
+		}
+		if(cmodel.cull!==undefined) {
+			if(this.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 		}
 		if(cmodel.postFunction) {
 			cmodel.postFunction(gl,cmodel) ;
@@ -811,7 +818,7 @@ WWModel.prototype.loadAjax = function(src) {
 	})
 }
 // load .obj file
-WWModel.prototype.loadObj = function(path,scale) {
+WWModel.prototype.loadObj = async function(path,scale) {
 	var self = this ;
 	if(!scale) scale=1.0 ;
 	return new Promise(function(resolve,reject) {
@@ -2731,9 +2738,12 @@ var PoxPlayer  = function(can) {
 		sbase:0.05 	//streobase 
 		
 	} ;
+	this.pox = {} ;
 	// canvas initialize
 	this.resize() ;
 	window.addEventListener("resize",()=>{this.resize()}) ;
+	this.pause = true ;
+	this.setEvent() ;
 }
 PoxPlayer.prototype.resize = function() {
 	this.can.width= this.can.offsetWidth*this.pixRatio  ;
@@ -2761,14 +2771,15 @@ PoxPlayer.prototype.load = async function(d) {
 		} else resolve(d) ;
 	})
 }
+
 PoxPlayer.prototype.set = async function(d,param={}) { 
 	
 //	return new Promise((resolve,reject) => {
 	var VS = d.vs ;
 	var FS = d.fs ;
 	console.log("set")
-	var POX = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
-	this.pox = POX ;
+	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
+	var POX = this.pox ;
 	function V3add() {
 		var x=0,y=0,z=0 ;
 		for(var i=0;i<arguments.length;i++) {
@@ -2806,6 +2817,7 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 			console.log("eval error "+err)
 			return(null);
 		}
+		if(POX.init) POX.init() ;
 		return(POX) ;
 //	})
 	
@@ -2846,6 +2858,171 @@ PoxPlayer.prototype.cls = function() {
 PoxPlayer.prototype.setError = function(err) {
 	this.errCb = err ;
 }
+PoxPlayer.prototype.setParam = function(dom) {
+	let param = this.pox.setting.param ;
+	if(param===undefined) return ;
+	this.uparam = WBind.create()
+	let input = [] ;
+	for(let i in param) {
+		let p = param[i] ;
+		let name = (p.name)?p.name:i ;
+		let type = (p.type)?p.type:"range" 
+		input.push(
+			`<div class=t>${name}</div> <input type=${type} id="${i}" min=0 max=100  /><span id=${"d_"+i}></span><br/>`
+		)
+	}
+	dom.innerHTML = input.join("") 
+	function _tohex(v) {
+		let s = (v*255).toString(16) ;
+		if(s.length==1) s = "0"+s ;
+		return s ;
+	}
+	function _setdisp(i,v) {
+		if(param[i].type=="color" && v ) {
+			$('d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
+		} else $('d_'+i).innerHTML = v.toString().substr(0,5) ;		
+	}
+	for(let i in param) {
+		this.uparam.bindInput(i,"#"+i)
+		this.uparam.setFunc(i,{
+			set:(v)=> {
+				let ret = v ;
+				if(param[i].type=="color") {
+					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
+				} else  ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+//				console.log(ret)
+				_setdisp(i,v)
+				return ret 	
+			},
+			get:(v)=> {
+				let ret ;
+				if(param[i].type=="color" ) {
+					if(typeof v =="string" && v.match(/#[0-9A-F]+/i)) {
+						ret =[parseInt(v.substr(1,2),16)/255,parseInt(v.substr(3,2),16)/255,parseInt(v.substr(5,2),16)/255] ;
+					} else ret = v ;
+				} else ret = v*(param[i].max-param[i].min)/100+param[i].min			
+				return ret ;
+			},
+			input:(v)=>{
+				_setdisp(i,this.uparam[i])
+			}
+		})
+		this.uparam[i] = param[i].value ;
+	}
+	this.pox.param = this.uparam ;
+}
+PoxPlayer.prototype.setEvent = function() {
+	// mouse and key intaraction
+	var cam = this.cam ;
+	var rotX = cam.camRX ,rotY = cam.camRY ;
+	var gev=null,gx=0,gy=0 ;
+	var gz = cam.camd ;
+	var dragging = false ;
+	var pixRatio = this.pixRatio
+	var Param = this.param ;
+	var can = this.can ;
+	var self = this ;
+		//mouse intraction
+		var mag = 300*pixRatio /can.width;
+		var keymag= 2 ;
+		var m = new Pointer(can,{
+			down:function(d) {
+				if(Param.pause) return true;
+				rotX = cam.camRX
+				rotY = cam.camRY
+				dragging = true ;
+				if(self.pox.event) self.pox.event("down",{x:d.x*pixRatio,y:d.y*pixRatio,sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
+				$('isstereo').focus() ;
+				return false ;
+			},
+			move:function(d) {
+				if(Param.pause) return true;
+				cam.camRX = rotX+d.dy*mag ;
+				cam.camRY = rotY+d.dx*mag ;
+				if(cam.camRX>90)cam.camRX=90;
+				if(cam.camRX<-90)cam.camRX=-90;
+
+				if(self.pox.event) self.pox.event("move",{x:d.x*pixRatio,y:d.y*pixRatio,ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
+				return false ;
+			},
+			up:function(d) {
+				rotX += d.dy*mag ;
+				rotY += d.dx*mag; 
+				if(gev!==null) {
+					gx = gev.rx - rotX ;
+					gy = gev.ry - rotY ;
+					console.log(gx+"/"+gy) ;
+				}
+				dragging = false ;
+				if(self.pox.event) self.pox.event("up",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
+				return false ;
+			},
+			out:function(d) {
+				rotX += d.dy*mag ;
+				rotY += d.dx*mag; 
+				dragging = false ;
+				if(self.pox.event) self.pox.event("out",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
+				return false ;
+			},
+			wheel:function(d) {
+				if(Param.pause) return true;
+				cam.camd += d/100 * self.pox.setting.scale ;
+//				if(cam.camd<0) cam.camd = 0 ;
+				if(self.pox.event) self.pox.event("wheel",d) ;
+				return false ;
+			},
+			gesture:function(z,r) {
+				if(Param.pause) return true;
+				if(z==0) {
+					gz = cam.camd ; 
+					return false ;
+				}
+				cam.camd = gz / z ;
+				if(self.pox.event) self.pox.event("gesture",z) ;
+				return false ;
+			},
+			gyro:function(ev) {
+				if(Param.pause || !cam.camGyro) return true;
+				if(ev.rx===null) return true ;
+				gev = ev ;
+				if(dragging) return true ;
+//				console.log(ev) ;
+				cam.camRX = ev.rx - gx;
+				cam.camRY = ev.ry - gy ;
+//		console.log(gx+"/"+gy) ;
+				if(cam.camRX>89)cam.camRX=89 ;
+				if(cam.camRX<-89)cam.camRX=-89 ;
+
+				return false ;
+			}
+		})
+		WBind.addev(window,"keydown", function(ev){
+//			console.log("key"+ev.keyCode);
+			if(Param.pause) return true ;
+			if(self.pox.event) {
+				if(!self.pox.event("key",ev)) return true ;
+			}
+			var z = cam.camd ;
+			if(ev.altKey) {
+				switch(ev.keyCode) {
+					case 38:cam.camd = cam.camd - keymag; if(cam.camd<0) cam.camd = 0 ; break ;
+					case 40:cam.camd = cam.camd + keymag ; break ;
+				}				
+			} else {
+				switch(ev.keyCode) {
+					case 37:cam.camRY -= keymag ; break ;
+					case 38:cam.camRX -= keymag ; if(cam.camRX<-90) cam.camRX = -90 ; break ;
+					case 39:cam.camRY += keymag ; break ;
+					case 40:cam.camRX += keymag ; if(cam.camRX>90) cam.camRX = 90 ; break ;
+				}
+			}
+			
+			return true ;
+		})		
+
+	
+}
+
 PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(sc) ;
 	var wwg = this.wwg ;
@@ -2875,7 +3052,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 console.log(r) ;
 		if(this.errCb) this.errCb("scene set ok") ;
 		if(this.renderStart) this.renderStart() ;
-		mouse(cam) ;
 		if(window.GPad) GPad.init() ;	
 		//draw loop
 		var st = new Date().getTime() ;
@@ -3046,109 +3222,6 @@ console.log(r) ;
 			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 		}
-	}
-	// mouse and key intaraction
-	var rotX = cam.camRX ,rotY = cam.camRY ;
-	var gev=null,gx=0,gy=0 ;
-	var gz = cam.camd ;
-	var dragging = false ;
-	function mouse(cam) {
-		//mouse intraction
-		var mag = 300*pixRatio /can.width;
-		var keymag= 2 ;
-		var m = new Pointer(can,{
-			down:function(d) {
-				if(Param.pause) return true;
-				rotX = cam.camRX
-				rotY = cam.camRY
-				dragging = true ;
-				if(pox.event) pox.event("down",{x:d.x*pixRatio,y:d.y*pixRatio,sx:d.sx*pixRatio,sy:d.sy*pixRatio}) ;
-				return false ;
-			},
-			move:function(d) {
-				if(Param.pause) return true;
-				cam.camRX = rotX+d.dy*mag ;
-				cam.camRY = rotY+d.dx*mag ;
-				if(cam.camRX>90)cam.camRX=90;
-				if(cam.camRX<-90)cam.camRX=-90;
-
-				if(pox.event) pox.event("move",{x:d.x*pixRatio,y:d.y*pixRatio,ox:d.ox*pixRatio,oy:d.oy*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
-				return false ;
-			},
-			up:function(d) {
-				rotX += d.dy*mag ;
-				rotY += d.dx*mag; 
-				if(gev!==null) {
-					gx = gev.rx - rotX ;
-					gy = gev.ry - rotY ;
-					console.log(gx+"/"+gy) ;
-				}
-				dragging = false ;
-				if(pox.event) pox.event("up",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio,ex:d.ex*pixRatio,ey:d.ey*pixRatio}) ;
-				return false ;
-			},
-			out:function(d) {
-				rotX += d.dy*mag ;
-				rotY += d.dx*mag; 
-				dragging = false ;
-				if(pox.event) pox.event("out",{x:d.x*pixRatio,y:d.y*pixRatio,dx:d.dx*pixRatio,dy:d.dy*pixRatio}) ;
-				return false ;
-			},
-			wheel:function(d) {
-				if(Param.pause) return true;
-				cam.camd += d/100 * sset.scale ;
-//				if(cam.camd<0) cam.camd = 0 ;
-				if(pox.event) pox.event("wheel",d) ;
-				return false ;
-			},
-			gesture:function(z,r) {
-				if(Param.pause) return true;
-				if(z==0) {
-					gz = cam.camd ; 
-					return false ;
-				}
-				cam.camd = gz / z ;
-				if(pox.event) pox.event("gesture",z) ;
-				return false ;
-			},
-			gyro:function(ev) {
-				if(Param.pause || !cam.camGyro) return true;
-				if(ev.rx===null) return true ;
-				gev = ev ;
-				if(dragging) return true ;
-//				console.log(ev) ;
-				cam.camRX = ev.rx - gx;
-				cam.camRY = ev.ry - gy ;
-//		console.log(gx+"/"+gy) ;
-				if(cam.camRX>89)cam.camRX=89 ;
-				if(cam.camRX<-89)cam.camRX=-89 ;
-
-				return false ;
-			}
-		})
-		WBind.addev(window,"keydown", function(ev){
-//			console.log("key"+ev.keyCode);
-			if(Param.pause) return true ;
-			if(pox.event) {
-				if(!pox.event("key",ev)) return true ;
-			}
-			var z = cam.camd ;
-			if(ev.altKey) {
-				switch(ev.keyCode) {
-					case 38:cam.camd = cam.camd - keymag; if(cam.camd<0) cam.camd = 0 ; break ;
-					case 40:cam.camd = cam.camd + keymag ; break ;
-				}				
-			} else {
-				switch(ev.keyCode) {
-					case 37:cam.camRY -= keymag ; break ;
-					case 38:cam.camRX -= keymag ; if(cam.camRX<-90) cam.camRX = -90 ; break ;
-					case 39:cam.camRY += keymag ; break ;
-					case 40:cam.camRX += keymag ; if(cam.camRX>90) cam.camRX = 90 ; break ;
-				}
-			}
-			
-			return true ;
-		})		
 	}
 }
 PoxPlayer.prototype.GLSLScene = function(sc) {
