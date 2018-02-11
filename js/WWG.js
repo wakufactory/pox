@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.5" ;
+	this.version = "0.9.6" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -110,6 +110,7 @@ WWG.prototype.loadImageAjax = function(src) {
 		})
 	})
 }
+
 // Render unit
 WWG.prototype.createRender = function() {
 	return new this.Render(this) ;
@@ -649,7 +650,7 @@ WWG.prototype.Render.prototype.addModel = function(model) {
 	this.modelCount = this.data.model.length ;
 }
 // update attribute buffer 
-WWG.prototype.Render.prototype.updateModel = function(name,mode,buf) {
+WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
 	var idx = this.getModelIdx(name) ;
 	var obuf = this.obuf[idx] ;
 	switch(mode) {
@@ -660,7 +661,18 @@ WWG.prototype.Render.prototype.updateModel = function(name,mode,buf) {
 			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.inst) ;
 			break ;
 	}
-	this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, buf)	
+	if(subflag) 
+		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.f32Array(buf))	
+	else
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
+}
+WWG.prototype.Render.prototype.updateModelInstance = function(name,buf,count) {
+	var idx = this.getModelIdx(name) ;
+	var obuf = this.obuf[idx] ;
+	this.data.model[idx].inst.count = count ;
+	this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.inst) ; 
+//		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.f32Array(buf))	
+		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
 }
 WWG.prototype.Render.prototype.getModelData =function(name) {
 	var idx = this.getModelIdx(name) ;
@@ -737,20 +749,22 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			}
 			if(this.obuf[b].ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.obuf[b].ibo) ;
 			if(this.obuf[b].inst) {
+				var inst = cmodel.inst ;
 				gl.bindBuffer(gl.ARRAY_BUFFER, this.obuf[b].inst) ;
 				var aofs = 0 ;
 				for(var i=0;i<obuf.iats.length;i++) {
-//					var divisor = (inst.divisor)?inst.divisor[i]:1 ;
+					var divisor = (inst.divisor)?inst.divisor[i]:1 ;
 					var s = this.wwg.vsize[obuf.iats[i].type] ;
 					var pos = this.vs_att[obuf.iats[i].name].pos
 					gl.enableVertexAttribArray(pos);
 					gl.vertexAttribPointer(pos, s, gl.FLOAT, false, obuf.itl, aofs);
 					aofs += s*4 ;
-					this.wwg.inst_divisor(pos, 1)	
+					this.wwg.inst_divisor(pos, divisor)		
 				}
 			}
 		}
 		if(cmodel.preFunction) {
+			
 			cmodel.preFunction(gl,cmodel,this.obuf[b]) ;
 		}
 		if(cmodel.blend!==undefined) {
