@@ -10,11 +10,11 @@
 <script src="js/WWG.js"></script>
 <script src="js/CanvasMatrix.js"></script>
 <script src="js/WWModel.js"></script>
-<script src="js/Pointer.js"></script>
+<script src="js/Pointer.js?1"></script>
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
-<script src="js/poxplayer.js"></script>
+<script src="js/poxplayer.js?2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.9/ace.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
@@ -85,6 +85,7 @@ onload = ()=> {
 		}
 		POXE.POXP.resize() ;
 	})
+
 }
 POXE.msg = (msg)=> {
 	$("msgc").innerHTML += msg + "<br/>" ;
@@ -127,6 +128,7 @@ POXE.set = (src,edit=true)=> {
 
 		POXE.save(pox.src) ;			
 		POXE.POXP.setParam($('pui'))
+		$('bc').style.display = (pox.setting.cam.camMode=="walk")?"block":"none" 
 		if(pox.setting.copyright) $("footer").innerHTML = pox.setting.copyright ;
 	})
 }
@@ -231,6 +233,21 @@ div.edit textarea {
 #ec a {
 	color:#eee ;	
 }
+#bc {
+	display:none ;
+	position:absolute ;
+	height:10rem ;
+	bottom:0rem;
+	left:0;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.6 ;
+	vertical-align:baseline;
+	font-size:2rem ;	
+	user-select: none;
+	-webkit-user-select: none;
+}
+
 #msg {
 	height:4rem ;
 	background-color:#444 ;
@@ -358,6 +375,13 @@ label,button {
  <button id=b_cap>CAP</button><a href="" id=l_cap> <img id="cap_thumb" /></a></a>
 <div id=pui>
 </div>
+</div>
+<div id=bc>
+<table>
+<tr><td></td><td><button id=bc_u data-key="w">⬆️</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="a">⬅️</button></td><td></td><td><button id=bc_r data-key="s">➡️</button></td></tr>
+<tr><td></td><td><button id=bc_d data-key="z">⬇️</button></td><td></td></tr>
+</table>
 </div>
 <canvas id="screen1"></canvas>
 <div id=footer></div>

@@ -26,6 +26,8 @@ onload = function() {
 		poxp.set(src).then(function(pox){
 			if(pox.setting.copyright) $("footer").innerHTML += "&nbsp;&nbsp;"+pox.setting.copyright;
 			poxp.setParam($('pui'))
+			$('bc').style.display = (pox.setting.cam.camMode=="walk")?"block":"none" 
+			if(pox.setting.title) document.title = pox.setting.title + " - PoExE Player"
 		})
 	}).catch(function(err) {
 		$("loading").style.display = "none" ;
@@ -39,12 +41,16 @@ onload = function() {
 	})
 	window.addEventListener("deviceorientation", function(ev) {
 		var or = window.orientation ;
-		var d = (or==90||or==-90)&&poxp.param.isStereo?"none":"block" ;
-		$("cc").style.display = d ;
-		$("footer").style.display = d ;
+		var d = (or==90||or==-90)&&poxp.param.isStereo ;
+		$("cc").style.opacity = d?0.:0.4 ;
+		$("footer").style.display = d?"none":"block" ;
+		$("bc").style.opacity = d?0.:0.4 ;
 	})
 	$("b_edit").addEventListener("click",function(ev) {
 		location.href="poxe.html?"+q ;
+	})
+	$("bc").addEventListener("touchstart",function(ev) {
+		ev.preventDefault()
 	})
 }
 </script>
@@ -70,7 +76,7 @@ canvas {
 	left:0;
 	color:#eee ;
 	background-color:#222 ;
-	opacity:0.8 ;
+	opacity:0.4 ;
 }
 #pui input[type=range] {
 	width:10rem ;
@@ -113,6 +119,20 @@ canvas {
 .oswitch input[type=checkbox]:checked + .sbtn:before {
 	content: "▶️" ;
 }
+#bc {
+	display:none ;
+	position:absolute ;
+	height:10rem ;
+	bottom:1rem;
+	left:0;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.4 ;
+	vertical-align:baseline;
+	font-size:2rem ;	
+	user-select: none;
+	-webkit-user-select: none;
+}
 </style>
 </head>
 <body>
@@ -124,6 +144,13 @@ canvas {
 <div id=pui></div>
 </div>
 <div id=loading><img src="guruguru.gif"></div>
+<div id=bc>
+<table>
+<tr><td></td><td><button id=bc_u data-key="w">↑</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="a">←</button></td><td></td><td><button id=bc_r data-key="s">→</button></td></tr>
+<tr><td></td><td><button id=bc_d  data-key="z">↓</button></td><td></td></tr>
+</table>
+</div>
 <canvas id="screen1"></canvas>
 <div id=footer>Made with <a href="http://wakufactory.jp/wgl/pox/ ">PoExE</a></div>
 </body>
