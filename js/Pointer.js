@@ -4,7 +4,7 @@ Pointer = function(t,cb) {
 	var touch,gesture,EV_S,EV_E,EV_M ;
 	function pos(ev) {
 		var x,y ;
-		if(touch) {
+		if(touch && ev.touches.length>0) {
 			x = ev.touches[0].pageX - ev.target.offsetLeft ;
 			y = ev.touches[0].pageY - ev.target.offsetTop ;
 		} else {
