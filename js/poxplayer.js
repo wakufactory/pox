@@ -38,6 +38,7 @@ const PoxPlayer  = function(can) {
 	const e = document.createElement("input") ;
 	e.setAttribute("type","checkbox") ;
 	e.style.position = "absolute" ; e.style.zIndex = -100 ;
+	e.style.top = 0
 	e.style.width = 10 ; e.style.height =10 ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
 	document.body.appendChild(e) ;
 	this.keyElelment = e ;
