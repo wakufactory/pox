@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerEditor</title>
 <script src="ga.js"></script>
-<script src="js/WWG.js"></script>
+<script src="js/WWG.js?1"></script>
 <script src="js/CanvasMatrix.js"></script>
-<script src="js/WWModel.js"></script>
+<script src="js/WWModel.js?2"></script>
 <script src="js/Pointer.js?1"></script>
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
@@ -123,12 +123,12 @@ POXE.set = (src,edit=true)=> {
 			return ;
 		}
 		POXE.msg("eval ok") ;
-		console.log(pox);
+//		console.log(pox);
 		POXE.setting = pox.setting ;
 
 		POXE.save(pox.src) ;			
 		POXE.POXP.setParam($('pui'))
-		$('bc').style.display = (pox.setting.cam.camMode=="walk")?"block":"none" 
+		$('bc').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
 		if(pox.setting.copyright) $("footer").innerHTML = pox.setting.copyright ;
 	})
 }
@@ -246,6 +246,12 @@ div.edit textarea {
 	font-size:2rem ;	
 	user-select: none;
 	-webkit-user-select: none;
+}
+#bc button {
+	background-color:#aaa ;
+}
+#bc button:hover {
+	background-color:#fff ;
 }
 
 #msg {

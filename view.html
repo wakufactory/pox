@@ -26,7 +26,7 @@ onload = function() {
 		poxp.set(src).then(function(pox){
 			if(pox.setting.copyright) $("footer").innerHTML += "&nbsp;&nbsp;"+pox.setting.copyright;
 			poxp.setParam($('pui'))
-			$('bc').style.display = (pox.setting.cam.camMode=="walk")?"block":"none" 
+			$('bc').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
 			if(pox.setting.title) document.title = pox.setting.title + " - PoExE Player"
 		})
 	}).catch(function(err) {
