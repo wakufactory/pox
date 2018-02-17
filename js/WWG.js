@@ -45,8 +45,8 @@ WWG.prototype.init = function(canvas,opt) {
 	if(this.ext_mrt) {
 		this.mrt_att = this.ext_mrt.COLOR_ATTACHMENT0_WEBGL ;
 		this.mrt_draw = function(b,d){return this.ext_mrt.drawBuffersWEBGL(b,d)} ;
-	this.ext_i32 = gl.getExtension('OES_element_index_uint')
 	}
+	this.ext_i32 = gl.getExtension('OES_element_index_uint')
 
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
 	this.version = 1 ;
@@ -613,13 +613,13 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	}
 	if(flag && geo.idx) {
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
-		if(geo.vtx.length/(ret.tl/4) > 65535 && this.wwg.ext_i32) {
-				gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
-			this.i32Array(geo.idx),gl.STATIC_DRAW ) ;
+		if(geo.vtx.length/(ret.tl/4) > 65536 && this.wwg.ext_i32) {
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
+				this.i32Array(geo.idx),gl.STATIC_DRAW ) ;
 			ret.i32 = true ;
 		} else {
 			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
-			this.i16Array(geo.idx),gl.STATIC_DRAW ) ;
+				this.i16Array(geo.idx),gl.STATIC_DRAW ) ;
 			ret.i32 = false ;
 		}
 	}
