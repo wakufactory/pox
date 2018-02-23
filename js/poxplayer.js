@@ -297,19 +297,23 @@ PoxPlayer.prototype.setEvent = function() {
 		o.addEventListener("mousedown", (ev)=>{
 			if(this.pox.event) this.pox.event("btndown",ev.target.id) ;
 			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
 		})
 		o.addEventListener("touchstart", (ev)=>{
 			if(this.pox.event) this.pox.event("touchstart",ev.target.id) ;
 			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
 		})
 		o.addEventListener("mouseup", (ev)=>{
 			if(this.pox.event) this.pox.event("btnup",ev.target.id) ;
 			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 			this.keyElelment.focus() ;
+			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
 			if(this.pox.event) this.pox.event("touchend",ev.target.id) ;
 			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
 		})
 	})
 }
@@ -361,9 +365,8 @@ console.log(r) ;
 		let fc = 0 ;
 		let gp ;
 
-		const self = this ;
-		(function loop(){
-			self.loop = window.requestAnimationFrame(loop) ;
+		const loopf = () => {
+			this.loop = window.requestAnimationFrame(loopf) ;
 			const ct = new Date().getTime() ;
 			if(Param.pause) {
 				Param.fps=0;
@@ -387,7 +390,8 @@ console.log(r) ;
 			ccam.update()	// camera update
 			update(r,pox,ccam.cam,rt) ; // scene update 
 			Param.updateTimer() ;
-		})();		
+		}
+		loopf() ;		
 	}).catch((err)=>{
 		console.log(err) ;
 		if(this.errCb) this.errCb(err) ;
@@ -707,7 +711,7 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	} else {
 	// bird camera mode 
 		camd=  cam.camd*scale ;
-		camX = -Math.sin(cam.camRY*Rthis.AD)*camd*Math.cos(cam.camRX*this.RAD)
+		camX = -Math.sin(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
 		camY = Math.sin(cam.camRX*this.RAD)*camd ; 
 		camZ = Math.cos(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
 		cx = 0 ,cy = 0, cz = 0 ;
