@@ -80,6 +80,7 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	const POX = this.pox ;
+
 	function V3add() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
@@ -282,7 +283,7 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.pox.event("keydown",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keydown",ev) 
-		return true ;
+		return false ;
 	})
 	WBind.addev(this.keyElelment,"keyup", (ev)=>{
 //		console.log("key up:"+ev.key);
@@ -291,7 +292,7 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.pox.event("keyup",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keyup",ev)
-		return true ;
+		return false ;
 	})		
 	document.querySelectorAll("#bc button").forEach((o)=>{
 		o.addEventListener("mousedown", (ev)=>{
@@ -335,6 +336,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	//create render unit
 	const r = wwg.createRender() ;
 	this.render = r ;
+	pox.render = r ;
 	
 	//create default camera
 	const ccam = this.createCamera() ;
