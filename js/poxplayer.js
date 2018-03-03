@@ -103,8 +103,12 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
 	}
 
-	POX.setScene = (scene)=> {
-		this.setScene(scene) ;
+	POX.setScene = async (scene)=> {
+		return new Promise((resolve,reject) => {
+			this.setScene(scene).then( () => {
+				resolve() ;
+			})
+		})
 	}
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
@@ -206,7 +210,7 @@ PoxPlayer.prototype.setParam = function(dom) {
 			},
 			input:(v)=>{
 				_setdisp(i,this.uparam[i])
-				this.keyElelment.focus()
+//				this.keyElelment.focus()
 			}
 		})
 		this.uparam[i] = param[i].value ;
@@ -312,8 +316,9 @@ PoxPlayer.prototype.setEvent = function() {
 			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
-			if(this.pox.event) this.pox.event("touchend",ev.target.id) ;
-			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+			ret = true; 
+			if(this.pox.event) ret = this.pox.event("touchend",ev.target.id) ;
+			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
 	})
@@ -321,17 +326,20 @@ PoxPlayer.prototype.setEvent = function() {
 
 PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(sc) ;
+
 	const wwg = this.wwg ;
 	const pox = this.pox ;
 	const can = this.can ;
 
 	const pixRatio = this.pixRatio
 	const Param = this.param ;
+	const sset = pox.setting || {} ;
+	if(!sset.scale) sset.scale = 1.0 ;
+	
+
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
-	const sset = pox.setting || {} ;
-	if(!sset.scale) sset.scale = 1.0 ;
 
 	//create render unit
 	const r = wwg.createRender() ;
@@ -342,7 +350,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const ccam = this.createCamera() ;
 	this.ccam = ccam ;
 	pox.cam = ccam.cam ;
-
+	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {		
 console.log(r) ;
 		if(this.errCb) this.errCb("scene set ok") ;
@@ -359,6 +367,7 @@ console.log(r) ;
 		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
 		
+		resolve()
 		//draw loop
 		let st = new Date().getTime() ;
 		let tt = 0 ;
@@ -397,7 +406,9 @@ console.log(r) ;
 	}).catch((err)=>{
 		console.log(err) ;
 		if(this.errCb) this.errCb(err) ;
+		reject() 
 	})
+	}) // promise
 	
 	// calc model matrix
 	function modelMtx(render,cam,update) {
