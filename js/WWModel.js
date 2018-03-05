@@ -128,6 +128,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 		}
 		ii += p.length ;
 	}
+	console.log(" vert:"+v.length);
 	console.log(" poly:"+ibuf.length/3);
 	for(var i=0;i<v.length;i++) {
 		vbuf.push( v[i][0] ) ;
@@ -164,6 +165,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 			}
 		}
 	}
+
 //	console.log(vbuf) ;
 //	console.log(ibuf) ;
 	this.ibuf = ibuf ;
@@ -325,11 +327,11 @@ WWModel.prototype.primitive  = function(type,param) {
 			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
 			p.push([x,0,z])
 			n.push([0,1,0])
-			t.push([v,1])	
+			t.push([(x/wx+1)/2,(z/wz+1)/2])	
 		}
 		p.push([0,0,0])
 		n.push([0,1,0])
-		t.push([0,0])
+		t.push([0.5,0.5])
 		for(var j =0; j < div-1 ;j++) {
 			s.push([j,j+1,div]) ;
 		}
