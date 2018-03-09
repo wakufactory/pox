@@ -171,9 +171,10 @@ PoxPlayer.prototype.setParam = function(dom) {
 	for(let i in param) {
 		const p = param[i] ;
 		const name = (p.name)?p.name:i ;
-		const type = (p.type)?p.type:"range" 
+		if(!p.type) p.type = "range" 
+		let tag = `<div class=t>${name}</div> <input type=${p.type} id="${i}" min=0 max=100 style="${(p.type=="disp")?"display:none":""}"  /><span id=${"d_"+i}></span><br/>`
 		input.push(
-			`<div class=t>${name}</div> <input type=${type} id="${i}" min=0 max=100  /><span id=${"d_"+i}></span><br/>`
+			tag
 		)
 	}
 	dom.innerHTML = input.join("") 
@@ -194,7 +195,8 @@ PoxPlayer.prototype.setParam = function(dom) {
 				let ret = v ;
 				if(param[i].type=="color") {
 					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
-				} else  ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+				} else if(param[i].type=="range") ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+				else ret = v ;
 //				console.log(ret)
 				_setdisp(i,v)
 				return ret 	
@@ -205,7 +207,8 @@ PoxPlayer.prototype.setParam = function(dom) {
 					if(typeof v =="string" && v.match(/#[0-9A-F]+/i)) {
 						ret =[parseInt(v.substr(1,2),16)/255,parseInt(v.substr(3,2),16)/255,parseInt(v.substr(5,2),16)/255] ;
 					} else ret = v ;
-				} else ret = v*(param[i].max-param[i].min)/100+param[i].min			
+				} else if(param[i].type=="range" ) ret = v*(param[i].max-param[i].min)/100+param[i].min	
+				else ret = v ;		
 				return ret ;
 			},
 			input:(v)=>{
