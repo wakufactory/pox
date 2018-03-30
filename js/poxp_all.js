@@ -1134,11 +1134,11 @@ WWModel.prototype.primitive  = function(type,param) {
 			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
 			p.push([x,0,z])
 			n.push([0,1,0])
-			t.push([v,1])	
+			t.push([(x/wx+1)/2,(z/wz+1)/2])	
 		}
 		p.push([0,0,0])
 		n.push([0,1,0])
-		t.push([0,0])
+		t.push([0.5,0.5])
 		for(var j =0; j < div-1 ;j++) {
 			s.push([j,j+1,div]) ;
 		}
@@ -2796,6 +2796,7 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	const POX = this.pox ;
+
 	function V3add() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
@@ -2818,8 +2819,12 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
 	}
 
-	POX.setScene = (scene)=> {
-		this.setScene(scene) ;
+	POX.setScene = async (scene)=> {
+		return new Promise((resolve,reject) => {
+			this.setScene(scene).then( () => {
+				resolve() ;
+			})
+		})
 	}
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
@@ -2882,9 +2887,10 @@ PoxPlayer.prototype.setParam = function(dom) {
 	for(let i in param) {
 		const p = param[i] ;
 		const name = (p.name)?p.name:i ;
-		const type = (p.type)?p.type:"range" 
+		if(!p.type) p.type = "range" 
+		let tag = `<div class=t>${name}</div> <input type=${p.type} id="${i}" min=0 max=100 style="${(p.type=="disp")?"display:none":""}"  /><span id=${"d_"+i}></span><br/>`
 		input.push(
-			`<div class=t>${name}</div> <input type=${type} id="${i}" min=0 max=100  /><span id=${"d_"+i}></span><br/>`
+			tag
 		)
 	}
 	dom.innerHTML = input.join("") 
@@ -2896,7 +2902,8 @@ PoxPlayer.prototype.setParam = function(dom) {
 	function _setdisp(i,v) {
 		if(param[i].type=="color" && v ) {
 			$('d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
-		} else $('d_'+i).innerHTML = v.toString().substr(0,5) ;		
+		} else if(param[i].type=="range")  $('d_'+i).innerHTML = v.toString().substr(0,5) ;	
+		else $('d_'+i).innerHTML = v
 	}
 	for(let i in param) {
 		this.uparam.bindInput(i,"#"+i)
@@ -2905,7 +2912,8 @@ PoxPlayer.prototype.setParam = function(dom) {
 				let ret = v ;
 				if(param[i].type=="color") {
 					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
-				} else  ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+				} else if(param[i].type=="range") ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+				else ret = v ;
 //				console.log(ret)
 				_setdisp(i,v)
 				return ret 	
@@ -2916,12 +2924,13 @@ PoxPlayer.prototype.setParam = function(dom) {
 					if(typeof v =="string" && v.match(/#[0-9A-F]+/i)) {
 						ret =[parseInt(v.substr(1,2),16)/255,parseInt(v.substr(3,2),16)/255,parseInt(v.substr(5,2),16)/255] ;
 					} else ret = v ;
-				} else ret = v*(param[i].max-param[i].min)/100+param[i].min			
+				} else if(param[i].type=="range" ) ret = v*(param[i].max-param[i].min)/100+param[i].min	
+				else ret = v ;		
 				return ret ;
 			},
 			input:(v)=>{
 				_setdisp(i,this.uparam[i])
-				this.keyElelment.focus()
+//				this.keyElelment.focus()
 			}
 		})
 		this.uparam[i] = param[i].value ;
@@ -2983,7 +2992,7 @@ PoxPlayer.prototype.setEvent = function() {
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause) return true;
+			if(!this.ccam || Param.pause || !this.pox.setting.gyro) return true;
 			if(dragging) return true ;
 			let ret = true ;
 			if(this.pox.event) ret = this.pox.event("gyro",ev) ;
@@ -2998,7 +3007,7 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.pox.event("keydown",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keydown",ev) 
-		return true ;
+		return false ;
 	})
 	WBind.addev(this.keyElelment,"keyup", (ev)=>{
 //		console.log("key up:"+ev.key);
@@ -3007,7 +3016,7 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.pox.event("keyup",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keyup",ev)
-		return true ;
+		return false ;
 	})		
 	document.querySelectorAll("#bc button").forEach((o)=>{
 		o.addEventListener("mousedown", (ev)=>{
@@ -3027,8 +3036,9 @@ PoxPlayer.prototype.setEvent = function() {
 			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
-			if(this.pox.event) this.pox.event("touchend",ev.target.id) ;
-			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+			ret = true; 
+			if(this.pox.event) ret = this.pox.event("touchend",ev.target.id) ;
+			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
 	})
@@ -3036,27 +3046,31 @@ PoxPlayer.prototype.setEvent = function() {
 
 PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(sc) ;
+
 	const wwg = this.wwg ;
 	const pox = this.pox ;
 	const can = this.can ;
 
 	const pixRatio = this.pixRatio
 	const Param = this.param ;
+	const sset = pox.setting || {} ;
+	if(!sset.scale) sset.scale = 1.0 ;
+	
+
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
-	const sset = pox.setting || {} ;
-	if(!sset.scale) sset.scale = 1.0 ;
 
 	//create render unit
 	const r = wwg.createRender() ;
 	this.render = r ;
+	pox.render = r ;
 	
 	//create default camera
 	const ccam = this.createCamera() ;
 	this.ccam = ccam ;
 	pox.cam = ccam.cam ;
-
+	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {		
 console.log(r) ;
 		if(this.errCb) this.errCb("scene set ok") ;
@@ -3073,6 +3087,7 @@ console.log(r) ;
 		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
 		
+		resolve()
 		//draw loop
 		let st = new Date().getTime() ;
 		let tt = 0 ;
@@ -3111,7 +3126,9 @@ console.log(r) ;
 	}).catch((err)=>{
 		console.log(err) ;
 		if(this.errCb) this.errCb(err) ;
+		reject() 
 	})
+	}) // promise
 	
 	// calc model matrix
 	function modelMtx(render,cam,update) {
@@ -3214,7 +3231,8 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camGyro:true, // use gyro
 		sbase:0.05, 	//streobase 
 		vcx:0,
-		vcz:0
+		vcz:0,
+		gyro:true 
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;

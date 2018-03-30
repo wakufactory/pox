@@ -186,7 +186,8 @@ PoxPlayer.prototype.setParam = function(dom) {
 	function _setdisp(i,v) {
 		if(param[i].type=="color" && v ) {
 			$('d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
-		} else $('d_'+i).innerHTML = v.toString().substr(0,5) ;		
+		} else if(param[i].type=="range")  $('d_'+i).innerHTML = v.toString().substr(0,5) ;	
+		else $('d_'+i).innerHTML = v
 	}
 	for(let i in param) {
 		this.uparam.bindInput(i,"#"+i)
@@ -275,7 +276,7 @@ PoxPlayer.prototype.setEvent = function() {
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause) return true;
+			if(!this.ccam || Param.pause || !this.pox.setting.gyro) return true;
 			if(dragging) return true ;
 			let ret = true ;
 			if(this.pox.event) ret = this.pox.event("gyro",ev) ;
@@ -514,7 +515,8 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camGyro:true, // use gyro
 		sbase:0.05, 	//streobase 
 		vcx:0,
-		vcz:0
+		vcz:0,
+		gyro:true 
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
