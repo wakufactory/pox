@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width" /> 
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>PolygonExplorerEditor</title>
+<title>PolygonExplorerEditor for Oculus Go</title>
 <script src="ga.js"></script>
 <script src="js/WWG.js?2"></script>
 <script src="js/CanvasMatrix.js"></script>
@@ -14,7 +14,7 @@
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
-<script src="js/poxplayer.js?2"></script>
+<script src="js/poxplayer.js?7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.9/ace.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
@@ -38,7 +38,7 @@ onload = ()=> {
 		var s = localStorage.getItem("poxe_save") ;
 		var data ;
 		if(s) data = JSON.parse(s) ;
-		else data = {"m":"//settings\nPOX.setting = {\n\tname:\"sample_basic\",\n\tscale:1.0\n};\n\n//make scenedata\nconst r3=1.0/Math.sqrt(3);\n//make primitive model\nvar sp = new WWModel().primitive(\"sphere\",{div:20,wx:0.5,wy:0.5,wz:0.5})\n// scene structure\nvar scene={\n\t//environment params\n\tenv:{clear_color:[0.2,0.2,0.4,1.0],cull:false},\n\t//vertex shader uniform data\n\tvs_uni:{\n\t\tcol:[1.0,0.2,1.0,1.0]\n\t},\n\t//flagment shader uniform data\n\tfs_uni:{\n\t\tlvec:[1.0,1.0,1.0],\n\t\tmode:0\n\t},\n\tmodel:[\n\t\t// model triangle polygon\n\t\t{geo:{mode:\"tri\",\n\t\t\tvtx_at:[\"position\",\"norm\"], // v-shader attribute name\n\t\t\tvtx:[\t//VBO buffer\n\t\t\t\t1,0,0,\t\t//position1\n\t\t\t\tr3,r3,r3,\t//normal1\n\t\t\t\t0,1,0,\t\t//position2\n\t\t\t\tr3,r3,r3,\t//normal2\n\t\t\t\t0,0,1,\t\t//position3\n\t\t\t\tr3,r3,r3\t//normal3\n\t\t\t],\n\t\t\tidx:[0,1,2]\t//index buffer\n\t\t\t},\n\t\t\tvs_uni:{col:[1.0,0.0,0.0,1.0]}\t//v-shader uniform for model\n\t\t},\n\t\t// model sphere\n\t\t{geo:sp.objModel(),  //convert model-object to VBO data\n\t\t\tvs_uni:{col:[0.0,0.0,1.0,1.0]}},\n\t\t// axis lines\n\t\t{name:\"axis\",\n\t\tgeo:{mode:\"lines\",\n\t\t\tvtx_at:[\"position\"],\n\t\t\tvtx:[0,0,0,200,0,0,0,0,0,0,200,0,0,0,0,0,0,200]},\n\t\t\tfs_uni:{bcolor:[1.0,1.0,1.0,1.0],mode:1}},\n\t]\n}\n//set scene and rendering start\nPOX.setScene(scene);\n\n//sceneupdate function for each frame\nPOX.update=function(render,cam,time){\n\tvar ret={};\n\t// get first model data\n\tvar m=render.getModelData(0);\n\t// set modifire matrix to rotate model \n\tm.mm=new CanvasMatrix4().rotate(time/50,0,1,0);\n\treturn ret;\n}\t\n","vs":"attribute vec3 position;\nattribute vec3 norm;\nattribute vec2 uv ;\n\nuniform mat4 mvpMatrix;\nuniform mat4 invMatrix;\nuniform vec4 col ;\n\nvarying vec3 tnorm ;\nvarying vec4 color ;\n\nvoid main() {\n\tvec2 uv2 = uv ;\n\tcolor = col ;\n\ttnorm = (invMatrix * vec4(norm,0.0)).xyz ;\n\tgl_Position = mvpMatrix * vec4(position, 1.0) ;\n}\n","fs":"precision highp float;\nuniform int mode ;\nuniform vec4 bcolor ;\nuniform vec3 eyevec ;\nuniform vec3 lvec ;\t\n\nvarying vec3 tnorm ;\nvarying vec4 color ;\n\nvoid main() {\n\tvec3 col = color.xyz ;\n\tvec3 norm = normalize(tnorm) ;\n\tfloat diff= clamp((dot(norm,normalize(lvec))+0.5)/1.5,0.0,1.0);\n\tfloat spec= pow(clamp(dot(norm,normalize(normalize(lvec)+normalize(eyevec))),0.0,1.0),60.0);\n\tvec3 fcolor = col * (diff * 0.8 + 0.2) + vec3(0.6,0.6,1.0)*(spec * 0.8);\n\tgl_FragColor = (mode!=1) ? vec4(fcolor,color.w):vec4(bcolor.x,bcolor.y,bcolor.z,1.0);\n}\n","version":"0.1"} ;
+
 //		console.log(data);
 		POXE.POXP.load(data).then((src)=>{
 			POXE.set(src) ;
@@ -49,24 +49,8 @@ onload = ()=> {
 		POXE.reload() ;
 	})
 
-	$("l_load").addEventListener("change", (ev)=>{
-		console.log(this.value) ;
-		var f = ev.target.files ;
-		var reader = new FileReader();
-
-		reader.onload = (e)=> {
-			var obj ;
-			try {
-				obj = JSON.parse(e.target.result) ;
-			} catch(err) {
-				POXE.msg("parse err "+err) ;
-				return ;
-			}
-			POXE.POXP.load(obj).then((src)=>{
-				POXE.set(src) ;
-			}) ;
-		};
-		reader.readAsText(f[0]);
+	$("b_fs").addEventListener("click", ()=>{
+		document.body.webkitRequestFullscreen()
 	})
 	
 	$("b_cap").addEventListener("click", ()=>{
@@ -85,7 +69,9 @@ onload = ()=> {
 		}
 		POXE.POXP.resize() ;
 	})
-
+	$("vrbtn").addEventListener("click", (ev)=>{
+		POXE.POXP.enterVR()
+	}) 
 }
 POXE.msg = (msg)=> {
 	const e = document.createElement("div")
@@ -97,8 +83,6 @@ POXE.save = (data)=> {
 	data.version = "0.1" ;
 	var d = JSON.stringify(data) ;
 	localStorage.setItem("poxe_save",d) ;
-	if(POXE.setting) $("l_save").setAttribute("download", POXE.setting.name+".json"); 
-	$("l_save").href = "data:application/json;charset=UTF-8,"+ encodeURI(d) ;
 }
 
 POXE.reload = ()=> {
@@ -135,7 +119,7 @@ POXE.set = (src,edit=true)=> {
 	})
 }
 POXE.ace = ()=> {
-	var fontsize = 14 ;
+	var fontsize = (document.body.offsetWidth<1000)?10:16 ;
 	var theme = "ace/theme/xcode" ;
 	var keybind = {
 	    name: 'save',
@@ -177,10 +161,14 @@ body,html {
 	width:100% ;
 	height:100% ;
 }
+
 body {
 	display:flex ;
 	box-sizing: border-box ;
 	font-family:sans-serif ;
+}
+button {
+	font-size:1rem 
 }
 div.edit {
 	display:flex ;
@@ -214,6 +202,14 @@ div.edit textarea {
 	tab-size:4 ;
 	-webkit-overflow-scrolling : touch ;
 }
+@media (max-width:1000px) {
+	body,html {
+		font-size:10px ;
+	}	
+	div.edit {
+		font-size:12px ;
+	}
+}
 #ebox {
 	height:calc(100% - 6rem) ;
 }
@@ -225,6 +221,10 @@ div.edit textarea {
 	background-color:#222 ;
 	opacity:0.6 ;
 	vertical-align:baseline;
+	font-size:10px ;
+}
+#pui input {
+	font-size:10px ;
 }
 #pui input[type=range] {
 	width:10rem ;
@@ -252,7 +252,7 @@ div.edit textarea {
 	background-color:#222 ;
 	opacity:0.6 ;
 	vertical-align:baseline;
-	font-size:2rem ;	
+	font-size:10px ;	
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -343,6 +343,18 @@ label,button {
 .oswitch input[id=editor]:checked + .sbtn:before {
 	content: "➡️" ;
 }
+#vrbtn {
+	position:absolute ;
+	width:50px ;
+	height:50px ;
+	top:calc( 100% - 50px ) ;
+	left:calc( 100% - 50px ) ;
+	opacity: 0.8 ;
+	background-color:#ccc;
+	background-position: center;
+	background-image:url("goggle.png") ;
+	background-repeat:no-repeat;
+}
 #footer {
 	position:absolute ;
 	top:calc(100% - 2rem) ;
@@ -354,9 +366,8 @@ label,button {
 
 <div id=ec>
 <a href="http://wakufactory.jp/wgl/pox/ ">PoExE</a>
-<button id=b_apply>APPLY</button>&nbsp;
-<a href="" id=l_save download="save.json"><button>Save</button></a>
- Load<input type=file id=l_load>
+<button id=b_apply>APPLY</button>
+<button id=b_fs>FullScreen</button>
 <br/>
 </div>
 <div id=ebox>
@@ -385,7 +396,6 @@ label,button {
 <div id=cc>
 <span class=oswitch><label><input type=checkbox id=editor><span class=sbtn></span></label></span>
 <label><input type=checkbox id=autorot>rot</label>
-<label><input type=checkbox id=isstereo>stereo</label>
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
 [<span id="fps"></span>FPS]
  <button id=b_cap>CAP</button><a href="" id=l_cap> <img id="cap_thumb" /></a></a>
@@ -399,6 +409,7 @@ label,button {
 <tr><td></td><td><button id=bc_d data-key="z">⬇️</button></td><td></td></tr>
 </table>
 </div>
+<div id=vrbtn></div>
 <canvas id="screen1"></canvas>
 <div id=footer></div>
 </div>

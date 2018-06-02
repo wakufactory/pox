@@ -6,15 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
-<script src="ga.js"></script>
-<script src="js/WWG.js"></script>
-<script src="js/CanvasMatrix.js"></script>
-<script src="js/WWModel.js"></script>
-<script src="js/Pointer.js"></script>
-<script src="js/WBind.js"></script>
-<script src="js/GPad.js"></script>
-<script src="js/was.js"></script>
-<script src="js/poxplayer.js?1"></script>
+<script src="js/poxp_all.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
@@ -47,7 +39,7 @@ onload = function() {
 		$("bc").style.opacity = d?0.:0.4 ;
 	})
 	$("b_edit").addEventListener("click",function(ev) {
-		location.href="poxe.html?"+q ;
+		location.href="poxe_g.html?"+q ;
 	})
 	$("bc").addEventListener("touchstart",function(ev) {
 		ev.preventDefault()
@@ -55,6 +47,9 @@ onload = function() {
 	$("bc").addEventListener("touchend",function(ev) {
 		ev.preventDefault()
 	})
+	$("vrbtn").addEventListener("click", (ev)=>{
+		poxp.enterVR()
+	}) 
 }
 </script>
 <style>
@@ -138,12 +133,23 @@ canvas {
 #bc button {
 	font-size:2vw ;
 }
+#vrbtn {
+	position:absolute ;
+	width:50px ;
+	height:50px ;
+	top:calc( 100% - 50px ) ;
+	left:calc( 100% - 50px ) ;
+	opacity: 0.8 ;
+	background-color:#ccc;
+	background-position: center;
+	background-image:url("goggle.png") ;
+	background-repeat:no-repeat;
+}
 </style>
 </head>
 <body>
 <div id=cc>
 <label><input type=checkbox id=autorot>rot</label>
-<label><input type=checkbox id=isstereo>stereo</label>
 <span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
 [<span id="fps"></span>FPS]<button id=b_edit>EDIT</button>
 <div id=pui></div>
@@ -156,6 +162,7 @@ canvas {
 <tr><td></td><td><button id=bc_d  data-key="z">↓</button></td><td></td></tr>
 </table>
 </div>
+<div id=vrbtn></div>
 <canvas id="screen1"></canvas>
 <div id=footer>Made with <a href="http://wakufactory.jp/wgl/pox/ ">PoExE</a></div>
 </body>

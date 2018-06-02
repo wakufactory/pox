@@ -2728,7 +2728,7 @@ const PoxPlayer  = function(can) {
 
 	// wwg initialize
 	const wwg = new WWG() ;
-	if(/*!wwg.init2(can) &&*/ !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+	if(!wwg.init2(this.can) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
 		alert("wgl not supported") ;
 		return null ;
 	}
@@ -2760,6 +2760,46 @@ const PoxPlayer  = function(can) {
 	this.keyElelment = e ;
 	this.keyElelment.focus() ;
 	this.setEvent() ;
+	// VR init 
+	if(navigator.getVRDisplays) {
+		navigator.getVRDisplays().then((displays)=> {
+			this.vrDisplay = displays[displays.length - 1]
+			console.log(this.vrDisplay)
+			window.addEventListener('vrdisplaypresentchange', ()=>{
+				console.log("vr presenting= "+this.vrDisplay.isPresenting)
+				if(this.vrDisplay.isPresenting) {
+					
+				} else {
+					this.resize() ;
+				}
+			}, false);
+			window.addEventListener('vrdisplayactivate', ()=>{
+				console.log("vr active")
+			}, false);
+			window.addEventListener('vrdisplaydeactivate', ()=>{
+				console.log("vr deactive")
+			}, false);
+		})
+	}
+}
+PoxPlayer.prototype.enterVR = function() {
+	if(this.vrDisplay) {
+		console.log("enter VR")
+		this.vrDisplay.requestPresent([{ source: this.can }]).then( () =>{
+			console.log("present ok")
+			var leftEye = this.vrDisplay.getEyeParameters("left");
+			var rightEye = this.vrDisplay.getEyeParameters("right");
+			this.can.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
+			this.can.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
+			if(this.vrDisplay.displayName=="Oculus Go") {
+				this.can.width = 2560
+				this.can.height = 1280
+			}
+			console.log("canvas:"+this.can.width+" x "+this.can.height);
+		}).catch((err)=> {
+			console.log(err)
+		})
+	}
 }
 PoxPlayer.prototype.resize = function() {
 	this.can.width= this.can.offsetWidth*this.pixRatio  ;
@@ -3070,6 +3110,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const ccam = this.createCamera() ;
 	this.ccam = ccam ;
 	pox.cam = ccam.cam ;
+	this.isVR = false 
+	const self = this 
 	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {		
 console.log(r) ;
@@ -3095,9 +3137,15 @@ console.log(r) ;
 		let ft = st ;
 		let fc = 0 ;
 		let gp ;
-
 		const loopf = () => {
-			this.loop = window.requestAnimationFrame(loopf) ;
+			if(this.vrDisplay && this.vrDisplay.isPresenting) {
+				this.loop = this.vrDisplay.requestAnimationFrame(loopf)
+				this.isVR = true 
+
+			} else {
+				this.loop = window.requestAnimationFrame(loopf) ;
+				this.isVR = false ;
+			}
 			const ct = new Date().getTime() ;
 			if(Param.pause) {
 				Param.fps=0;
@@ -3108,6 +3156,7 @@ console.log(r) ;
 			rt = tt + ct-st ;
 			fc++ ;
 			if(ct-ft>=1000) {
+				if(this.isVR) console.log(fc)
 				Param.fps = fc ;
 				fc = 0 ;
 				ft = ct ; 
@@ -3121,6 +3170,7 @@ console.log(r) ;
 			ccam.update()	// camera update
 			update(r,pox,ccam.cam,rt) ; // scene update 
 			Param.updateTimer() ;
+			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
 		}
 		loopf() ;		
 	}).catch((err)=>{
@@ -3166,10 +3216,11 @@ console.log(r) ;
 		return update ;		
 	}
 	// update scene
+
 	function update(render,scene,cam,time) {
 		// draw call 
 		let camm,update = {} ;
-		if(Param.isStereo) {
+		if(Param.isStereo || self.isVR) {
 			render.gl.viewport(0,0,can.width/2,can.height) ;
 			if(!Param.pause) update = scene.update(render,cam,time,-1)
 			camm = ccam.getMtx(sset.scale,-1) ;
@@ -3243,7 +3294,8 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 	this.gx = 0 ; this.gy = 0 ; this.gz = 0 ;
 	this.vrx = 0 ;this.vry = 0 ;
 	this.keydown = false ;
-	this.RAD = Math.PI/180 ;
+	this.RAD = Math.PI/180 
+	this.vr = false ;
 }
 PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
 	for(let i in cam) {
@@ -3403,7 +3455,8 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gp) {
-//	console.log(gp.buttons)
+	console.log(gp)
+	return
 	this.cam.camRY += gp.faxes[2]
 	this.cam.camRX += gp.faxes[3]
 	this.cam.camd = gp.faxes[1]*this.poxp.pox.setting.scale *0.1
@@ -3414,7 +3467,6 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gp) {
 			let ry = this.cam.camRY ;
 			this.cam.vcx =  Math.sin(ry*this.RAD) * vd;
 			this.cam.vcz = -Math.cos(ry*this.RAD)* vd ;	
-		
 	}
 }
 PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
@@ -3452,12 +3504,11 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		if(camd<0) {
 			cx = camX*2 ;cy = camY*2 ;cz = camZ*2 ;
 		}
-
 		upx = 0.,upy = 1 ,upz = 0. ;
 	}
 
 	// for stereo
-	if(dx!=0) {
+	if(dx!=0 && !this.poxp.isVR) {
 		let xx =  upy * (camZ-cz) - upz * (camY-cy);
 		let xy = -upx * (camZ-cz) + upz * (camX-cx);
 		let xz =  upx * (camY-cy) - upy * (camX-cx);
@@ -3471,9 +3522,22 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		cy += xy ;
 		cz += xz ;
 	}
-	let camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
-	cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
-	if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
-	else camM = camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;	
+	let camM 
+	if(this.poxp.isVR) {
+		let frameData = new VRFrameData()
+		this.poxp.vrDisplay.getFrameData(frameData)
+		camM = new CanvasMatrix4()
+		camM.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
+		camM.rotate(cam.camRX,1,0,0)
+		camM.rotate(cam.camRY,0,1,0)
+		camM.multRight( new CanvasMatrix4((dx<0)?frameData.leftViewMatrix:frameData.rightViewMatrix))
+		camM.multRight(new CanvasMatrix4( (dx<0)?frameData.leftProjectionMatrix:frameData.rightProjectionMatrix) )
+	} else {
+		camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
+		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
+		if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		else camM = camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
+	}
+//	console.log(camM)
 	return {camX:camX,camY:camY,camZ:camZ,camM:camM} ;
 }
