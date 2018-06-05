@@ -2728,7 +2728,8 @@ const PoxPlayer  = function(can) {
 
 	// wwg initialize
 	const wwg = new WWG() ;
-	if(!wwg.init2(this.can,{preserveDrawingBuffer: true}) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+	const useWebGL2 = true 
+	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: true})) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
 		alert("wgl not supported") ;
 		return null ;
 	}
