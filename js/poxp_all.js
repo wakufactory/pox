@@ -2728,7 +2728,7 @@ const PoxPlayer  = function(can) {
 
 	// wwg initialize
 	const wwg = new WWG() ;
-	if(!wwg.init2(this.can) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+	if(!wwg.init2(this.can,{preserveDrawingBuffer: true}) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
 		alert("wgl not supported") ;
 		return null ;
 	}
@@ -2768,9 +2768,10 @@ const PoxPlayer  = function(can) {
 			window.addEventListener('vrdisplaypresentchange', ()=>{
 				console.log("vr presenting= "+this.vrDisplay.isPresenting)
 				if(this.vrDisplay.isPresenting) {
-					
+					if(this.pox.event) this.pox.event("vrchange",1)
 				} else {
 					this.resize() ;
+					if(this.pox.event) this.pox.event("vrchange",0)
 				}
 			}, false);
 			window.addEventListener('vrdisplayactivate', ()=>{
@@ -3455,11 +3456,12 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gp) {
-	console.log(gp)
-	return
-	this.cam.camRY += gp.faxes[2]
-	this.cam.camRX += gp.faxes[3]
-	this.cam.camd = gp.faxes[1]*this.poxp.pox.setting.scale *0.1
+//	console.log(gp.faxes[0],gp.faxes[1])
+//	console.log(gp.buttons[0],gp.buttons[1])
+
+	this.cam.camRY += gp.faxes[0]/2
+	this.cam.camRX += gp.faxes[1]/2
+//	this.cam.camd = gp.faxes[1]*this.poxp.pox.setting.scale *0.1
 	if(this.cam.camMode=="walk") {
 		let sc = 0.01*this.poxp.pox.setting.scale ;
 		let vd = (-gp.axes[1]*sc)
@@ -3478,58 +3480,62 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 //console.log(cam);
 //console.log(cam.camRX+"/"+cam.camRY) ;
 	let cx,cy,cz,upx,upy,upz,camX,camY,camZ,camd ;
-	if(cam.camMode=="fix") {
-		cx = cam.camVX ;
-		cy = cam.camVY ;
-		cz = cam.camVZ ;
-		upx = cam.camUPX ;
-		upy = cam.camUPY ;
-		upz = cam.camUPZ ;
-		camX = 0 ,camY = 0, camZ = 0 ;			
-	}
-	else if(cam.camMode=="vr" || cam.camMode=="walk") {
-		// self camera mode 
-		cx = Math.sin(cam.camRY*this.RAD)*1*Math.cos(cam.camRX*this.RAD)
-		cy = -Math.sin(cam.camRX*this.RAD)*1 ; 
-		cz = -Math.cos(cam.camRY*this.RAD)*1*Math.cos(cam.camRX*this.RAD)
-		camX = 0 ,camY = 0, camZ = 0 ;
-		upx =0 ,upy = 1 ,upz = 0 ;		
-	} else {
-	// bird camera mode 
-		camd=  cam.camd*scale ;
-		camX = -Math.sin(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
-		camY = Math.sin(cam.camRX*this.RAD)*camd ; 
-		camZ = Math.cos(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
-		cx = 0 ,cy = 0, cz = 0 ;
-		if(camd<0) {
-			cx = camX*2 ;cy = camY*2 ;cz = camZ*2 ;
+	camX = 0 ,camY = 0, camZ = 0 ;
+	if(!this.poxp.isVR) {
+		if(cam.camMode=="fix") {
+			cx = cam.camVX ;
+			cy = cam.camVY ;
+			cz = cam.camVZ ;
+			upx = cam.camUPX ;
+			upy = cam.camUPY ;
+			upz = cam.camUPZ ;		
 		}
-		upx = 0.,upy = 1 ,upz = 0. ;
-	}
-
-	// for stereo
-	if(dx!=0 && !this.poxp.isVR) {
-		let xx =  upy * (camZ-cz) - upz * (camY-cy);
-		let xy = -upx * (camZ-cz) + upz * (camX-cx);
-		let xz =  upx * (camY-cy) - upy * (camX-cx);
-		const mag = Math.sqrt(xx * xx + xy * xy + xz * xz);
-		xx *= dx/mag ; xy *=dx/mag ; xz *= dx/mag ;
-//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
-		camX += xx ;
-		camY += xy ;
-		camZ += xz ;
-		cx += xx ;
-		cy += xy ;
-		cz += xz ;
+		else if(cam.camMode=="vr" || cam.camMode=="walk") {
+			// self camera mode 
+			cx = Math.sin(cam.camRY*this.RAD)*1*Math.cos(cam.camRX*this.RAD)
+			cy = -Math.sin(cam.camRX*this.RAD)*1 ; 
+			cz = -Math.cos(cam.camRY*this.RAD)*1*Math.cos(cam.camRX*this.RAD)
+			upx =0 ,upy = 1 ,upz = 0 ;		
+		} else  {
+		// bird camera mode 
+			camd=  cam.camd*scale ;
+			camX = -Math.sin(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
+			camY = Math.sin(cam.camRX*this.RAD)*camd ; 
+			camZ = Math.cos(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
+			cx = 0 ,cy = 0, cz = 0 ;
+			if(camd<0) {
+				cx = camX*2 ;cy = camY*2 ;cz = camZ*2 ;
+			}
+			upx = 0.,upy = 1 ,upz = 0. ;
+		}
+	
+		// for stereo
+		if(dx!=0 && !this.poxp.isVR) {
+			let xx =  upy * (camZ-cz) - upz * (camY-cy);
+			let xy = -upx * (camZ-cz) + upz * (camX-cx);
+			let xz =  upx * (camY-cy) - upy * (camX-cx);
+			const mag = Math.sqrt(xx * xx + xy * xy + xz * xz);
+			xx *= dx/mag ; xy *=dx/mag ; xz *= dx/mag ;
+	//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
+			camX += xx ;
+			camY += xy ;
+			camZ += xz ;
+			cx += xx ;
+			cy += xy ;
+			cz += xz ;
+		}
 	}
 	let camM 
 	if(this.poxp.isVR) {
 		let frameData = new VRFrameData()
+		this.poxp.vrDisplay.depthNear = cam.camNear 
+		this.poxp.vrDisplay.depthFar = cam.camFar 
+
 		this.poxp.vrDisplay.getFrameData(frameData)
 		camM = new CanvasMatrix4()
 		camM.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
-		camM.rotate(cam.camRX,1,0,0)
 		camM.rotate(cam.camRY,0,1,0)
+		camM.rotate(cam.camRX,1,0,0)
 		camM.multRight( new CanvasMatrix4((dx<0)?frameData.leftViewMatrix:frameData.rightViewMatrix))
 		camM.multRight(new CanvasMatrix4( (dx<0)?frameData.leftProjectionMatrix:frameData.rightProjectionMatrix) )
 	} else {
