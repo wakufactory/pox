@@ -3,12 +3,12 @@
 //   wakufactory.jp
 "use strict" ;
 
-const PoxPlayer  = function(can) {
+const PoxPlayer  = function(can,opt) {
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
 	}
-	this.can = document.querySelector(can)  ;
+	this.can = (can instanceof HTMLElement)?can:document.querySelector(can)  ;
 
 	// wwg initialize
 	const wwg = new WWG() ;
@@ -16,6 +16,10 @@ const PoxPlayer  = function(can) {
 	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: true})) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
 		alert("wgl not supported") ;
 		return null ;
+	}
+	if(opt && opt.needWebGL2 && wwg.version!=2) {
+		alert("needs wgl2")
+		return null 
 	}
 	this.wwg = wwg ;
 	if(window.WAS!=undefined) this.synth = new WAS.synth() 
