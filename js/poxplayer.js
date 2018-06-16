@@ -119,13 +119,30 @@ PoxPlayer.prototype.load = async function(d) {
 	})
 }
 
+PoxPlayer.prototype.loadImage = function(path) {
+	if(path.match(/^https?:/)) {
+		return this.wwg.loadImageAjax(path)
+	}else {
+		return new Promise((resolve,reject) => {
+			const img = new Image() ;
+			img.onload = ()=> {
+				resolve( img ) ;
+			}
+			img.onerror = ()=> {
+				reject("cannot load image") ;
+			}
+			img.src = path ;
+		})
+	}
+}
+
 PoxPlayer.prototype.set = async function(d,param={}) { 
-	
 //	return new Promise((resolve,reject) => {
 	const VS = d.vs ;
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
 	const POX = this.pox ;
+	POX.loadImage = this.loadImage 
 
 	function V3add() {
 		let x=0,y=0,z=0 ;
@@ -748,8 +765,8 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gp) {
 //	console.log(gp.faxes[0],gp.faxes[1])
 //	console.log(gp.buttons[0],gp.buttons[1])
 
-	this.cam.camRY += gp.faxes[0]/2
-	this.cam.camRX += gp.faxes[1]/2
+//	this.cam.camRY += gp.axes[0]/2
+//	this.cam.camRX += gp.axes[1]/2
 //	this.cam.camd = gp.faxes[1]*this.poxp.pox.setting.scale *0.1
 	if(this.cam.camMode=="walk") {
 		let sc = 0.01*this.poxp.pox.setting.scale ;
