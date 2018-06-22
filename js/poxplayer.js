@@ -92,6 +92,7 @@ PoxPlayer.prototype.enterVR = function() {
 	}
 }
 PoxPlayer.prototype.resize = function() {
+	if(this.vrDisplay && this.vrDisplay.isPresenting) return 
 	this.can.width= this.can.offsetWidth*this.pixRatio  ;
 	this.can.height = this.can.offsetHeight*this.pixRatio  ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		

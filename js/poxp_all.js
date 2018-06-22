@@ -355,12 +355,13 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		break;
 	}
+	console.log(option.repeat)
 	if(option.repeat==2) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	} else if(option.repeat==1) {
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_BORDER);				
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);				
 	} else {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
@@ -680,6 +681,19 @@ WWG.prototype.Render.prototype.updateModelInstance = function(name,buf,count) {
 WWG.prototype.Render.prototype.getModelData =function(name) {
 	var idx = this.getModelIdx(name) ;
 	return this.data.model[idx] ;
+}
+// update texture 
+WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
+	this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[idx]);
+	if(!opt)
+		this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
+	else {
+		if(opt.wx>0 && opt.wy>0)
+			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy,opt.wx,opt.wy,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);	
+		else 	
+			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy , this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
+	}
+	if(this.data.texture[idx].opt && !this.data.texture[idx].opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
 }
 //update uniform values
 WWG.prototype.Render.prototype.pushUniValues = function(u) {
@@ -2811,6 +2825,7 @@ PoxPlayer.prototype.enterVR = function() {
 	}
 }
 PoxPlayer.prototype.resize = function() {
+	if(this.vrDisplay && this.vrDisplay.isPresenting) return 
 	this.can.width= this.can.offsetWidth*this.pixRatio  ;
 	this.can.height = this.can.offsetHeight*this.pixRatio  ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		
