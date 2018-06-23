@@ -14,7 +14,7 @@
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
-<script src="js/poxplayer.js?8"></script>
+<script src="js/poxplayer.js?201806233"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.9/ace.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
@@ -31,7 +31,8 @@ onload = ()=> {
 
 	if(location.search.match(/\?.+\.json/)) {
 		POXE.POXP.load(location.search.substr(1)+"?").then((src)=>{
-			POXE.set(src) ;
+			POXE.save(src) ; 
+			location.href ="?" ;
 		}) ;
 	} else {
 		var s = localStorage.getItem("poxe_save") ;
