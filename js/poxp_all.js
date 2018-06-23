@@ -2818,14 +2818,18 @@ PoxPlayer.prototype.enterVR = function() {
 				this.can.width = 2560
 				this.can.height = 1280
 			}
-			console.log("canvas:"+this.can.width+" x "+this.can.height);
+			this.can.width= this.can.width * this.pixRatio 
+			this.can.height= this.can.height * this.pixRatio 
+			console.log("vr canvas:"+this.can.width+" x "+this.can.height);
 		}).catch((err)=> {
 			console.log(err)
 		})
 	}
 }
 PoxPlayer.prototype.resize = function() {
-	if(this.vrDisplay && this.vrDisplay.isPresenting) return 
+//	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
+	if(this.can.offsetWidth < 300 || 
+		(this.vrDisplay && this.vrDisplay.isPresenting)) return 
 	this.can.width= this.can.offsetWidth*this.pixRatio  ;
 	this.can.height = this.can.offsetHeight*this.pixRatio  ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		
