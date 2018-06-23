@@ -586,6 +586,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camUPZ:0,
 		camRX:30,
 		camRY:-30,
+		camRZ:0,
 		camd:5,
 		camAngle:60,	//cam angle(deg) 
 		camWidth:1.0,
@@ -844,9 +845,10 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 
 		this.poxp.vrDisplay.getFrameData(frameData)
 		camM = new CanvasMatrix4()
+		camM.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
 		camM.rotate(cam.camRY,0,1,0)
 		camM.rotate(cam.camRX,1,0,0)
-		camM.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
+		camM.rotate(cam.camRZ,0,0,1)
 		camM.multRight( new CanvasMatrix4((dx<0)?frameData.leftViewMatrix:frameData.rightViewMatrix))
 		camM.multRight(new CanvasMatrix4( (dx<0)?frameData.leftProjectionMatrix:frameData.rightProjectionMatrix) )
 	} else {
