@@ -47,7 +47,6 @@ WWG.prototype.init = function(canvas,opt) {
 		this.mrt_draw = function(b,d){return this.ext_mrt.drawBuffersWEBGL(b,d)} ;
 	}
 	this.ext_i32 = gl.getExtension('OES_element_index_uint')
-
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
 	this.version = 1 ;
 	return true ;
@@ -63,16 +62,18 @@ WWG.prototype.init2 = function(canvas,opt) {
 	this.ext_vao = true ;
 	this.vao_create = function(){ return this.gl.createVertexArray()} ;
 	this.vao_bind = function(o){this.gl.bindVertexArray(o)} ;
+	this.ext_inst = true ;
 	this.inst_divisor = function(p,d){this.gl.vertexAttribDivisor(p, d)}
 	this.inst_draw = function(m,l,s,o,c){this.gl.drawElementsInstanced(m,l, s, o, c);}
 	this.inst_drawa = function(m,s,o,c) {this.gl.drawArrayInstanced(m, s, o, c);}
 	this.ext_anis = gl.getExtension("EXT_texture_filter_anisotropic");
+	this.ext_ftex = true ;
 	this.ext_mrt = (gl.getParameter(gl.MAX_DRAW_BUFFERS)>1) ;
 	if(this.ext_mrt) {
 		this.mrt_att = gl.COLOR_ATTACHMENT0 ;
 		this.mrt_draw =  function(b,d){return gl.drawBuffers(b,d)} ;
 	}
-
+	this.ext_i32 = true ;
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
 	this.version = 2 ;
 	return true ;
