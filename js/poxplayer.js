@@ -2,22 +2,27 @@
 //  PolygonExplorer Player
 //   wakufactory.jp
 "use strict" ;
+const VRDisplay = {exist:navigator.getVRDisplays}
+VRDisplay.getDisplay = function() {
+	
+}
 
 const PoxPlayer  = function(can,opt) {
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
 	}
+	if(!opt) opt = {} 
 	this.can = (can instanceof HTMLElement)?can:document.querySelector(can)  ;
 
 	// wwg initialize
 	const wwg = new WWG() ;
-	const useWebGL2 = true 
+	const useWebGL2 = true
 	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: true})) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
 		alert("wgl not supported") ;
 		return null ;
 	}
-	if(opt && opt.needWebGL2 && wwg.version!=2) {
+	if(opt.needWebGL2 && wwg.version!=2) {
 		alert("needs wgl2")
 		return null 
 	}
@@ -26,10 +31,10 @@ const PoxPlayer  = function(can,opt) {
 	
 	const Param = WBind.create() ;
 	this.param = Param ;
-	Param.bindInput("isStereo","#isstereo") ;
-	Param.bindInput("autorot","#autorot") ;
-	Param.bindInput("pause","#pause") ;
-	Param.bindHtml("fps","#fps") ;
+	Param.bindInput("isStereo",(opt.ui && opt.ui.isStereo)?opt.ui.isStereo:"#isstereo") ;
+	Param.bindInput("autorot",(opt.ui && opt.ui.autorot)?opt.ui.autorot:"#autorot") ;
+	Param.bindInput("pause",(opt.ui && opt.ui.pause)?opt.ui.pause:"#pause") ;
+	Param.bindHtml("fps",(opt.ui && opt.ui.fps)?opt.ui.fps:"#fps") ;
 
 	this.pixRatio = 1 
 	this.pox = {} ;
@@ -45,9 +50,10 @@ const PoxPlayer  = function(can,opt) {
 	e.style.position = "absolute" ; e.style.zIndex = -100 ;
 	e.style.top = 0
 	e.style.width = 10 ; e.style.height =10 ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
-	document.body.appendChild(e) ;
+	this.can.parentNode.appendChild(e) ;
 	this.keyElelment = e ;
 	this.keyElelment.focus() ;
+
 	this.setEvent() ;
 	// VR init 
 	if(navigator.getVRDisplays) {
@@ -71,8 +77,10 @@ const PoxPlayer  = function(can,opt) {
 			}, false);
 		})
 	}
+	console.log(this)
 }
 PoxPlayer.prototype.enterVR = function() {
+	let ret = true
 	if(this.vrDisplay) {
 		console.log("enter VR")
 		this.vrDisplay.requestPresent([{ source: this.can }]).then( () =>{
@@ -91,7 +99,23 @@ PoxPlayer.prototype.enterVR = function() {
 		}).catch((err)=> {
 			console.log(err)
 		})
-	}
+	} else if(document.body.webkitRequestFullscreen) {
+		console.log("fullscreen")
+		const base = this.can.parentNode
+		this.ssize = {width:base.offsetWidth,height:base.offsetHeight}
+		document.addEventListener("webkitfullscreenchange",(ev)=>{
+			console.log("fs "+document.webkitFullscreenElement)
+			if( document.webkitFullscreenElement) {
+				base.style.width = window.innerWidth + "px"
+				base.style.height = window.innerHeight + "px"				
+			} else {
+				base.style.width = this.ssize.width + "px"
+				base.style.height = this.ssize.height + "px"					
+			}
+		})
+		base.webkitRequestFullscreen()
+	} else ret = false 
+	return ret 
 }
 PoxPlayer.prototype.resize = function() {
 //	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
@@ -109,17 +133,16 @@ PoxPlayer.prototype.load = async function(d) {
 			req.responseType = "json" ;
 			req.onload = () => {
 				if(req.status==200) {
-	//				console.log(req.response) ;
+//					console.log(req.response) ;
 					resolve(req.response) ;
 				} else {
-					reject("Ajax error:"+req.statusText) ;					
+					reject("Ajax error:"+req.statusText) ;
 				}
 			}
-			
 			req.onerror = ()=> {
 				reject("Ajax error:"+req.statusText)
 			}
-			req.send() ;		
+			req.send() ;
 		} else resolve(d) ;
 	})
 }
@@ -425,8 +448,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	this.isVR = false 
 	const self = this 
 	return new Promise((resolve,reject) => {
-	r.setRender(sc).then(()=> {		
-console.log(r) ;
+	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
 		if(this.renderStart) this.renderStart() ;
 		if(window.GPad) GPad.init() ;	
@@ -543,13 +565,13 @@ console.log(r) ;
 			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),false) ;
 			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
-			if(!Param.pause) update = scene.update(render,cam,time,1)
+//			if(!Param.pause) update = scene.update(render,cam,time,1)
 			camm = ccam.getMtx(sset.scale,1) ;
-			if(update.vs_uni==undefined) update.vs_uni = {} ;
-			if(update.fs_uni==undefined) update.fs_uni = {} ;
+//			if(update.vs_uni==undefined) update.vs_uni = {} ;
+//			if(update.fs_uni==undefined) update.fs_uni = {} ;
 			update.vs_uni.stereo = 2 ;
 			update.fs_uni.stereo = 2 ;
-			update.fs_uni.time = time/1000 ;
+//			update.fs_uni.time = time/1000 ;
 			render.draw(modelMtx(render,camm,update),true) ;
 		} else {
 			render.gl.viewport(0,0,can.width,can.height) ;
