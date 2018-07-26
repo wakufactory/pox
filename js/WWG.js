@@ -126,7 +126,8 @@ WWG.prototype.Render = function(wwg) {
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 //	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
 	let ar = [] ;
-	if(uni.dim>0) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
+	if(uni.dim>0 && !(value instanceof Float32Array)) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
+	else ar = value 
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -356,7 +357,6 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		break;
 	}
-	console.log(option.repeat)
 	if(option.repeat==2) {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
