@@ -126,7 +126,8 @@ WWG.prototype.Render = function(wwg) {
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 //	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
 	let ar = [] ;
-	if(uni.dim>0) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
+	if(uni.dim>0 && !(value instanceof Float32Array)) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
+	else ar = value 
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -583,6 +584,7 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		ret.ibo = ibo ;
 	}
 	if(inst) {
+		console.log(inst)
 		var ibuf = gl.createBuffer() 
 		gl.bindBuffer(gl.ARRAY_BUFFER, ibuf) ;
 		var tl = 0 ;
@@ -1045,11 +1047,12 @@ WWModel.prototype.wireframe = function() {
 // mult 4x4 matrix
 WWModel.prototype.multMatrix4 = function(m4) {
 	var inv = new CanvasMatrix4(m4).invert().transpose() ;
+	var buf = m4.getAsArray()
 	for(var i=0;i<this.obj_v.length;i++) {
 		var v = this.obj_v[i] ;
-		var vx = m4.m11 * v[0] + m4.m21 * v[1] + m4.m31 * v[2] + m4.m41 ;
-		var vy = m4.m12 * v[0] + m4.m22 * v[1] + m4.m32 * v[2] + m4.m42 ;
-		var vz = m4.m13 * v[0] + m4.m23 * v[1] + m4.m33 * v[2] + m4.m43 ;
+		var vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
+		var vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
+		var vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
 		this.obj_v[i] = [vx,vy,vz] ;
 	}
 }
@@ -2735,6 +2738,7 @@ WBind.set = function(data,root) {
 //  PolygonExplorer Player
 //   wakufactory.jp
 "use strict" ;
+
 const VRDisplay = {exist:navigator.getVRDisplays}
 VRDisplay.getDisplay = function() {
 	
@@ -2816,7 +2820,10 @@ PoxPlayer.prototype.enterVR = function() {
 	let ret = true
 	if(this.vrDisplay) {
 		console.log("enter VR")
-		this.vrDisplay.requestPresent([{ source: this.can }]).then( () =>{
+		const p = { source: this.can,attributes:{} }
+		if(this.pox.setting.highRefreshRate!==undefined) p.attributes.highRefreshRate = this.pox.setting.highRefreshRate
+		if(this.pox.setting.foveationLevel!==undefined) p.attributes.foveationLevel = this.pox.setting.foveationLevel
+		this.vrDisplay.requestPresent([p]).then( () =>{
 			console.log("present ok")
 			var leftEye = this.vrDisplay.getEyeParameters("left");
 			var rightEye = this.vrDisplay.getEyeParameters("right");
@@ -2896,15 +2903,7 @@ PoxPlayer.prototype.loadImage = function(path) {
 		})
 	}
 }
-
-PoxPlayer.prototype.set = async function(d,param={}) { 
-//	return new Promise((resolve,reject) => {
-	const VS = d.vs ;
-	const FS = d.fs ;
-	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
-	const POX = this.pox ;
-	POX.loadImage = this.loadImage 
-
+//for compati
 	function V3add() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
@@ -2926,7 +2925,35 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 	function V3dot(v1,v2) {
 		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
 	}
-
+	
+PoxPlayer.prototype.set = async function(d,param={},uidom) { 
+//	return new Promise((resolve,reject) => {
+	const VS = d.vs ;
+	const FS = d.fs ;
+	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
+	const POX = this.pox ;
+	POX.loadImage = this.loadImage 
+	POX.V3add = function() {
+		let x=0,y=0,z=0 ;
+		for(let i=0;i<arguments.length;i++) {
+			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
+		}
+		return [x,y,z] ;
+	}
+	POX.V3len = function(v) {
+		return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) ;
+	}
+	POX.V3norm = function(v,s) {
+		const l = V3len(v) ;
+		if(s===undefined) s = 1 ;
+		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
+	}
+	POX.V3mult = function(v,s) {
+		return [v[0]*s,v[1]*s,v[2]*s] ;
+	}
+	POX.V3dot = function(v1,v2) {
+		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
+	}
 	POX.setScene = async (scene)=> {
 		return new Promise((resolve,reject) => {
 			this.setScene(scene).then( () => {
@@ -2940,12 +2967,15 @@ PoxPlayer.prototype.set = async function(d,param={}) {
 //	this.parseJS(d.m).then((m)=> {
 	const m = await this.parseJS(d.m) ;
 		try {
-			eval(m);	 //EVALUATE CODE
+//			eval(m);	 //EVALUATE CODE
+			POX.eval = new Function('POX','"use strict";'+m)
+			POX.eval(POX)
 		}catch(err) {
 			this.emsg = ("eval error "+err);
 			console.log("eval error "+err)
 			return(null);
 		}
+		if(uidom) this.setParam(uidom)
 		if(POX.init) POX.init() ;
 		return(POX) ;
 //	})
@@ -3180,6 +3210,12 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.cam = ccam.cam ;
 	this.isVR = false 
 	const self = this 
+	const bm = new CanvasMatrix4()
+	const mMtx = []
+	const vMtx = []
+	const iMtx = []
+	const cm = new CanvasMatrix4()
+	
 	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
@@ -3199,6 +3235,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 		resolve()
 		//draw loop
 		let st = new Date().getTime() ;
+		this.ctime = st 
+		this.ltime = st 
 		let tt = 0 ;
 		let rt = 0 ;
 		let ft = st ;
@@ -3214,6 +3252,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 				this.isVR = false ;
 			}
 			const ct = new Date().getTime() ;
+			this.ctime = ct 
 			if(Param.pause) {
 				Param.fps=0;
 				tt = rt ;
@@ -3238,6 +3277,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			update(r,pox,ccam.cam,rt) ; // scene update 
 			Param.updateTimer() ;
 			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
+			this.ltime = ct 
 		}
 		loopf() ;		
 	}).catch((err)=>{
@@ -3248,13 +3288,15 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}) // promise
 	
 	// calc model matrix
+
 	function modelMtx(render,cam,update) {
 		// calc each mvp matrix and invert matrix
 		const mod = [] ;		
+		cm.load(cam.camM)
 		for(let i=0;i<render.modelCount;i++) {
 			let d = render.getModelData(i) ;
-			let m = new CanvasMatrix4(d.bm) ;
-			if(d.mm) m.multRight(d.mm) ;
+			bm.load(d.bm)
+			if(d.mm) bm.multRight(d.mm) ;
 			if(render.data.group) {
 				let g = render.data.group ;
 				for(let gi = 0 ;gi < g.length;gi++) {
@@ -3265,12 +3307,17 @@ PoxPlayer.prototype.setScene = function(sc) {
 					}
 				}
 			}
+			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
+			if(!vMtx[i]) vMtx[i] = new CanvasMatrix4()
+			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
+			
 			const uni = {
 				vs_uni:{
-					modelMatrix:new CanvasMatrix4(m).getAsWebGLFloatArray(),
-					mvpMatrix:new CanvasMatrix4(m).
-						multRight(cam.camM).getAsWebGLFloatArray(),
-					invMatrix:new CanvasMatrix4(m).
+					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
+					camMatirx:cm.getAsWebGLFloatArray(),
+					mvpMatrix:vMtx[i].load(bm).
+						multRight(cm).getAsWebGLFloatArray(),
+					invMatrix:iMtx[i].load(bm).
 						invert().transpose().getAsWebGLFloatArray(),
 					eyevec:[cam.camX,cam.camY,cam.camZ]}
 			}
@@ -3350,7 +3397,11 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camGyro:true, // use gyro
 		sbase:0.05, 	//streobase 
 		vcx:0,
+		vcy:0,
 		vcz:0,
+		vrx:0,
+		vry:0,
+		vrz:0,
 		gyro:true 
 	} ;
 	for(let i in cam) {
@@ -3364,6 +3415,9 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 	this.keydown = false ;
 	this.RAD = Math.PI/180 
 	this.vr = false ;
+	this.camM = new CanvasMatrix4()
+	this.vrv = new CanvasMatrix4()
+	this.vrp = new CanvasMatrix4()
 }
 PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
 	for(let i in cam) {
@@ -3511,6 +3565,8 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 		}
 }
 PoxPlayer.prototype.Camera.prototype.update = function(time) {
+	const ft = (this.poxp.ctime - this.poxp.ltime)/100*6  
+//console.log(ft)
 	if(this.cam.camMode!="fix") {
 		this.cam.camRX += this.vrx ;
 		if(this.cam.camRX<-89) this.cam.camRX = -89 ; 
@@ -3518,8 +3574,10 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 		this.cam.camRY += this.vry ;
 	}
 	if(this.cam.camMode=="walk") {
-		this.cam.camCX += this.cam.vcx ;
-		this.cam.camCZ += this.cam.vcz ;
+		this.cam.camCX += this.cam.vcx *ft ;
+		this.cam.camCY += this.cam.vcy *ft ;
+		this.cam.camCZ += this.cam.vcz *ft ;
+		this.cam.camRY += this.cam.vry *ft ;
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gp) {
@@ -3592,26 +3650,29 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			cz += xz ;
 		}
 	}
-	let camM 
+	let vrFrame
 	if(this.poxp.isVR) {
-		let frameData = new VRFrameData()
+		vrFrame = new VRFrameData()
 		this.poxp.vrDisplay.depthNear = cam.camNear 
 		this.poxp.vrDisplay.depthFar = cam.camFar 
 
-		this.poxp.vrDisplay.getFrameData(frameData)
-		camM = new CanvasMatrix4()
-		camM.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
-		camM.rotate(cam.camRY,0,1,0)
-		camM.rotate(cam.camRX,1,0,0)
-		camM.rotate(cam.camRZ,0,0,1)
-		camM.multRight( new CanvasMatrix4((dx<0)?frameData.leftViewMatrix:frameData.rightViewMatrix))
-		camM.multRight(new CanvasMatrix4( (dx<0)?frameData.leftProjectionMatrix:frameData.rightProjectionMatrix) )
+		this.poxp.vrDisplay.getFrameData(vrFrame)
+		cam.orientation = vrFrame.pose.orientation
+		this.vrv.load((dx<0)?vrFrame.leftViewMatrix:vrFrame.rightViewMatrix)
+		this.vrp.load((dx<0)?vrFrame.leftProjectionMatrix:vrFrame.rightProjectionMatrix)
+		this.camM.makeIdentity()
+			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
+			.rotate(cam.camRY,0,1,0)
+			.rotate(cam.camRX,1,0,0)
+			.rotate(cam.camRZ,0,0,1)
+			.multRight( this.vrv )
+			.multRight(this.vrp)
 	} else {
-		camM = new CanvasMatrix4().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
+		this.camM.makeIdentity().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
 		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
-		if(cam.camAngle!=0) camM = camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
-		else camM = camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
+		if(cam.camAngle!=0) this.camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		else this.camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
 	}
 //	console.log(camM)
-	return {camX:camX,camY:camY,camZ:camZ,camM:camM} ;
+	return {camX:camX,camY:camY,camZ:camZ,camM:this.camM,vrFrame:vrFrame} ;
 }
