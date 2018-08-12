@@ -89,8 +89,8 @@ PoxPlayer.prototype.enterVR = function() {
 		if(this.pox.setting.foveationLevel!==undefined) p.attributes.foveationLevel = this.pox.setting.foveationLevel
 		this.vrDisplay.requestPresent([p]).then( () =>{
 			console.log("present ok")
-			var leftEye = this.vrDisplay.getEyeParameters("left");
-			var rightEye = this.vrDisplay.getEyeParameters("right");
+			const leftEye = this.vrDisplay.getEyeParameters("left");
+			const rightEye = this.vrDisplay.getEyeParameters("right");
 			this.can.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
 			this.can.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
 			if(this.vrDisplay.displayName=="Oculus Go") {
@@ -240,7 +240,12 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			return(null);
 		}
 		if(uidom) this.setParam(uidom)
-		if(POX.init) POX.init() ;
+		if(POX.init)  try {
+			POX.init() ;
+		}catch(err) {
+			this.emsg = ("eval error "+err);
+			return(null);
+		}
 		return(POX) ;
 //	})
 	
@@ -939,4 +944,46 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	}
 //	console.log(camM)
 	return {camX:camX,camY:camY,camZ:camZ,camM:this.camM,vrFrame:vrFrame} ;
+}
+
+//utils
+
+class Pool  {
+	constructor() {
+		this._use = [] 
+		this._free = [] 
+	}
+	CreateInstance() {
+		return {} 
+	}
+	InitInstance(obj) {
+		return obj
+	}
+	Rent() {
+		let obj 
+		if(this._free.length>0) {
+			obj = this._free[this._free.length-1]
+			this._free.pop() 
+		} else {
+			obj = this.CreateInstance()
+		}
+		this.InitInstance(obj)
+		this._use.push(obj)
+		return obj
+	}
+	Return(obj) {
+		for(let i in this._use) {
+			if(this._use[i]===obj) {
+				this._use.splice(i,1)
+				break 
+			}
+		}
+		this._free.push(obj)
+	}
+	Alloc(num) {
+		for(let i=0;i<num;i++) this._free.push(this.CreateInstance())
+	}
+	GetInstances() {
+		return this._use 
+	}
 }
