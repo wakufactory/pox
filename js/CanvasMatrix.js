@@ -38,22 +38,7 @@
         Constructor()                                   // create new CanvasMatrix4 with identity matrix
     ]
     interface CanvasMatrix4 {
-        attribute float m11;
-        attribute float m12;
-        attribute float m13;
-        attribute float m14;
-        attribute float m21;
-        attribute float m22;
-        attribute float m23;
-        attribute float m24;
-        attribute float m31;
-        attribute float m32;
-        attribute float m33;
-        attribute float m34;
-        attribute float m41;
-        attribute float m42;
-        attribute float m43;
-        attribute float m44;
+        attribute float buf[16]
 
         void load(in CanvasMatrix4 matrix);                 // copy the values from the passed matrix
         void load(in sequence<float> array);                // copy 16 floats into the matrix
@@ -310,6 +295,7 @@ CanvasMatrix4.prototype.scale = function(x,y,z)
 
 CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
 {
+    if(angle==0) return this 
     // angles are in degrees. Switch to radians
     angle = angle / 180 * Math.PI;
     
@@ -335,44 +321,20 @@ CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
 
     // optimize case where axis is along major axis
     if (x == 1 && y == 0 && z == 0) {
-        this.matrix.buf[0] = 1;
-        this.matrix.buf[1] = 0;
-        this.matrix.buf[2] = 0;
-        this.matrix.buf[4] = 0;
         this.matrix.buf[5] = 1 - 2 * sinA2;
         this.matrix.buf[6] = 2 * sinA * cosA;
-        this.matrix.buf[8] = 0;
         this.matrix.buf[9] = -2 * sinA * cosA;
         this.matrix.buf[10] = 1 - 2 * sinA2;
-        this.matrix.buf[3] = this.matrix.buf[7] = this.matrix.buf[11] = 0;
-        this.matrix.buf[12] = this.matrix.buf[13] = this.matrix.buf[14] = 0;
-        this.matrix.buf[15] = 1;
     } else if (x == 0 && y == 1 && z == 0) {
         this.matrix.buf[0] = 1 - 2 * sinA2;
-        this.matrix.buf[1] = 0;
         this.matrix.buf[2] = -2 * sinA * cosA;
-        this.matrix.buf[4] = 0;
-        this.matrix.buf[5] = 1;
-        this.matrix.buf[6] = 0;
         this.matrix.buf[8] = 2 * sinA * cosA;
-        this.matrix.buf[9] = 0;
         this.matrix.buf[10] = 1 - 2 * sinA2;
-        this.matrix.buf[3] = this.matrix.buf[7] = this.matrix.buf[11] = 0;
-        this.matrix.buf[12] = this.matrix.buf[13] = this.matrix.buf[14] = 0;
-        this.matrix.buf[15] = 1;
     } else if (x == 0 && y == 0 && z == 1) {
         this.matrix.buf[0] = 1 - 2 * sinA2;
         this.matrix.buf[1] = 2 * sinA * cosA;
-        this.matrix.buf[2] = 0;
         this.matrix.buf[4] = -2 * sinA * cosA;
         this.matrix.buf[5] = 1 - 2 * sinA2;
-        this.matrix.buf[6] = 0;
-        this.matrix.buf[8] = 0;
-        this.matrix.buf[9] = 0;
-        this.matrix.buf[10] = 1;
-        this.matrix.buf[3] = this.matrix.buf[7] = this.matrix.buf[11] = 0;
-        this.matrix.buf[12] = this.matrix.buf[13] = this.matrix.buf[14] = 0;
-        this.matrix.buf[15] = 1;
     } else {
         var x2 = x*x;
         var y2 = y*y;
@@ -387,9 +349,6 @@ CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
         this.matrix.buf[8] = 2 * (z * x * sinA2 + y * sinA * cosA);
         this.matrix.buf[9] = 2 * (z * y * sinA2 - x * sinA * cosA);
         this.matrix.buf[10] = 1 - 2 * (x2 + y2) * sinA2;
-        this.matrix.buf[3] = this.matrix.buf[7] = this.matrix.buf[11] = 0;
-        this.matrix.buf[12] = this.matrix.buf[13] = this.matrix.buf[14] = 0;
-        this.matrix.buf[15] = 1;
     }
     this.multRight(this.matrix);
     return this ;
@@ -523,21 +482,11 @@ CanvasMatrix4.prototype.ortho = function(left, right, bottom, top, near, far)
     
     this.initmatrix()
     this.matrix.buf[0] = 2 / (right - left);
-    this.matrix.buf[1] = 0;
-    this.matrix.buf[2] = 0;
-    this.matrix.buf[3] = 0;
-    this.matrix.buf[4] = 0;
     this.matrix.buf[5] = 2 / (top - bottom);
-    this.matrix.buf[6] = 0;
-    this.matrix.buf[7] = 0;
-    this.matrix.buf[8] = 0;
-    this.matrix.buf[9] = 0;
     this.matrix.buf[10] = -2 / (far - near);
-    this.matrix.buf[11] = 0;
     this.matrix.buf[12] = tx;
     this.matrix.buf[13] = ty;
     this.matrix.buf[14] = -tz;
-    this.matrix.buf[15] = 1;
     
     this.multRight(this.matrix);
     return this ;
@@ -552,22 +501,14 @@ CanvasMatrix4.prototype.frustum = function(left, right, bottom, top, near, far)
     var D = -(2 * far * near) / (far - near);
     
     this.matrix.buf[0] = (2 * near) / (right - left);
-    this.matrix.buf[1] = 0;
-    this.matrix.buf[2] = 0;
-    this.matrix.buf[3] = 0;
     
-    this.matrix.buf[4] = 0;
     this.matrix.buf[5] = 2 * near / (top - bottom);
-    this.matrix.buf[6] = 0;
-    this.matrix.buf[7] = 0;
     
     this.matrix.buf[8] = A;
     this.matrix.buf[9] = B;
     this.matrix.buf[10] = C;
     this.matrix.buf[11] = -1;
     
-    this.matrix.buf[12] = 0;
-    this.matrix.buf[13] = 0;
     this.matrix.buf[14] = D;
     this.matrix.buf[15] = 0;
     
@@ -640,22 +581,18 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     this.matrix.buf[0] = xx;
     this.matrix.buf[1] = yx;
     this.matrix.buf[2] = zx;
-    this.matrix.buf[3] = 0;
     
     this.matrix.buf[4] = xy;
     this.matrix.buf[5] = yy;
     this.matrix.buf[6] = zy;
-    this.matrix.buf[7] = 0;
     
     this.matrix.buf[8] = xz;
     this.matrix.buf[9] = yz;
     this.matrix.buf[10] = zz;
-    this.matrix.buf[11] = 0;
     
     this.matrix.buf[12] = -(xx * eyex + xy * eyey + xz * eyez);
     this.matrix.buf[13] = -(yx * eyex + yy * eyey + yz * eyez);
     this.matrix.buf[14] = -(zx * eyex + zy * eyey + zz * eyez);
-    this.matrix.buf[15] = 1;
  //   matrix.translate(-eyex, -eyey, -eyez);
     
     this.multRight(this.matrix);
