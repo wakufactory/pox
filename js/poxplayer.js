@@ -19,7 +19,7 @@ const PoxPlayer  = function(can,opt) {
 	// wwg initialize
 	const wwg = new WWG() ;
 	const useWebGL2 = true
-	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: true})) && !wwg.init(this.can,{preserveDrawingBuffer: true})) {
+	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: opt.capture})) && !wwg.init(this.can,{preserveDrawingBuffer: opt.capture})) {
 		alert("wgl not supported") ;
 		return null ;
 	}
@@ -295,7 +295,8 @@ PoxPlayer.prototype.setParam = function(dom) {
 		const p = param[i] ;
 		const name = (p.name)?p.name:i ;
 		if(!p.type) p.type = "range" 
-		let tag = `<div class=t>${name}</div> <input type=${p.type} id="${i}" min=0 max=100 style="${(p.type=="disp")?"display:none":""}"  /><span id=${"d_"+i}></span><br/>`
+		if(!p.step) p.step = 100 ;
+		let tag = `<div class=t>${name}</div> <input type=${p.type} id="_p_${i}" min=0 max=${p.step} style="${(p.type=="disp")?"display:none":""}"  /><span id=${"_p_d_"+i}></span><br/>`
 		input.push(
 			tag
 		)
@@ -308,18 +309,18 @@ PoxPlayer.prototype.setParam = function(dom) {
 	}
 	function _setdisp(i,v) {
 		if(param[i].type=="color" && v ) {
-			$('d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
-		} else if(param[i].type=="range")  $('d_'+i).innerHTML = v.toString().substr(0,5) ;	
-		else $('d_'+i).innerHTML = v
+			$('_p_d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
+		} else if(param[i].type=="range")  $('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	
+		else $('_p_d_'+i).innerHTML = v
 	}
 	for(let i in param) {
-		this.uparam.bindInput(i,"#"+i)
+		this.uparam.bindInput(i,"#_p_"+i)
 		this.uparam.setFunc(i,{
 			set:(v)=> {
 				let ret = v ;
 				if(param[i].type=="color") {
 					ret = "#"+_tohex(v[0])+_tohex(v[1])+_tohex(v[2])
-				} else if(param[i].type=="range") ret = (v - param[i].min)*100/(param[i].max - param[i].min)
+				} else if(param[i].type=="range") ret = (v - param[i].min)*(param[i].step)/(param[i].max - param[i].min)
 				else ret = v ;
 //				console.log(ret)
 				_setdisp(i,v)
@@ -331,7 +332,7 @@ PoxPlayer.prototype.setParam = function(dom) {
 					if(typeof v =="string" && v.match(/#[0-9A-F]+/i)) {
 						ret =[parseInt(v.substr(1,2),16)/255,parseInt(v.substr(3,2),16)/255,parseInt(v.substr(5,2),16)/255] ;
 					} else ret = v ;
-				} else if(param[i].type=="range" ) ret = v*(param[i].max-param[i].min)/100+param[i].min	
+				} else if(param[i].type=="range" ) ret = v*(param[i].max-param[i].min)/(param[i].step)+param[i].min	
 				else ret = v ;		
 				return ret ;
 			},
