@@ -43,7 +43,7 @@ function setpox(base,param) {
 		ss = src ;
 		poxp.set(src,{param:param.param}).then(function(pox){
 			if(pox.setting.copyright) $("footer").innerHTML += "&nbsp;&nbsp;"+pox.setting.copyright;
-			poxp.setParam($('pui'))
+			poxp.setParam(base.querySelector('.pui'))
 		})
 	}).catch(function(err) {
 		base.querySelector(".loading").style.display = "none" ;

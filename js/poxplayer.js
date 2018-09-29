@@ -18,7 +18,7 @@ const PoxPlayer  = function(can,opt) {
 
 	// wwg initialize
 	const wwg = new WWG() ;
-	const useWebGL2 = true
+	const useWebGL2 = !opt.noWebGL2
 	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: opt.capture})) && !wwg.init(this.can,{preserveDrawingBuffer: opt.capture})) {
 		alert("wgl not supported") ;
 		return null ;
@@ -309,9 +309,9 @@ PoxPlayer.prototype.setParam = function(dom) {
 	}
 	function _setdisp(i,v) {
 		if(param[i].type=="color" && v ) {
-			$('_p_d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
-		} else if(param[i].type=="range")  $('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	
-		else $('_p_d_'+i).innerHTML = v
+			document.getElementById('_p_d_'+i).innerHTML = v.map((v)=>v.toString().substr(0,5)) ;
+		} else if(param[i].type=="range")  document.getElementById('_p_d_'+i).innerHTML = v.toString().substr(0,5) ;	
+		else document.getElementById('_p_d_'+i).innerHTML = v
 	}
 	for(let i in param) {
 		this.uparam.bindInput(i,"#_p_"+i)
@@ -573,7 +573,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 					let gg = g[gi] ;
 					if(!gg.bm) continue ;
 					for(let ggi=0;ggi<gg.model.length;ggi++) {
-						if(render.getModelIdx(gg.model[ggi])==i) m.multRight(gg.bm) ;
+						if(render.getModelIdx(gg.model[ggi])==i) bm.multRight(gg.bm) ;
 					}
 				}
 			}
