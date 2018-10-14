@@ -101,11 +101,12 @@ WWG.prototype.loadImageAjax = function(src) {
 	return new Promise(function(resolve,reject){
 		self.loadAjax(src,{type:"blob"}).then(function(b){
 			var timg = new Image ;
+			const url = URL.createObjectURL(b);
 			timg.onload = function() {
+				URL.revokeObjectURL(url)
 				resolve(timg) ;
 			}
-			timg.src = URL.createObjectURL(b);
-			b = null ;
+			timg.src = url
 		}).catch(function(err){
 			resolve(null) ;
 		})
