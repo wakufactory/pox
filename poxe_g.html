@@ -14,13 +14,14 @@
 <script src="js/WBind.js"></script>
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
+<script src="js/json2canvas.js"></script>
 <script src="js/poxplayer.js?201807081"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.9/ace.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
 POXE = {} ;
 onload = ()=> {
-	POXE.POXP = new PoxPlayer('#screen1') ;
+	POXE.POXP = new PoxPlayer('#screen1',{capture:false}) ;
 	POXE.POXP.setError( POXE.msg) ;
 	
 	POXE.ace() ;		//editor init
