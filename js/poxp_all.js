@@ -2810,7 +2810,7 @@ json2canvas.prototype.draw =function (data){
 				const oy = ((d.style.offsety!=undefined)?d.style.offsety:0)
 				let lx = x - ox
 				let ly = y + lh - oy
-				this.ctx.rect(this._ax(x),this._ay(x),w,h)
+				this.ctx.rect(this._ax(x),this._ay(y),w,h)
 				this.ctx.clip() 
 				for(let i=0;i<l.length;i++) {
 					this.ctx.fillText(l[i],this._ax(lx),this._ay(ly),w)
@@ -2843,7 +2843,6 @@ json2canvas.prototype.draw =function (data){
 }
 
 json2canvas.prototype.boxscan = function(d) {
-	console.log("boxscan")
 	let x = d.rect[0] ;let y=d.rect[1];let w=d.rect[2];let h=d.rect[3]
 	let str = new this.unistr(d.str)
 	this.ctx.save()
