@@ -196,12 +196,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			this.gl.uniform1fv(uni.pos,this.f32Array(value)) ;
 			break ;
 		case "sampler2D":
-			if(typeof value == 'string') {
-				for(var i=0;i<this.data.texture.length;i++) {
-					if(this.data.texture[i].name==value) break;
-				}
-				value = i ;
-			}
+			if(typeof value == 'string') value = this.getTexIndex(value)
 			this.gl.activeTexture(this.gl.TEXTURE0+uni.texunit);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[value]);
 			if(this.data.texture && this.data.texture[value].video) {
@@ -413,9 +408,20 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 		}
 	})
 }
-WWG.prototype.Render.prototype.addTex = function(texobj) {
-	this.texobj.push(texobj) ;
-	return this.texobj.length-1 ;
+WWG.prototype.Render.prototype.getTexIndex = function(name) {
+	for(var i=0;i<this.data.texture.length;i++) {
+		if(this.data.texture[i].name==name) break;
+	}
+	return i
+}
+WWG.prototype.Render.prototype.addTex = function(texdata) {
+	return new Promise((resolve,reject)=>{
+		this.data.texture.push(texdata)
+		this.loadTex(texdata).then((tex)=>{
+			this.texobj.push(tex) ;
+			resolve(this.texobj.length-1)
+		})
+	})
 }
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
 	var gl = this.gl ;
@@ -686,6 +692,7 @@ WWG.prototype.Render.prototype.getModelData =function(name) {
 }
 // update texture 
 WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
+	if(typeof idx == 'string') idx = this.getTexIndex(idx)
 	this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[idx]);
 	if(!opt)
 		this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
@@ -1119,13 +1126,13 @@ WWModel.prototype.primitive  = function(type,param) {
 	case "cylinder":
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
-			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
+			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			p.push([x,wy,z])
 			n.push([x*ninv,0,z*ninv])
-			t.push([v,1])
+			t.push([1-v,1])
 			p.push([x,-wy,z])
 			n.push([x*ninv,0,z*ninv,0])
-			t.push([v,0])			
+			t.push([1-v,0])			
 		}
 		for(var j =0; j < div ;j++) {
 			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
@@ -2808,12 +2815,14 @@ json2canvas.prototype.draw =function (data){
 				if(d.style.align=="center") x += w/2 
 				const ox = ((d.style.offsetx!=undefined)?d.style.offsetx:0)
 				const oy = ((d.style.offsety!=undefined)?d.style.offsety:0)
-				let lx = x - ox
-				let ly = y + lh - oy
+				let lx =  - ox
+				let ly =  lh - oy
 				this.ctx.rect(this._ax(x),this._ay(y),w,h)
 				this.ctx.clip() 
 				for(let i=0;i<l.length;i++) {
-					this.ctx.fillText(l[i],this._ax(lx),this._ay(ly),w)
+					if(ly>0)
+						this.ctx.fillText(l[i],this._ax(lx+x),this._ay(ly+y),w)
+					if(ly>h+lh) break ;
 					ly += lh 
 				}
 				break
@@ -3099,9 +3108,10 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //	return new Promise((resolve,reject) => {
 	const VS = d.vs ;
 	const FS = d.fs ;
-	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
+	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
 	const POX = this.pox ;
 	POX.loadImage = this.loadImage 
+	POX.loadAjax = this.wwg.loadAjax
 	POX.V3add = function() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {

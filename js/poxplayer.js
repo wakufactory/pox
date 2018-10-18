@@ -194,9 +194,10 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //	return new Promise((resolve,reject) => {
 	const VS = d.vs ;
 	const FS = d.fs ;
-	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param} ;
+	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
 	const POX = this.pox ;
 	POX.loadImage = this.loadImage 
+	POX.loadAjax = this.wwg.loadAjax
 	POX.V3add = function() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
