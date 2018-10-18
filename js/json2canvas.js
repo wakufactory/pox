@@ -127,12 +127,14 @@ json2canvas.prototype.draw =function (data){
 				if(d.style.align=="center") x += w/2 
 				const ox = ((d.style.offsetx!=undefined)?d.style.offsetx:0)
 				const oy = ((d.style.offsety!=undefined)?d.style.offsety:0)
-				let lx = x - ox
-				let ly = y + lh - oy
+				let lx =  - ox
+				let ly =  lh - oy
 				this.ctx.rect(this._ax(x),this._ay(y),w,h)
 				this.ctx.clip() 
 				for(let i=0;i<l.length;i++) {
-					this.ctx.fillText(l[i],this._ax(lx),this._ay(ly),w)
+					if(ly>0)
+						this.ctx.fillText(l[i],this._ax(lx+x),this._ay(ly+y),w)
+					if(ly>h+lh) break ;
 					ly += lh 
 				}
 				break
