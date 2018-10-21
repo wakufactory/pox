@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.7" ;
+	this.version = "0.9.8" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -379,7 +379,7 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 			if(tex.opt && tex.opt.cors) {
 				self.wwg.loadImageAjax(tex.src).then(function(img) {
 					resolve( self.genTex(img,tex.opt)) ;
-				});
+				}).catch((err)=>reject(err));
 			} else {
 				var img = new Image() ;
 				img.onload = function() {
@@ -420,7 +420,7 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 		this.loadTex(texdata).then((tex)=>{
 			this.texobj.push(tex) ;
 			resolve(this.texobj.length-1)
-		})
+		}).catch((err)=>reject(err));
 	})
 }
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
