@@ -302,7 +302,7 @@ WWModel.prototype.primitive  = function(type,param) {
 			t.push([1-v,0])			
 		}
 		for(var j =0; j < div ;j++) {
-			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
+			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
 		break; 
@@ -339,8 +339,8 @@ WWModel.prototype.primitive  = function(type,param) {
 		s.push([j,0,div])
 		break; 
 	case "plane":
-		if(!param.wz)  p = [[wx,wy,0],[wx,-wy,0],[-wx,-wy,0],[-wx,wy,0]]
-		else if(!param.wx) p = [[0,wy,wz],[0,-wy,wz],[0,-wy,-wz],[0,wy,-wz]]
+		if(!param.wz)  p = [[wx,-wy,0],[wx,wy,0],[-wx,wy,0],[-wx,-wy,0]]
+		else if(!param.wx) p = [[0,-wy,-wz],[0,wy,-wz],[0,wy,wz],[0,-wy,wz]]
 		else p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
 		n = [[0,1,0],[0,1,0],[0,1,0],[0,1,0]]
 		t = [[1,0],[1,1],[0,1],[0,0]]
