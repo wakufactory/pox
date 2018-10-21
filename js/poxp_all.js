@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.7" ;
+	this.version = "0.9.8" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -379,7 +379,7 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 			if(tex.opt && tex.opt.cors) {
 				self.wwg.loadImageAjax(tex.src).then(function(img) {
 					resolve( self.genTex(img,tex.opt)) ;
-				});
+				}).catch((err)=>reject(err));
 			} else {
 				var img = new Image() ;
 				img.onload = function() {
@@ -420,7 +420,7 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 		this.loadTex(texdata).then((tex)=>{
 			this.texobj.push(tex) ;
 			resolve(this.texobj.length-1)
-		})
+		}).catch((err)=>reject(err));
 	})
 }
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
@@ -1172,7 +1172,9 @@ WWModel.prototype.primitive  = function(type,param) {
 		s.push([j,0,div])
 		break; 
 	case "plane":
-		p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
+		if(!param.wz)  p = [[wx,wy,0],[wx,-wy,0],[-wx,-wy,0],[-wx,wy,0]]
+		else if(!param.wx) p = [[0,wy,wz],[0,-wy,wz],[0,-wy,-wz],[0,wy,-wz]]
+		else p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
 		n = [[0,1,0],[0,1,0],[0,1,0],[0,1,0]]
 		t = [[1,0],[1,1],[0,1],[0,0]]
 		s = [[0,1,2],[2,3,0]]
@@ -3158,7 +3160,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		if(POX.init)  try {
 			POX.init() ;
 		}catch(err) {
-			this.emsg = ("eval error "+err);
+			this.emsg = ("init error "+err);
 			return(null);
 		}
 		return(POX) ;
@@ -3399,7 +3401,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const mMtx = []
 	const vMtx = []
 	const iMtx = []
-	const cm = new CanvasMatrix4()
 	
 	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {	
@@ -3477,7 +3478,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 	function modelMtx(render,cam,update) {
 		// calc each mvp matrix and invert matrix
 		const mod = [] ;		
-		cm.load(cam.camM)
 		for(let i=0;i<render.modelCount;i++) {
 			let d = render.getModelData(i) ;
 			bm.load(d.bm)
@@ -3499,9 +3499,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 			const uni = {
 				vs_uni:{
 					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
-					camMatirx:cm.getAsWebGLFloatArray(),
+					camMatirx:cam.camM.getAsWebGLFloatArray(),
 					mvpMatrix:vMtx[i].load(bm).
-						multRight(cm).getAsWebGLFloatArray(),
+						multRight( (d.camFix)?cam.camP:cam.camM).getAsWebGLFloatArray(),
 					invMatrix:iMtx[i].load(bm).
 						invert().transpose().getAsWebGLFloatArray(),
 					eyevec:[cam.camX,cam.camY,cam.camZ]}
@@ -3601,6 +3601,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 	this.RAD = Math.PI/180 
 	this.vr = false ;
 	this.camM = new CanvasMatrix4()
+	this.camP = new CanvasMatrix4()
 	this.vrv = new CanvasMatrix4()
 	this.vrp = new CanvasMatrix4()
 }
@@ -3852,14 +3853,16 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			.rotate(cam.camRZ,0,0,1)
 			.multRight( this.vrv )
 			.multRight(this.vrp)
+		this.camP.load(this.vrp)
 	} else {
-		this.camM.makeIdentity().lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,
-		cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
-		if(cam.camAngle!=0) this.camM.perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
-		else this.camM.pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
+		this.camM.makeIdentity()
+		.lookat(camX+cam.camCX,camY+cam.camCY,camZ+cam.camCZ,cx+cam.camCX,cy+cam.camCY,cz+cam.camCZ, upx,upy,upz) ;
+		if(cam.camAngle!=0) this.camP.makeIdentity().perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
+		else this.camP.makeIdentity().pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
+		this.camM.multRight(this.camP)
 	}
 //	console.log(camM)
-	return {camX:camX,camY:camY,camZ:camZ,camM:this.camM,vrFrame:vrFrame} ;
+	return {camX:camX,camY:camY,camZ:camZ,camM:this.camM,camP:this.camP,vrFrame:vrFrame} ;
 }
 
 //utils
