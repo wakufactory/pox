@@ -70,6 +70,10 @@
 
 CanvasMatrix4 = function(m)
 {
+	if(m!=undefined && m.name == "Float32Array") {
+		this.buf = m ;
+		return this ;
+	}
 	this.buf = new Float32Array(16)
 	this.matrix = null
     if (typeof m == 'object') {
