@@ -1106,7 +1106,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				var z = (Math.sin(PHI * u) * r)
 				p.push([x*wx,y*wy,z*wz])
 				n.push([x*ninv,y*ninv,z*ninv])
-				t.push([1-u,1-v])
+				t.push([(ninv>0)?1-u:u,1-v])
 			}
 		}
 		var d2 = div*2+1 ;
@@ -1119,39 +1119,41 @@ WWModel.prototype.primitive  = function(type,param) {
 				else s.push(
 					[base + i     + d2,	base + i + 1, base + i],
 					[base + i + 1 + d2, base + i + 1, base + i + d2 ]);
-
 			}
 		}
 		break;
 	case "cylinder":
+		var divy = (param.divy)?param.divy:1
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
 			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
-			p.push([x,wy,z])
-			n.push([x*ninv,0,z*ninv])
-			t.push([1-v,1])
-			p.push([x,-wy,z])
-			n.push([x*ninv,0,z*ninv,0])
-			t.push([1-v,0])			
+			for(var yi=0;yi<divy;yi++) {
+				p.push([x,wy,z])
+				n.push([x*ninv,0,z*ninv])
+				t.push([(ninv>0)?1-v:v,1])
+				p.push([x,-wy,z])
+				n.push([x*ninv,0,z*ninv,0])
+				t.push([(ninv>0)?1-v:v,0])
+			}			
 		}
 		for(var j =0; j < div ;j++) {
-			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
+			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
 		break; 
 	case "cone":
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
-			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
+			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			p.push([0,wy,0])
 			n.push([x*ninv,0,z*ninv])
-			t.push([v,1])
+			t.push([(ninv>0)?1-v:v,1])
 			p.push([x,-wy,z])
 			n.push([x*ninv,0,z*ninv,0])
-			t.push([v,0])			
+			t.push([(ninv>0)?1-v:v,0])			
 		}
 		for(var j =0; j < div ;j++) {
-			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
+			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
 		break; 
@@ -1172,21 +1174,27 @@ WWModel.prototype.primitive  = function(type,param) {
 		s.push([j,0,div])
 		break; 
 	case "plane":
-		if(!param.wz)  p = [[wx,wy,0],[wx,-wy,0],[-wx,-wy,0],[-wx,wy,0]]
-		else if(!param.wx) p = [[0,wy,wz],[0,-wy,wz],[0,-wy,-wz],[0,wy,-wz]]
-		else p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
-		n = [[0,1,0],[0,1,0],[0,1,0],[0,1,0]]
-		t = [[1,0],[1,1],[0,1],[0,0]]
-		s = [[0,1,2],[2,3,0]]
+		if(!param.wz)  {
+			p = [[wx,-wy,0],[wx,wy,0],[-wx,wy,0],[-wx,-wy,0]]
+			n = [[0,0,ninv],[0,0,ninv],[0,0,ninv],[0,0,ninv]]
+		} else if(!param.wx){
+			p = [[0,-wy,-wz],[0,wy,-wz],[0,wy,wz],[0,-wy,wz]]
+			n = [[ninv,0,0],[ninv,0,0],[ninv,0,0],[ninv,0,0]]
+		}else {
+			p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
+			n = [[0,ninv,0],[0,ninv,0],[0,ninv,0],[0,ninv,0]]
+		}
+		t = (ninv>0)?[[1,0],[1,1],[0,1],[0,0]]:[[-1,0],[-1,1],[0,1],[0,0]]
+		s = (ninv>0)?[[0,1,2],[2,3,0]]:[[2,1,0],[0,3,2]]
 		break ;
 	case "box":
 		p = [
-			[wx,wy,wz],[wx,-wy,wz],[-wx,-wy,wz],[-wx,wy,wz],
-			[wx,wy,-wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,wy,-wz],
-			[wx,wy,wz],[wx,-wy,wz],[wx,-wy,-wz],[wx,wy,-wz],
-			[-wx,wy,wz],[-wx,-wy,wz],[-wx,-wy,-wz],[-wx,wy,-wz],
-			[wx,wy,wz],[wx,wy,-wz],[-wx,wy,-wz],[-wx,wy,wz],
-			[wx,-wy,wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,-wy,wz],
+			[wx,wy,wz],[wx,-wy,wz],[-wx,-wy,wz],[-wx,wy,wz],		//+z
+			[wx,wy,-wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,wy,-wz],//-z
+			[wx,wy,wz],[wx,-wy,wz],[wx,-wy,-wz],[wx,wy,-wz],		//+x
+			[-wx,wy,wz],[-wx,-wy,wz],[-wx,-wy,-wz],[-wx,wy,-wz],//-x
+			[wx,wy,wz],[wx,wy,-wz],[-wx,wy,-wz],[-wx,wy,wz],		//+y
+			[wx,-wy,wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,-wy,wz],	//-y
 		]
 		n = [
 			[0,0,ninv],[0,0,ninv],[0,0,ninv],[0,0,ninv],
@@ -1196,7 +1204,14 @@ WWModel.prototype.primitive  = function(type,param) {
 			[0,ninv,0],[0,ninv,0],[0,ninv,0],[0,ninv,0],
 			[0,-ninv,0],[0,-ninv,0],[0,-ninv,0],[0,-ninv,0]
 		]
-		t = [
+		t = (param.cubemap==1)?[
+			[3/4,2/3],[3/4,1/3],[1,1/3],[1,2/3],
+			[1/2,2/3],[1/2,1/3],[1/4,1/3],[1/4,2/3],
+			[3/4,2/3],[3/4,1/3],[1/2,1/3],[1/2,2/3],
+			[0,2/3],[0,1/3],[1/4,1/3],[1/4,2/3],
+			[1/2,1],[1/2,2/3],[1/4,2/3],[1/4,1],
+			[1/2,0],[1/2,1/3],[1/4,1/3],[1/4,0]
+		]:[
 			[1,1],[1,0],[0,0],[0,1],
 			[0,1],[0,0],[1,0],[1,1],
 			[0,1],[0,0],[1,0],[1,1],
@@ -1463,6 +1478,10 @@ WWModel.snormal = function(pa) {
 
 CanvasMatrix4 = function(m)
 {
+	if(m!=undefined && m.name == "Float32Array") {
+		this.buf = m ;
+		return this ;
+	}
 	this.buf = new Float32Array(16)
 	this.matrix = null
     if (typeof m == 'object') {
@@ -2690,8 +2709,16 @@ WBind.set = function(data,root) {
 }
 //draw canvas from json data
 //				2018 wakufactory 
-function json2canvas(can) {
+//
+// shapes box,roundbox,text,textbox,img 
+// property str,src ,rect,x,y,width,height 
+// styles radius,color,border,background,lineWidth,font,lineHeight,align,offsetx,offsety
+//
+class json2canvas {
+
+constructor(can) {
 	this.canvas = can 
+	this.data = null 
 	this.width = can.width
 	this.height = can.height 
 	this.ctx = can.getContext("2d");
@@ -2703,71 +2730,82 @@ function json2canvas(can) {
 		textColor:"black",
 		backgroundColor:"white"
 	}
+	this.class = {}
 	this.km = /[。、\.\-,)\]｝、〕〉》」』】〙〗〟’”｠»ゝゞーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇷ゚ㇺㇻㇼㇽㇾㇿ々〻‐゠–〜～?!‼⁇⁈⁉・:;\/]/
 	this.tm = /[(\[｛〔〈《「『【〘〖〝‘“｟«]/
-	this.unistr = function(str) {
-		this.str = str.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\uD800-\uDFFF]/g) || [];
-		Object.defineProperty(this,"length",{
-			get: ()=>this.str.length
-		})
-		Object.defineProperty(this,"char",{
-			get: ()=>this.str
-		})
-	}
-	this.unistr.prototype.substr = function(i,n) {
-		return this.str.slice(i,(n==undefined)?undefined:i+n).join("")
-	}
+	this.am = /[a-zA-Z—―]/
 }
-json2canvas.prototype.clear = function(clearColor) {
+
+clear(clearColor) {
 	this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height)
 	if(clearColor) {
-		clearColor = "white"
 		this.ctx.fillStyle = clearColor
 		this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height)
 	}
 }
-json2canvas.prototype._ax = function(v) {
+_ax(v) {
 	return v + this.bx
 }
-json2canvas.prototype._ay = function(v) {
+_ay(v) {
 	return v + this.by 
 }
-json2canvas.prototype._aw = function(v) {
+_aw(v) {
 	return v 
 }
-json2canvas.prototype._ah = function(v) {
+_ah(v) {
 	return v  
 }
-json2canvas.prototype.setstyle =function (style){
-	
-}
-json2canvas.prototype.draw =function (data){
+
+async draw(data){
+	this.data = data 
 	this.ctx.font = this.default.font 
 	for(let i=0;i<data.length;i++) {
 		const d = data[i]
+		if(d.classdef) {
+			this.class[d.classdef] = d.style ;
+			continue ;
+		}
+		let style = {lineWidth:1,boder:this.default.borderColor}
+		if(d.class) {
+			for(let s in this.class[d.class]) {
+				style[s] = this.class[d.class][s]	
+			}
+		}
+		if(d.style) {
+			for(let s in d.style) {
+				style[s] = d.style[s]	
+			}
+		}
 		let x = 0 ; let y = 0 ;
 		let w=10; let h = 10 ;
-		if(d.x!=undefined) x = d.x
-		if(d.y!=undefined) y = d.y
-		if(d.rect) {
-			x = d.rect[0] ;y=d.rect[1];w=d.rect[2];h=d.rect[3]
+		if(d.rect) style.rect = d.rect 
+		if(d.x!=undefined) style.x = d.x 
+		if(d.y!=undefined) style.y = d.y
+		if(d.width!=undefined) style.width = d.width
+		if(d.height!=undefined) style.height = d.height 
+		if(style.rect) {
+			x = style.rect[0] ;y=style.rect[1];w=style.rect[2];h=style.rect[3]
 		} 
+		if(style.x!=undefined) x = style.x 
+		if(style.y!=undefined) y = style.y 
+		if(style.width!=undefined) w = style.width
+		if(style.height!=undefined) h = style.height
+		
 		this.ctx.save()
-		if(d.style==undefined) d.style = {lineWidth:1,boder:this.default.borderColor}
 		switch(d.shape) {
 			case "box":
-				if(d.style.lineWidth) this.ctx.lineWidth = d.style.lineWidth
-				if(d.style.background) {
-					this.ctx.fillStyle = d.style.background 
+				if(style.lineWidth) this.ctx.lineWidth = style.lineWidth
+				if(style.background) {
+					this.ctx.fillStyle = style.background 
 					this.ctx.fillRect(this._ax(x),this._ay(y),this._aw(w),this._ah(h))
 				}
-				if(d.style.border) {
-					this.ctx.strokeStyle = d.style.border
+				if(style.border) {
+					this.ctx.strokeStyle = style.border
 					this.ctx.strokeRect(this._ax(x),this._ay(y),this._aw(w),this._ah(h))
 				}
 				break ;
 			case "roundbox":
-				const radius = (d.style.radius)?d.style.radius:20 
+				const radius = (style.radius)?style.radius:20 
 				this.ctx.beginPath()
 				this.ctx.moveTo(this._ax(x+radius),this._ay(y))
 				this.ctx.lineTo(this._ax(x+w-radius),this._ay(y))
@@ -2778,13 +2816,13 @@ json2canvas.prototype.draw =function (data){
 				this.ctx.arcTo(this._ax(x),this._ay(y+h),this._ax(x),this._ay(y+h-radius),radius)
 				this.ctx.lineTo(this._ax(x),this._ay(y+radius))
 				this.ctx.arcTo(this._ax(x),this._ay(y),this._ax(x+radius),this._ay(y),radius)
-				if(d.style.lineWidth) this.ctx.lineWidth = d.style.lineWidth
-				if(d.style.background) {
-					this.ctx.fillStyle = d.style.background 
+				if(style.lineWidth) this.ctx.lineWidth = style.lineWidth
+				if(style.background) {
+					this.ctx.fillStyle = style.background 
 					this.ctx.fill()
 				}
-				if(d.style.border) {
-					this.ctx.strokeStyle = d.style.border
+				if(style.border) {
+					this.ctx.strokeStyle = style.border
 					this.ctx.stroke()
 				}
 				break ;
@@ -2792,31 +2830,31 @@ json2canvas.prototype.draw =function (data){
 				
 				break ;
 			case "text":
-				if(d.style.color) this.ctx.fillStyle = d.style.color ;else this.ctx.fillStyle = this.default.textColor
-				if(d.style.font) this.ctx.font = d.style.font 
-				if(d.style.align) this.ctx.textAlign = d.style.align ; else this.ctx.textAlign  = "left"
-				if(d.width) {
-					if(d.style.align=="right") x += d.width
-					if(d.style.align=="center") x += d.width/2 
-				}
-				this.ctx.fillText(d.str,this._ax(x),this._ay(y),d.width)
+				if(style.color) this.ctx.fillStyle = style.color ;else this.ctx.fillStyle = this.default.textColor
+				if(style.font) this.ctx.font = style.font 
+				if(style.align) this.ctx.textAlign = style.align ; else this.ctx.textAlign  = "left"
+				if(style.width) {
+					if(style.align=="right") x += w
+					if(style.align=="center") x += w/2 
+				} else w = undefined
+				this.ctx.fillText(d.str,this._ax(x),this._ay(y),w)
 				break ;
 			case "textbox":
 				let l 
 				if(d.str) {
-					l = this.boxscan(d)
+					l = this.boxscan(d,style)
 					data[i].lines = l
 				} else if(d.lines) {
 					l = d.lines 
 				}
-				let lh = (d.style.lineHeight!=undefined)?d.style.lineHeight:20
-				if(d.style.color) this.ctx.fillStyle = d.style.color ;else this.ctx.fillStyle = this.default.textColor
-				if(d.style.font) this.ctx.font = d.style.font 
-				if(d.style.align) this.ctx.textAlign = d.style.align ; else this.ctx.textAlign  = "left"
-				if(d.style.align=="right") x += w
-				if(d.style.align=="center") x += w/2 
-				const ox = ((d.style.offsetx!=undefined)?d.style.offsetx:0)
-				const oy = ((d.style.offsety!=undefined)?d.style.offsety:0)
+				let lh = (style.lineHeight!=undefined)?style.lineHeight:20
+				if(style.color) this.ctx.fillStyle = style.color ;else this.ctx.fillStyle = this.default.textColor
+				if(style.font) this.ctx.font = style.font 
+				if(style.align) this.ctx.textAlign = style.align ; else this.ctx.textAlign  = "left"
+				if(style.align=="right") x += w
+				if(style.align=="center") x += w/2 
+				const ox = ((style.offsetx!=undefined)?style.offsetx:0)
+				const oy = ((style.offsety!=undefined)?style.offsety:0)
 				let lx =  - ox
 				let ly =  lh - oy
 				this.ctx.rect(this._ax(x),this._ay(y),w,h)
@@ -2829,18 +2867,17 @@ json2canvas.prototype.draw =function (data){
 				}
 				break
 			case "img":
-				this.loadImageAjax(d.src).then((img)=>{
-					if(d.width!=undefined && d.height==undefined) {
-						w = d.width ; h = d.width * img.height / img.width
-					} else 
-					if(d.width==undefined && d.height!=undefined) {
-						h = d.height ; w = d.heigut * img.width / img.height
-					} else
-					if(d.width!=undefined && d.height!=undefined) {
-						w = d.width ; h = d.height 
-					} else {w=img.width;h=img.height}
-					this.ctx.drawImage(img,x,y,w,h)			
-				})
+				let img = await json2canvas.loadImageAjax(d.src)
+				if(style.width!=undefined && style.height==undefined) {
+					w = style.width ; h = style.width * img.height / img.width
+				} else 
+				if(style.width==undefined && style.height!=undefined) {
+					h = style.height ; w = style.height * img.width / img.height
+				} else
+				if(style.width!=undefined && style.height!=undefined) {
+					w = style.width ; h = style.height 
+				} else {w=img.width;h=img.height}
+				this.ctx.drawImage(img,x,y,w,h)
 				break ;
 		}
 		if(d.children) {
@@ -2853,11 +2890,34 @@ json2canvas.prototype.draw =function (data){
 	}
 }
 
-json2canvas.prototype.boxscan = function(d) {
+getElementById(id,data) {
+	if(!data) data = this.data 	
+	for(let i=0;i<data.length;i++) {
+		if(data[i].id == id) {
+			return data[i] ;
+		}
+		if(data[i].children) {
+			var c =  this.getElementById(id,data[i].children) ;
+			if(c) return c ;
+		}
+	}
+	return null
+}
+boxscan(d,style) {
+	class unistr {
+		constructor(str) {
+			this._str = str.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[^\uD800-\uDFFF]/g) || [];
+		}
+		get length() { return this._str.length }
+		get char() { return this._str }
+		substr(i,n) {
+			return this._str.slice(i,(n==undefined)?undefined:i+n).join("")
+		}
+	}
 	let x = d.rect[0] ;let y=d.rect[1];let w=d.rect[2];let h=d.rect[3]
-	let str = new this.unistr(d.str)
+	let str = new unistr(d.str)
 	this.ctx.save()
-	if(d.style.font) this.ctx.font = d.style.font 
+	if(style.font) this.ctx.font = style.font 
 	let si =0 
 	let lines = [] 
 
@@ -2868,8 +2928,16 @@ json2canvas.prototype.boxscan = function(d) {
 			si = i 						
 		} else 
 		if(this.ctx.measureText(str.substr(si,i-si+1)).width > w) {
-			if(str.char[i].match(this.km)) i++
-			if(str.char[i-1].match(this.tm)) i--
+			let ii = i 
+			while(i>ii-4 && str.char[i-1].match(this.tm)) i--	//行末禁則追い出し
+			while(i<ii+4 && str.char[i].match(this.km)) i++		//行頭禁則追い込み
+
+			while(str.char[i-1].match(this.am) && str.char[i].match(this.am)) { //分離禁止追い出し
+				i-- 
+				if(i==si) {
+					i=ii ; break ; 
+				}
+			}
 			lines.push(str.substr(si,i-si))
 			si = i				
 		}
@@ -2881,40 +2949,60 @@ json2canvas.prototype.boxscan = function(d) {
 	return lines
 }
 
-json2canvas.prototype.loadImageAjax = function(src) {
-	var self = this ;
-	return new Promise(function(resolve,reject){
-		self.loadAjax(src,{type:"blob"}).then(function(b){
-			var timg = new Image ;
+static async loadImageAjax(src) {
+	return new Promise((resolve,reject)=>{
+		json2canvas.loadAjax(src,{type:"blob"}).then((b)=>{
+			const timg = new Image ;
 			const url = URL.createObjectURL(b);
-			timg.onload = function() {
+			timg.onload = ()=> {
 				URL.revokeObjectURL(url)
 				resolve(timg) ;
 			}
 			timg.src = url
-		}).catch(function(err){
+		}).catch((err)=>{
 			resolve(null) ;
 		})
 	})
 }
-json2canvas.prototype.loadAjax = function(src,opt) {
-	return new Promise(function(resolve,reject) {
-		var req = new XMLHttpRequest();
+static loadAjax(src,opt) {
+	return new Promise((resolve,reject)=> {
+		const req = new XMLHttpRequest();
 		req.open("get",src,true) ;
 		req.responseType = (opt && opt.type)?opt.type:"text" ;
-		req.onload = function() {
-			if(this.status==200) {
-				resolve(this.response) ;
+		req.onload = ()=> {
+			if(req.status==200) {
+				resolve(req.response) ;
 			} else {
-				reject("Ajax error:"+this.statusText) ;					
+				reject("Ajax error:"+req.statusText) ;					
 			}
 		}
-		req.onerror = function() {
-			reject("Ajax error:"+this.statusText)
+		req.onerror = ()=> {
+			reject("Ajax error:"+req.statusText)
 		}
 		req.send() ;
 	})
-}//poxplayer.js
+}
+
+static loadFont(name,path) {
+	return new Promise((resolve,reject)=>{
+		if(!document.fonts) {
+			resolve(null)
+			return 
+		}
+		let f = new FontFace(name,`url(${path})`,{})
+		if(!f) {
+			resolve(null)
+			return 
+		}
+		f.load().then((font)=>{
+			document.fonts.add(font)
+			resolve(font) 
+		}).catch((err)=> {
+			reject(err) 
+		})
+	})
+}
+}  //class json2canvas//poxplayer.js
 //  PolygonExplorer Player
 //   wakufactory.jp
 "use strict" ;
