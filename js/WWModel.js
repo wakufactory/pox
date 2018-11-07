@@ -273,7 +273,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				var z = (Math.sin(PHI * u) * r)
 				p.push([x*wx,y*wy,z*wz])
 				n.push([x*ninv,y*ninv,z*ninv])
-				t.push([1-u,1-v])
+				t.push([(ninv>0)?1-u:u,1-v])
 			}
 		}
 		var d2 = div*2+1 ;
@@ -286,20 +286,22 @@ WWModel.prototype.primitive  = function(type,param) {
 				else s.push(
 					[base + i     + d2,	base + i + 1, base + i],
 					[base + i + 1 + d2, base + i + 1, base + i + d2 ]);
-
 			}
 		}
 		break;
 	case "cylinder":
+		var divy = (param.divy)?param.divy:1
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
 			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
-			p.push([x,wy,z])
-			n.push([x*ninv,0,z*ninv])
-			t.push([1-v,1])
-			p.push([x,-wy,z])
-			n.push([x*ninv,0,z*ninv,0])
-			t.push([1-v,0])			
+			for(var yi=0;yi<divy;yi++) {
+				p.push([x,wy,z])
+				n.push([x*ninv,0,z*ninv])
+				t.push([(ninv>0)?1-v:v,1])
+				p.push([x,-wy,z])
+				n.push([x*ninv,0,z*ninv,0])
+				t.push([(ninv>0)?1-v:v,0])
+			}			
 		}
 		for(var j =0; j < div ;j++) {
 			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
@@ -309,16 +311,16 @@ WWModel.prototype.primitive  = function(type,param) {
 	case "cone":
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
-			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
+			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			p.push([0,wy,0])
 			n.push([x*ninv,0,z*ninv])
-			t.push([v,1])
+			t.push([(ninv>0)?1-v:v,1])
 			p.push([x,-wy,z])
 			n.push([x*ninv,0,z*ninv,0])
-			t.push([v,0])			
+			t.push([(ninv>0)?1-v:v,0])			
 		}
 		for(var j =0; j < div ;j++) {
-			if(ninv<0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
+			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
 		break; 
@@ -339,21 +341,27 @@ WWModel.prototype.primitive  = function(type,param) {
 		s.push([j,0,div])
 		break; 
 	case "plane":
-		if(!param.wz)  p = [[wx,-wy,0],[wx,wy,0],[-wx,wy,0],[-wx,-wy,0]]
-		else if(!param.wx) p = [[0,-wy,-wz],[0,wy,-wz],[0,wy,wz],[0,-wy,wz]]
-		else p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
-		n = [[0,1,0],[0,1,0],[0,1,0],[0,1,0]]
-		t = [[1,0],[1,1],[0,1],[0,0]]
-		s = [[0,1,2],[2,3,0]]
+		if(!param.wz)  {
+			p = [[wx,-wy,0],[wx,wy,0],[-wx,wy,0],[-wx,-wy,0]]
+			n = [[0,0,ninv],[0,0,ninv],[0,0,ninv],[0,0,ninv]]
+		} else if(!param.wx){
+			p = [[0,-wy,-wz],[0,wy,-wz],[0,wy,wz],[0,-wy,wz]]
+			n = [[ninv,0,0],[ninv,0,0],[ninv,0,0],[ninv,0,0]]
+		}else {
+			p = [[wx,0,wz],[wx,0,-wz],[-wx,0,-wz],[-wx,0,wz]]
+			n = [[0,ninv,0],[0,ninv,0],[0,ninv,0],[0,ninv,0]]
+		}
+		t = (ninv>0)?[[1,0],[1,1],[0,1],[0,0]]:[[-1,0],[-1,1],[0,1],[0,0]]
+		s = (ninv>0)?[[0,1,2],[2,3,0]]:[[2,1,0],[0,3,2]]
 		break ;
 	case "box":
 		p = [
-			[wx,wy,wz],[wx,-wy,wz],[-wx,-wy,wz],[-wx,wy,wz],
-			[wx,wy,-wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,wy,-wz],
-			[wx,wy,wz],[wx,-wy,wz],[wx,-wy,-wz],[wx,wy,-wz],
-			[-wx,wy,wz],[-wx,-wy,wz],[-wx,-wy,-wz],[-wx,wy,-wz],
-			[wx,wy,wz],[wx,wy,-wz],[-wx,wy,-wz],[-wx,wy,wz],
-			[wx,-wy,wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,-wy,wz],
+			[wx,wy,wz],[wx,-wy,wz],[-wx,-wy,wz],[-wx,wy,wz],		//+z
+			[wx,wy,-wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,wy,-wz],//-z
+			[wx,wy,wz],[wx,-wy,wz],[wx,-wy,-wz],[wx,wy,-wz],		//+x
+			[-wx,wy,wz],[-wx,-wy,wz],[-wx,-wy,-wz],[-wx,wy,-wz],//-x
+			[wx,wy,wz],[wx,wy,-wz],[-wx,wy,-wz],[-wx,wy,wz],		//+y
+			[wx,-wy,wz],[wx,-wy,-wz],[-wx,-wy,-wz],[-wx,-wy,wz],	//-y
 		]
 		n = [
 			[0,0,ninv],[0,0,ninv],[0,0,ninv],[0,0,ninv],
@@ -363,7 +371,14 @@ WWModel.prototype.primitive  = function(type,param) {
 			[0,ninv,0],[0,ninv,0],[0,ninv,0],[0,ninv,0],
 			[0,-ninv,0],[0,-ninv,0],[0,-ninv,0],[0,-ninv,0]
 		]
-		t = [
+		t = (param.cubemap==1)?[
+			[3/4,2/3],[3/4,1/3],[1,1/3],[1,2/3],
+			[1/2,2/3],[1/2,1/3],[1/4,1/3],[1/4,2/3],
+			[3/4,2/3],[3/4,1/3],[1/2,1/3],[1/2,2/3],
+			[0,2/3],[0,1/3],[1/4,1/3],[1/4,2/3],
+			[1/2,1],[1/2,2/3],[1/4,2/3],[1/4,1],
+			[1/2,0],[1/2,1/3],[1/4,1/3],[1/4,0]
+		]:[
 			[1,1],[1,0],[0,0],[0,1],
 			[0,1],[0,0],[1,0],[1,1],
 			[0,1],[0,0],[1,0],[1,1],
