@@ -90,6 +90,16 @@ CanvasMatrix4 = function(m)
     return this ;
 }
 
+//shorthand class method 
+CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
+	var m = new CanvasMatrix4()
+	if(rx!=0) m.rotate(rx,1,0,0) 
+	if(ry!=0) m.rotate(ry,0,1,0)
+	if(rz!=0) m.rotate(rz,0,0,1)
+	m.translate(tx,ty,tz)
+	return m 
+}
+
 CanvasMatrix4.prototype.load = function()
 {
     if (arguments.length == 1 && typeof arguments[0] == 'object') {

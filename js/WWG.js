@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.8" ;
+	this.version = "0.9.9" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -47,6 +47,14 @@ WWG.prototype.init = function(canvas,opt) {
 		this.mrt_draw = function(b,d){return this.ext_mrt.drawBuffersWEBGL(b,d)} ;
 	}
 	this.ext_i32 = gl.getExtension('OES_element_index_uint')
+	this.ext_mv = gl.getExtension('WEBGL_multiview');
+	if (this.ext_mv) 
+        console.log("MULTIVIEW extension is supported");
+	else {
+		this.ext_mv = gl.getExtension('OVR_multiview');
+		if (this.ext_mv)
+			console.log("OVR MULTIVIEW extension is supported");
+	} 
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
 	this.version = 1 ;
 	return true ;
@@ -74,6 +82,14 @@ WWG.prototype.init2 = function(canvas,opt) {
 		this.mrt_draw =  function(b,d){return gl.drawBuffers(b,d)} ;
 	}
 	this.ext_i32 = true ;
+	this.ext_mv = gl.getExtension('WEBGL_multiview');
+	if (this.ext_mv) 
+        console.log("MULTIVIEW extension is supported");
+	else {
+		this.ext_mv = gl.getExtension('OVR_multiview');
+		if (this.ext_mv)
+			console.log("OVR MULTIVIEW extension is supported");
+	} 
 	this.dmodes = {"tri_strip":gl.TRIANGLE_STRIP,"tri":gl.TRIANGLES,"points":gl.POINTS,"lines":gl.LINES,"line_strip":gl.LINE_STRIP }
 	this.version = 2 ;
 	return true ;
