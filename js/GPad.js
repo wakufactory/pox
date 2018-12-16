@@ -1,35 +1,57 @@
-GPad = {conn:false} ;
+GPad = {conn:false,gp:null,egp:null} ;
 
 GPad.init = function() {
 	if(!navigator.getGamepads) return false ;
 	gamepads = navigator.getGamepads();
-	console.log(gamepads)
+//	console.log(gamepads)
 	if(gamepads[0]) {
 		console.log("gpad connected "+0) ;
 		GPad.axes =gamepads[0].axes 
 		GPad.conn = true ;
+		GPad.egp = null ;
 	}
 	addEventListener("gamepadconnected", function(e) {
 		console.log("gpad reconnected "+e.gamepad.index) ;
-		console.log(e.gamepad) ;
+//		console.log(e.gamepad) ;
 		GPad.axes = e.gamepad.axes 
 		GPad.conn = true; 
 	})	
 	addEventListener("gamepaddisconnected", function(e) {
-		console.log("disconnected "+e.gamepad.index) ;
+		console.log("gpad disconnected "+e.gamepad.index) ;
 		GPad.conn = false ;
 	})
 	return true ;
 }
 GPad.get = function(pad) {
-	if(!GPad.conn) return null ;
+	if(!GPad.conn) {	
+			GPad.lastGp = GPad.gp ;
+			GPad.gp = GPad.egp ;
+		return GPad.egp ;
+	}
 	var gamepads = navigator.getGamepads();
 	var gp = gamepads[0];
 	if(!gp || gp.buttons.length==0) return null ;
-	gp.faxes = [] 
-	for(var i=0;i<gp.axes.length;i++) {
-		gp.faxes[i] = gp.axes[i] - GPad.axes[i] ;
-		if(Math.abs(gp.faxes[i])<0.05) gp.faxes[i] = 0 
+	
+	var sgp = {
+		buttons:[],
+		axes:[],
+		faxes:[],
+		id:gp.id,
+		hand:gp.hand,
+		pose:gp.pose
 	}
-	return gp ;	
+	for(var i=0;i<gp.buttons.length;i++) {
+		sgp.buttons[i] = {pressed:gp.buttons[i].pressed}
+	}
+	for(var i=0;i<gp.axes.length;i++) {
+		sgp.axes[i] = gp.axes[i]
+		sgp.faxes[i] = gp.axes[i] - GPad.axes[i] ;
+		if(Math.abs(sgp.faxes[i])<0.01) sgp.faxes[i] = 0 
+	}
+	GPad.lastGp = GPad.gp ;
+	GPad.gp = sgp ;
+	return sgp ;	
+}
+GPad.set = function(gp) {//for emulation
+	GPad.egp = gp ;	
 }
