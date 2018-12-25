@@ -68,12 +68,12 @@
     }
 */
 
-CanvasMatrix4 = function(m)
-{
+CanvasMatrix4 = function(m) {
 	if(m!=undefined && m.name == "Float32Array") {
 		this.buf = m ;
 		return this ;
 	}
+	this.RAD = Math.PI / 180 
 	this.buf = new Float32Array(16)
 	this.matrix = null
     if (typeof m == 'object') {
@@ -88,16 +88,6 @@ CanvasMatrix4 = function(m)
     }
     this.makeIdentity();
     return this ;
-}
-
-//shorthand class method 
-CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
-	var m = new CanvasMatrix4()
-	if(rx!=0) m.rotate(rx,1,0,0) 
-	if(ry!=0) m.rotate(ry,0,1,0)
-	if(rz!=0) m.rotate(rz,0,0,1)
-	m.translate(tx,ty,tz)
-	return m 
 }
 
 CanvasMatrix4.prototype.load = function()
@@ -265,6 +255,9 @@ CanvasMatrix4.prototype.invert = function()
 
 CanvasMatrix4.prototype.translate = function(x,y,z)
 {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
     if (x == undefined)
         x = 0;
         if (y == undefined)
@@ -285,6 +278,9 @@ CanvasMatrix4.prototype.translate = function(x,y,z)
 
 CanvasMatrix4.prototype.scale = function(x,y,z)
 {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
     if (x == undefined)
         x = 1;
     if (z == undefined) {
@@ -298,39 +294,32 @@ CanvasMatrix4.prototype.scale = function(x,y,z)
     else if (y == undefined)
         y = x;
     
-    this.initmatrix()
-    this.matrix.buf[0] = x;
-    this.matrix.buf[5] = y;
-    this.matrix.buf[10] = z;
+//    this.initmatrix()
+//    this.matrix.buf[0] = x;
+//    this.matrix.buf[5] = y;
+//    this.matrix.buf[10] = z;
+//    this.multRight(this.matrix);
     
-    this.multRight(this.matrix);
+    this.buf[0] *= x ; this.buf[1] *= x ; this.buf[2] *= x ;
+    this.buf[4] *= y ; this.buf[5] *= y ; this.buf[6] *= y ;
+    this.buf[8] *= z ; this.buf[9] *= z ; this.buf[10] *= z ;
     return this ;
 }
 
 CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
 {
     if(angle==0) return this 
+ 	if(Array.isArray(x)) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
     // angles are in degrees. Switch to radians
-    angle = angle / 180 * Math.PI;
+    angle = angle * this.RAD ;
     
     angle /= 2;
     var sinA = Math.sin(angle);
     var cosA = Math.cos(angle);
     var sinA2 = sinA * sinA;
-    
-    // normalize
-    var length = Math.sqrt(x * x + y * y + z * z);
-    if (length == 0) {
-        // bad vector, just use something reasonable
-        x = 0;
-        y = 0;
-        z = 1;
-    } else if (length != 1) {
-        x /= length;
-        y /= length;
-        z /= length;
-    }
-    
+ 
     this.initmatrix()
 
     // optimize case where axis is along major axis
@@ -350,6 +339,18 @@ CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
         this.matrix.buf[4] = -2 * sinA * cosA;
         this.matrix.buf[5] = 1 - 2 * sinA2;
     } else {
+	    // normalize
+	    var length = Math.hypot(x,y,z);
+	    if (length == 0) {
+	        // bad vector, just use something reasonable
+	        x = 0;
+	        y = 0;
+	        z = 1;
+	    } else if (length != 1) {
+	        x /= length;
+	        y /= length;
+	        z /= length;
+	    }
         var x2 = x*x;
         var y2 = y*y;
         var z2 = z*z;
@@ -558,7 +559,7 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     var zx = eyex - centerx;
     var zy = eyey - centery;
     var zz = eyez - centerz;
-    var mag = Math.sqrt(zx * zx + zy * zy + zz * zz);
+    var mag = Math.hypot(zx,zy,zz);
     if (mag) {
         zx /= mag;
         zy /= mag;
@@ -578,14 +579,14 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     // cross product gives area of parallelogram, which is < 1.0 for
     // non-perpendicular unit-length vectors; so normalize x, y here
 
-    mag = Math.sqrt(xx * xx + xy * xy + xz * xz);
+    mag = Math.hypot(xx,xy,xz);
     if (mag) {
         xx /= mag;
         xy /= mag;
         xz /= mag;
     }
 
-    mag = Math.sqrt(yx * yx + yy * yy + yz * yz);
+    mag = Math.hypot(yx,yy,yz);
     if (mag) {
         yx /= mag;
         yy /= mag;
@@ -698,10 +699,47 @@ CanvasMatrix4.prototype._makeAdjoint = function()
     this.buf[15]  =   this._determinant3x3(a1, a2, a3, b1, b2, b3, c1, c2, c3);
 }
 
+////utils 
+
+//multiple vector
 CanvasMatrix4.prototype.multVec4 = function(x,y,z,w) {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2];w=x[3]; x = x[0];
+	}
 	var xx = this.buf[0]*x + this.buf[4]*y + this.buf[8]*z + this.buf[12]*w ;
 	var yy = this.buf[1]*x + this.buf[5]*y + this.buf[9]*z + this.buf[13]*w ;
 	var zz = this.buf[2]*x + this.buf[6]*y + this.buf[10]*z + this.buf[14]*w ;
 	var ww = this.buf[3]*x + this.buf[7]*y + this.buf[11]*z + this.buf[15]*w ;
 	return [xx,yy,zz,ww] ;
+}
+
+//shorthand class method 
+CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
+	var m = new CanvasMatrix4()
+	if(rx!=0) m.rotate(rx,1,0,0) 
+	if(ry!=0) m.rotate(ry,0,1,0)
+	if(rz!=0) m.rotate(rz,0,0,1)
+	m.translate(tx,ty,tz)
+	return m 
+}
+
+//quaternion to matrix
+CanvasMatrix4.prototype.q2m = function(x,y,z,w) {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2];w=x[3]; x = x[0];
+	}
+	var x2 = x*x; var y2=y*y; var z2=z*z ;
+	this.buf[0] = 1- 2*(y2 + z2) ;
+	this.buf[1] = 2*(x*y + w*z) ;
+	this.buf[2] = 2*(x*z - w*y) ;
+	this.buf[3] = 0 ;
+	this.buf[4] = 2*(x*y - w*z) ;
+	this.buf[5] = 1-2*(x2 + z2) ;
+	this.buf[6] = 2*(y*z + w*x) ;
+	this.buf[7] = 0 ;
+	this.buf[8] = 2*(x*z + w*y) ;
+	this.buf[9] = 2*(y*z - w*x) ;
+	this.buf[10] = 1-2*(x2 + y2) ;
+	this.buf[11] = 0 ; this.buf[12]=0; this.buf[13]=0; this.buf[14]=0;this.buf[15]=1;
+	return this 
 }
