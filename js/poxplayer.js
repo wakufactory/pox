@@ -5,6 +5,7 @@
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
 const PoxPlayer  = function(can,opt) {
+	this.version = "1.1.0" 
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
@@ -172,7 +173,7 @@ PoxPlayer.prototype.loadImage = function(path) {
 		return [x,y,z] ;
 	}
 	function V3len(v) {
-		return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) ;
+		return Math.hypot(v[0],v[1],v[2]) ;
 	}
 	function V3norm(v,s) {
 		const l = V3len(v) ;
@@ -202,7 +203,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		return [x,y,z] ;
 	}
 	POX.V3len = function(v) {
-		return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) ;
+		return Math.hypot(v[0],v[1],v[2]) ;
 	}
 	POX.V3norm = function(v,s) {
 		const l = V3len(v) ;
@@ -480,6 +481,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const bm = new CanvasMatrix4()
 	const mMtx = []
 	const vMtx = []
+	const mvMtx = []
+	const vpMtx = []
 	const iMtx = []
 	
 	return new Promise((resolve,reject) => {
@@ -509,6 +512,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let fc = 0 ;
 		let gp ;
 		const loopf = () => {
+//			console.log("************loop")
 			if(this.vrDisplay && this.vrDisplay.isPresenting) {
 				this.loop = this.vrDisplay.requestAnimationFrame(loopf)
 				this.isVR = true 
@@ -574,9 +578,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 				}
 			}
 			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
-			if(!vMtx[i]) vMtx[i] = new CanvasMatrix4()
 			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
-			
+			if(!vMtx[i]) vMtx[i] = new CanvasMatrix4()			
 			const uni = {
 				vs_uni:{
 					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
@@ -600,36 +603,100 @@ PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(update) ;
 		return update ;		
 	}
+	function modelMtx2(render,camm) {
+
+		// calc each mvp matrix and invert matrix
+		const mod = [[],[]] ;		
+		for(let i=0;i<render.modelCount;i++) {
+			let d = render.getModelData(i) ;
+			bm.load(d.bm)
+			if(d.mm) bm.multRight(d.mm) ;
+			if(render.data.group) {
+				let g = render.data.group ;
+				for(let gi = 0 ;gi < g.length;gi++) {
+					let gg = g[gi] ;
+					if(!gg.bm) continue ;
+					for(let ggi=0;ggi<gg.model.length;ggi++) {
+						if(render.getModelIdx(gg.model[ggi])==i) bm.multRight(gg.bm) ;
+					}
+				}
+			}
+			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
+			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
+			if(!mvMtx[i]) mvMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
+			if(!vpMtx[i]) vpMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
+
+			const uni0 = {
+				vs_uni:{
+					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
+					vpMatrix:vpMtx[i][0].load((d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
+					mvpMatrix:mvMtx[i][0].load(bm).multRight( (d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
+					invMatrix:iMtx[i].load(bm).
+						invert().transpose().getAsWebGLFloatArray()}
+			}
+			const uni1 = {
+				vs_uni:{
+					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
+					vpMatrix:vpMtx[i][1].load((d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
+					mvpMatrix:mvMtx[i][1].load(bm).multRight( (d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
+					invMatrix:iMtx[i].load(bm).
+						invert().transpose().getAsWebGLFloatArray()}
+			}
+			uni0.fs_uni = uni0.vs_uni
+			uni1.fs_uni = uni1.vs_uni
+			uni0.fs_uni.vpMatrix_l = uni0.fs_uni.vpMatrix 
+			uni0.fs_uni.vpMatrix_r = uni1.fs_uni.vpMatrix 
+			uni1.fs_uni.vpMatrix_l = uni0.fs_uni.vpMatrix 
+			uni1.fs_uni.vpMatrix_r = uni1.fs_uni.vpMatrix 			
+			mod[0][i] = uni0 
+			mod[1][i] = uni1 
+		}
+		let up = [{model:mod[0],fs_uni:{},vs_uni:{}},
+			{model:mod[1],fs_uni:{},vs_uni:{}}]
+
+		up[0].fs_uni.resolution = [can.width,can.height]
+		up[0].fs_uni.camMatirx = camm[0].camV.getAsWebGLFloatArray()
+		up[0].fs_uni.eyevec = [camm[0].camX,camm[0].camY,camm[0].camZ]
+		up[0].vs_uni.stereo = 1 ;
+		up[0].vs_uni.camMatirx = up[0].fs_uni.camMatirx
+		up[0].vs_uni.eyevec = up[0].fs_uni.eyevec 
+	
+		up[1].fs_uni.resolution = up[0].fs_uni.resolution
+		up[1].fs_uni.camMatirx = camm[1].camV.getAsWebGLFloatArray()
+		up[1].fs_uni.eyevec = [camm[1].camX,camm[1].camY,camm[1].camZ]
+		up[1].vs_uni.stereo = 2  ;	
+		up[1].vs_uni.camMatirx = up[1].fs_uni.camMatirx
+		up[1].vs_uni.eyevec = up[1].fs_uni.eyevec 	
+		return up ;		
+	}
 	// update scene
 
-	function update(render,scene,cam,time) {
+	function update(render,pox,cam,time) {
 		// draw call 
 		let camm,update = {} ;
 		if(Param.isStereo || self.isVR) {
-			render.gl.viewport(0,0,can.width/2,can.height) ;
-			if(!Param.pause) update = scene.update(render,cam,time,-1)
+			if(!Param.pause) update = pox.update(render,cam,time,-1)
 			camm = ccam.getMtx(sset.scale,1) ;
-			if(update.vs_uni==undefined) update.vs_uni = {} ;
-			if(update.fs_uni==undefined) update.fs_uni = {} ;
-			update.vs_uni.stereo = 1 ;
-			update.fs_uni.stereo = 1 ;
-			update.fs_uni.time = time/1000 ;
-			render.draw(modelMtx(render,camm[0],update),false) ;
-			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
-			update.vs_uni.stereo = 2 ;
-			update.fs_uni.stereo = 2 ;
-			render.draw(modelMtx(render,camm[1],update),true) ;
-		} else {
-			render.gl.viewport(0,0,can.width,can.height) ;
-			if(!Param.pause) update = scene.update(render,cam,time,0)
-//			camm = camMtx(render,cam,0) ;
-			camm = (ccam.getMtx(sset.scale,0))[0] ;
+			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
-			update.vs_uni.stereo = 0 ;
-			update.fs_uni.stereo = 0 ;
 			update.fs_uni.time = time/1000 ;
-			render.draw(modelMtx(render,camm,update),false) ;
+			update.vs_uni.time = time/1000 ;			
+			render.gl.viewport(0,0,can.width/2,can.height) ;			
+			render.draw([update,mtx2[0]],false) ;
+			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
+			render.draw([update,mtx2[1]],true) ;
+		} else {
+			if(!Param.pause) update = pox.update(render,cam,time,0)
+			camm = ccam.getMtx(sset.scale,0) ;
+			let mtx2 = modelMtx2(render,camm) ;
+			if(update.vs_uni===undefined) update.vs_uni = {} ;
+			if(update.fs_uni===undefined) update.fs_uni = {} ;
+			mtx2[0].vs_uni.stereo = 0 ;
+			update.fs_uni.time = time/1000 ;
+			update.vs_uni.time = time/1000 ;	
+			render.gl.viewport(0,0,can.width,can.height) ;
+			render.draw([update,mtx2[0]],false) ;
 		}
 	}
 }
@@ -667,8 +734,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		vcz:0,
 		vrx:0,
 		vry:0,
-		vrz:0,
-		gyro:true 
+		vrz:0
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
@@ -745,7 +811,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 			break ;
 		case "keydown":
 			const z = this.cam.camd ;
-			const keymag= 1 ;
+			const keymag= 0.2 ;
 			let md = "" ;
 			this.keydown = true ;
 			if(m.altKey) {
@@ -788,7 +854,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 				}
 			}
 			if(md!="") {
-				const dir = ((md=="d")?-0.01:0.01)*keymag*scale 
+				const dir = ((md=="d")?-1:1)*keymag*scale 
 				const cam = this.cam ;
 				let ry = cam.camRY ;
 				if(md=="l") ry = ry -90 ;
@@ -820,7 +886,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 				case "j":
 					this.vrx = 0  ; break ;
 				case "w":
-				case "z":
+				case "d":
 				case "a":
 				case "s":
 				case " ":
@@ -856,7 +922,7 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gp,lgp) {
 		} else {
 			this.cam.vcy = 0 
 			let m = gp.buttons[0].pressed
-			let mv = (m)?2:.2
+			let mv = (m)?1:.2
 			this.cam.vcx = 0 
 			this.cam.vcz = 0 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
@@ -883,7 +949,7 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	let cx,cy,cz,ex,ey,ez,upx,upy,upz,camX,camY,camZ,camd ;
 	let vrFrame = null
 	camX = 0 ,camY = 0, camZ = 0 ;
-	ex =0, ey=0,ez=0 ;
+	ex =[0,0], ey=[0,0],ez=[0,0] ;
 	if(!this.poxp.isVR) {
 		if(cam.camMode=="fix") {
 			cx = cam.camVX ;
@@ -920,14 +986,15 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].makeIdentity()
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
-			ex =  upy * (camZ-cz) - upz * (camY-cy);
-			ey = -upx * (camZ-cz) + upz * (camX-cx);
-			ez =  upx * (camY-cy) - upy * (camX-cx);
-			const mag = Math.sqrt(ex * ex + ey * ey + ez * ez);
-			ex *= dx/mag ; ey *=dx/mag ; ez *= dx/mag ;
+			ex[0] =  upy * (camZ-cz) - upz * (camY-cy);
+			ey[1] = -upx * (camZ-cz) + upz * (camX-cx);
+			ez[2] =  upx * (camY-cy) - upy * (camX-cx);
+			const mag = Math.hypot(ex[0],ey[0],ez[0]);
+			ex[0] *= dx/mag ; ey[0] *=dx/mag ; ez[0] *= dx/mag ;
+			ex[1] = -ex[0] ; ey[1] = -ey[0] ; ez[1] = -ez[0] ;
 	//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
-			this.camV[0].lookat(camX+ex+cam.camCX, camY+ey+cam.camCY, camZ+ez+cam.camCZ, cx+ex+cam.camCX, cy+ey+cam.camCY, cz+ez+cam.camCZ, upx,upy,upz) ;
-			this.camV[1].lookat(camX-ex+cam.camCX, camY-ey+cam.camCY, camZ-ez+cam.camCZ, cx-ex+cam.camCX, cy-ey+cam.camCY, cz-ez+cam.camCZ, upx,upy,upz) ;
+			this.camV[0].lookat(camX+ex[0]+cam.camCX, camY+ey[0]+cam.camCY, camZ+ez[0]+cam.camCZ, cx+ex[0]+cam.camCX, cy+ey[0]+cam.camCY, cz+ez[0]+cam.camCZ, upx,upy,upz) ;
+			this.camV[1].lookat(camX+ex[1]+cam.camCX, camY+ey[1]+cam.camCY, camZ+ez[1]+cam.camCZ, cx+ex[1]+cam.camCX, cy+ey[1]+cam.camCY, cz+ez[1]+cam.camCZ, upx,upy,upz) ;
 
 			if(cam.camAngle!=0) this.camP[0].perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
 			else this.camP[0].pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
@@ -955,10 +1022,13 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.vrp[1].load(vrFrame.rightProjectionMatrix)
 		this.vrp[0].load(vrFrame.leftProjectionMatrix)
 
-		ex = this.vrv[0].buf[12] 
-		ey = this.vrv[0].buf[13] 
-		ez = this.vrv[0].buf[14]  
-
+		ex[0] = this.vrv[0].buf[12] 
+		ey[0] = this.vrv[0].buf[13] 
+		ez[0] = this.vrv[0].buf[14]  
+		ex[1] = this.vrv[1].buf[12] 
+		ey[1] = this.vrv[1].buf[13] 
+		ez[1] = this.vrv[1].buf[14] 
+ 
 		this.camV[0].makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
 			.rotate(cam.camRY,0,1,0)
@@ -973,9 +1043,9 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].load(this.vrp[1])
 	}
 //	console.log(camVP)
-	return [{camX:camX+ex,camY:camY+ey,camZ:camZ+ez, 
+	return [{camX:camX+ex[0],camY:camY+ey[0],camZ:camZ+ez[0], 
 		camV:this.camV[0],camVP:this.camVP[0],camP:this.camP[0], vrFrame:vrFrame},
-	{camX:camX-ex,camY:camY-ey,camZ:camZ-ez,
+	{camX:camX+ex[1],camY:camY+ey[1],camZ:camZ+ez[1],
 		camV:this.camV[1],camVP:this.camVP[1],camP:this.camP[1],vrFrame:vrFrame}] ;
 }
 

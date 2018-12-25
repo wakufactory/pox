@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.9" ;
+	this.version = "0.9.10" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -139,12 +139,21 @@ WWG.prototype.Render = function(wwg) {
 	this.env = {} ;
 	this.obuf = [] ;
 	this.modelCount = 0 ;
+	this.modelHash = {} ;
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
+	if(uni.pos==null) return 
 //	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
 	let ar = [] ;
 	if(uni.dim>0 && !(value instanceof Float32Array)) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
 	else ar = value 
+	if(uni.cache!=null) {
+		if(Array.isArray(ar)) {
+			for(let i=0;i<ar.length;i++) if(ar[i]!=uni.cache[i]) break ;
+			if(i==ar.length) return ;
+		} else if(ar == uni.cache) return ;
+	}
+//	console.log("set uni")
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -314,6 +323,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.vs_uni = {} ;
 			for(var i in vr.uni) {
 				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
+				vr.uni[i].cache = null 
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
@@ -322,6 +332,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.fs_uni = {} ;
 			for(var i in fr.uni) {
 				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
+				fr.uni[i].cache = null 
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
@@ -352,7 +363,16 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 	var gl = this.gl ;
 	var tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+	if(option.isarray) {
+		if(img instanceof Float32Array ) 
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,gl.RGBA, gl.FLOAT, img,0);
+		else 
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,gl.RGBA, gl.UNSIGNED_BYTE, img);
+		 option.flevel = 0 
+		 option.nomipmap = true 
+		 console.log(img)
+	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, img);
+
 	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
 	switch(option.flevel) {
@@ -419,6 +439,9 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 			resolve( tex.texture) ;
 		} else if(tex.canvas) {
 			resolve( self.genTex(tex.canvas,tex.opt)) ;
+		} else if(tex.array) {
+			tex.opt.isarray = true ;
+			resolve( self.genTex(tex.array,tex.opt)) ;
 		} else {
 			reject("no image")
 		}
@@ -527,6 +550,7 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 				//set model 
 				for(var i =0;i<data.model.length;i++) {
 					self.obuf[i] = self.setObj( data.model[i],true) ;
+					if(data.model[i].name) self.modelHash[data.model[i].name] = i ;
 				}
 				self.modelCount = data.model.length ;
 //				console.log(self.obuf);
@@ -661,14 +685,9 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	return ret ;
 }
 WWG.prototype.Render.prototype.getModelIdx = function(name) {
-	var idx = -1 ;
+	var idx 
 	if(typeof name != 'string') idx = parseInt(name) ;
-	else {
-		for(var i=0;i<this.data.model.length;i++) {
-			if(this.data.model[i].name==name) break ;
-		}
-		idx =i ;
-	}	
+	else idx = this.modelHash[name] ;
 	return idx ;	
 }
 // add model
@@ -676,6 +695,11 @@ WWG.prototype.Render.prototype.addModel = function(model) {
 	this.data.model.push(model) ;
 	this.obuf.push(this.setObj(model,true)) ;
 	this.modelCount = this.data.model.length ;
+	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
+}
+// remove model
+WWG.prototype.Render.prototype.removeModel = function(model) {
+	
 }
 // update attribute buffer 
 WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
@@ -738,16 +762,16 @@ WWG.prototype.Render.prototype.updateUniValues = function(u) {
 		this.update_uni = {vs_uni:{},fs_uni:{}} ;
 		return ;
 	}
-//	console.log(this.update_uni);
+//	console.log("update uni");
 	this.setUniValues(this.update_uni)
 }
 
 // draw call
 WWG.prototype.Render.prototype.draw = function(update,cls) {
-//	console.log("draw");
+//console.log("draw");
 
 	var gl = this.gl ;
-	gl.useProgram(this.program);
+//	gl.useProgram(this.program);
 
 	if(this.env.offscreen) {// renderbuffer 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb.f);
@@ -760,16 +784,18 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(cmodel.hide) continue ;
 		var geo = cmodel.geo ;
 
-		this.updateUniValues(null) ;
+		this.updateUniValues(0) ;
 		this.pushUniValues(this.data) ;
 		this.pushUniValues(cmodel);
 		if(update) {
 			// set modified values
-			this.pushUniValues(update) ;
-			this.pushUniValues(cmodel);
-			if(update.model) {
-				var model =update.model[b] ;
-				if(model) this.pushUniValues(model) ;
+			if(!Array.isArray(update)) update = [update ]
+			for(let i=0;i<update.length;i++) {
+				this.pushUniValues(update[i]) ;
+				if(update[i].model) {
+					var model =update[i].model[b] ;
+					if(model) this.pushUniValues(model) ;
+				}
 			}
 		}
 		this.updateUniValues(1)
@@ -826,7 +852,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 		} else {
 			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
-			else gl.drawArrays(gmode, ofs,geo.vtx.length/3);
+			else gl.drawArrays(gmode, ofs,geo.vtx.length/(obuf.tl/4));
 		}
 		if(this.wwg.ext_vao) this.wwg.vao_bind(null);
 		else {
@@ -960,7 +986,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 			var xx =  yy * zz - yz * zy;
 			var xy = -yx * zz + yz * zx;
 			var xz =  yx * zy - yy * zx;
-			var vn = Math.sqrt(xx*xx+xy*xy+xz*xz) ;
+			var vn = Math.hypot(xx,xy,xz) ;
 			xx /= vn ; xy /= vn ; xz /= vn ;
 			sf.push( [xx,xy,xz]) ;
 			//面リスト
@@ -997,7 +1023,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 				nz += sf[ii][2] ;
 			}
 		}
-		var vn = Math.sqrt(nx*nx+ny*ny+nz*nz) ;
+		var vn = Math.hypot(nx,ny,nz) ;
 		vbuf.push(nx/vn) ;
 		vbuf.push(ny/vn) ;
 		vbuf.push(nz/vn) ;
@@ -1275,7 +1301,7 @@ WWModel.prototype.primitive  = function(type,param) {
 			var mx = sr*vx*cx ;
 			var mz = sr*vx*cz ;
 			var my = sr*vy ;
-			var ml = Math.sqrt(mx*mx+my*my+mz*mz) ;
+			var ml = Math.hypot(mx,my,mz) ;
 	
 			var px = R*cx + tx*mx ;
 			var pz = R*cz + tx*mz ;
@@ -1313,7 +1339,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				vs.push(vi) ;
 				vi++ ;
 			}
-			var vl = Math.sqrt(nx*nx+ny*ny+nz*nz) ;
+			var vl = Math.hypot(nx,ny,nz) ;
 			for(var h = 0 ;h <si[i].length;h++) n.push([nx/vl,ny/vl,nz/vl]) ;
 			s.push(vs) ;
 		}
@@ -1361,7 +1387,7 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 				var nx = nuy*nvz - nuz*nvy ;
 				var ny = nuz*nvx - nux*nvz ;
 				var nz = nux*nvy - nuy*nvx ;
-				var nl = Math.sqrt(nx*nx+ny*ny+nz*nz); 
+				var nl = Math.hypot(nx,ny,nz); 
 				p.nx = nx/nl ;
 				p.ny = ny/nl ;
 				p.nz = nz/nl ;
@@ -1419,7 +1445,7 @@ WWModel.snormal = function(pa) {
 	var xx =  yy * zz - yz * zy;
 	var xy = -yx * zz + yz * zx;
 	var xz =  yx * zy - yy * zx;
-	var vn = Math.sqrt(xx*xx+xy*xy+xz*xz) ;
+	var vn = Math.hypot(xx,xy,xz) ;
 	xx /= vn ; xy /= vn ; xz /= vn ;
 	return [xx,xy,xz] ;
 }/*
@@ -1492,12 +1518,12 @@ WWModel.snormal = function(pa) {
     }
 */
 
-CanvasMatrix4 = function(m)
-{
+CanvasMatrix4 = function(m) {
 	if(m!=undefined && m.name == "Float32Array") {
 		this.buf = m ;
 		return this ;
 	}
+	this.RAD = Math.PI / 180 
 	this.buf = new Float32Array(16)
 	this.matrix = null
     if (typeof m == 'object') {
@@ -1512,16 +1538,6 @@ CanvasMatrix4 = function(m)
     }
     this.makeIdentity();
     return this ;
-}
-
-//shorthand class method 
-CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
-	var m = new CanvasMatrix4()
-	if(rx!=0) m.rotate(rx,1,0,0) 
-	if(ry!=0) m.rotate(ry,0,1,0)
-	if(rz!=0) m.rotate(rz,0,0,1)
-	m.translate(tx,ty,tz)
-	return m 
 }
 
 CanvasMatrix4.prototype.load = function()
@@ -1689,6 +1705,9 @@ CanvasMatrix4.prototype.invert = function()
 
 CanvasMatrix4.prototype.translate = function(x,y,z)
 {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
     if (x == undefined)
         x = 0;
         if (y == undefined)
@@ -1709,6 +1728,9 @@ CanvasMatrix4.prototype.translate = function(x,y,z)
 
 CanvasMatrix4.prototype.scale = function(x,y,z)
 {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
     if (x == undefined)
         x = 1;
     if (z == undefined) {
@@ -1722,39 +1744,32 @@ CanvasMatrix4.prototype.scale = function(x,y,z)
     else if (y == undefined)
         y = x;
     
-    this.initmatrix()
-    this.matrix.buf[0] = x;
-    this.matrix.buf[5] = y;
-    this.matrix.buf[10] = z;
+//    this.initmatrix()
+//    this.matrix.buf[0] = x;
+//    this.matrix.buf[5] = y;
+//    this.matrix.buf[10] = z;
+//    this.multRight(this.matrix);
     
-    this.multRight(this.matrix);
+    this.buf[0] *= x ; this.buf[1] *= x ; this.buf[2] *= x ;
+    this.buf[4] *= y ; this.buf[5] *= y ; this.buf[6] *= y ;
+    this.buf[8] *= z ; this.buf[9] *= z ; this.buf[10] *= z ;
     return this ;
 }
 
 CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
 {
     if(angle==0) return this 
+ 	if(Array.isArray(x)) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
     // angles are in degrees. Switch to radians
-    angle = angle / 180 * Math.PI;
+    angle = angle * this.RAD ;
     
     angle /= 2;
     var sinA = Math.sin(angle);
     var cosA = Math.cos(angle);
     var sinA2 = sinA * sinA;
-    
-    // normalize
-    var length = Math.sqrt(x * x + y * y + z * z);
-    if (length == 0) {
-        // bad vector, just use something reasonable
-        x = 0;
-        y = 0;
-        z = 1;
-    } else if (length != 1) {
-        x /= length;
-        y /= length;
-        z /= length;
-    }
-    
+ 
     this.initmatrix()
 
     // optimize case where axis is along major axis
@@ -1774,6 +1789,18 @@ CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
         this.matrix.buf[4] = -2 * sinA * cosA;
         this.matrix.buf[5] = 1 - 2 * sinA2;
     } else {
+	    // normalize
+	    var length = Math.hypot(x,y,z);
+	    if (length == 0) {
+	        // bad vector, just use something reasonable
+	        x = 0;
+	        y = 0;
+	        z = 1;
+	    } else if (length != 1) {
+	        x /= length;
+	        y /= length;
+	        z /= length;
+	    }
         var x2 = x*x;
         var y2 = y*y;
         var z2 = z*z;
@@ -1982,7 +2009,7 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     var zx = eyex - centerx;
     var zy = eyey - centery;
     var zz = eyez - centerz;
-    var mag = Math.sqrt(zx * zx + zy * zy + zz * zz);
+    var mag = Math.hypot(zx,zy,zz);
     if (mag) {
         zx /= mag;
         zy /= mag;
@@ -2002,14 +2029,14 @@ CanvasMatrix4.prototype.lookat = function(eyex, eyey, eyez, centerx, centery, ce
     // cross product gives area of parallelogram, which is < 1.0 for
     // non-perpendicular unit-length vectors; so normalize x, y here
 
-    mag = Math.sqrt(xx * xx + xy * xy + xz * xz);
+    mag = Math.hypot(xx,xy,xz);
     if (mag) {
         xx /= mag;
         xy /= mag;
         xz /= mag;
     }
 
-    mag = Math.sqrt(yx * yx + yy * yy + yz * yz);
+    mag = Math.hypot(yx,yy,yz);
     if (mag) {
         yx /= mag;
         yy /= mag;
@@ -2122,12 +2149,49 @@ CanvasMatrix4.prototype._makeAdjoint = function()
     this.buf[15]  =   this._determinant3x3(a1, a2, a3, b1, b2, b3, c1, c2, c3);
 }
 
+////utils 
+
+//multiple vector
 CanvasMatrix4.prototype.multVec4 = function(x,y,z,w) {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2];w=x[3]; x = x[0];
+	}
 	var xx = this.buf[0]*x + this.buf[4]*y + this.buf[8]*z + this.buf[12]*w ;
 	var yy = this.buf[1]*x + this.buf[5]*y + this.buf[9]*z + this.buf[13]*w ;
 	var zz = this.buf[2]*x + this.buf[6]*y + this.buf[10]*z + this.buf[14]*w ;
 	var ww = this.buf[3]*x + this.buf[7]*y + this.buf[11]*z + this.buf[15]*w ;
 	return [xx,yy,zz,ww] ;
+}
+
+//shorthand class method 
+CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
+	var m = new CanvasMatrix4()
+	if(rx!=0) m.rotate(rx,1,0,0) 
+	if(ry!=0) m.rotate(ry,0,1,0)
+	if(rz!=0) m.rotate(rz,0,0,1)
+	m.translate(tx,ty,tz)
+	return m 
+}
+
+//quaternion to matrix
+CanvasMatrix4.prototype.q2m = function(x,y,z,w) {
+	if(Array.isArray(x)) {
+		y = x[1]; z = x[2];w=x[3]; x = x[0];
+	}
+	var x2 = x*x; var y2=y*y; var z2=z*z ;
+	this.buf[0] = 1- 2*(y2 + z2) ;
+	this.buf[1] = 2*(x*y + w*z) ;
+	this.buf[2] = 2*(x*z - w*y) ;
+	this.buf[3] = 0 ;
+	this.buf[4] = 2*(x*y - w*z) ;
+	this.buf[5] = 1-2*(x2 + z2) ;
+	this.buf[6] = 2*(y*z + w*x) ;
+	this.buf[7] = 0 ;
+	this.buf[8] = 2*(x*z + w*y) ;
+	this.buf[9] = 2*(y*z - w*x) ;
+	this.buf[10] = 1-2*(x2 + y2) ;
+	this.buf[11] = 0 ; this.buf[12]=0; this.buf[13]=0; this.buf[14]=0;this.buf[15]=1;
+	return this 
 }//mouse and touch event handler
 Pointer = function(t,cb) {
 	var self = this ;
@@ -2252,7 +2316,7 @@ Pointer = function(t,cb) {
 		})
 	}
 }
-GPad = {conn:false,gp:null,egp:null} ;
+GPad = {conn:false,gp:null,egp:null,cf:false} ;
 
 GPad.init = function() {
 	if(!navigator.getGamepads) return false ;
@@ -2274,13 +2338,18 @@ GPad.init = function() {
 		console.log("gpad disconnected "+e.gamepad.index) ;
 		GPad.conn = false ;
 	})
+	GPad.dpad = {buttons:[{pressed:0},{pressed:0}],axes:[]}
 	return true ;
 }
 GPad.get = function(pad) {
 	if(!GPad.conn) {	
-			GPad.lastGp = GPad.gp ;
-			GPad.gp = GPad.egp ;
-		return GPad.egp ;
+		GPad.lastGp = GPad.gp ;
+		GPad.gp = GPad.egp ;
+		if(GPad.cf) {
+			GPad.egp = GPad.dpad ;
+			GPad.cf = false ;
+		}
+		return GPad.gp ;
 	}
 	var gamepads = navigator.getGamepads();
 	var gp = gamepads[0];
@@ -2308,6 +2377,10 @@ GPad.get = function(pad) {
 }
 GPad.set = function(gp) {//for emulation
 	GPad.egp = gp ;	
+}
+GPad.clear = function(gp) {//for emulation
+	GPad.egp = gp
+	GPad.cf = true ;	
 }//WBind 
 // license MIT
 // 2017 wakufactory 
@@ -3057,6 +3130,7 @@ static loadFont(name,path) {
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
 const PoxPlayer  = function(can,opt) {
+	this.version = "1.1.0" 
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
@@ -3224,7 +3298,7 @@ PoxPlayer.prototype.loadImage = function(path) {
 		return [x,y,z] ;
 	}
 	function V3len(v) {
-		return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) ;
+		return Math.hypot(v[0],v[1],v[2]) ;
 	}
 	function V3norm(v,s) {
 		const l = V3len(v) ;
@@ -3254,7 +3328,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		return [x,y,z] ;
 	}
 	POX.V3len = function(v) {
-		return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) ;
+		return Math.hypot(v[0],v[1],v[2]) ;
 	}
 	POX.V3norm = function(v,s) {
 		const l = V3len(v) ;
@@ -3532,6 +3606,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const bm = new CanvasMatrix4()
 	const mMtx = []
 	const vMtx = []
+	const mvMtx = []
+	const vpMtx = []
 	const iMtx = []
 	
 	return new Promise((resolve,reject) => {
@@ -3561,6 +3637,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let fc = 0 ;
 		let gp ;
 		const loopf = () => {
+//			console.log("************loop")
 			if(this.vrDisplay && this.vrDisplay.isPresenting) {
 				this.loop = this.vrDisplay.requestAnimationFrame(loopf)
 				this.isVR = true 
@@ -3626,9 +3703,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 				}
 			}
 			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
-			if(!vMtx[i]) vMtx[i] = new CanvasMatrix4()
 			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
-			
+			if(!vMtx[i]) vMtx[i] = new CanvasMatrix4()			
 			const uni = {
 				vs_uni:{
 					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
@@ -3652,36 +3728,100 @@ PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(update) ;
 		return update ;		
 	}
+	function modelMtx2(render,camm) {
+
+		// calc each mvp matrix and invert matrix
+		const mod = [[],[]] ;		
+		for(let i=0;i<render.modelCount;i++) {
+			let d = render.getModelData(i) ;
+			bm.load(d.bm)
+			if(d.mm) bm.multRight(d.mm) ;
+			if(render.data.group) {
+				let g = render.data.group ;
+				for(let gi = 0 ;gi < g.length;gi++) {
+					let gg = g[gi] ;
+					if(!gg.bm) continue ;
+					for(let ggi=0;ggi<gg.model.length;ggi++) {
+						if(render.getModelIdx(gg.model[ggi])==i) bm.multRight(gg.bm) ;
+					}
+				}
+			}
+			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
+			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
+			if(!mvMtx[i]) mvMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
+			if(!vpMtx[i]) vpMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
+
+			const uni0 = {
+				vs_uni:{
+					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
+					vpMatrix:vpMtx[i][0].load((d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
+					mvpMatrix:mvMtx[i][0].load(bm).multRight( (d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
+					invMatrix:iMtx[i].load(bm).
+						invert().transpose().getAsWebGLFloatArray()}
+			}
+			const uni1 = {
+				vs_uni:{
+					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
+					vpMatrix:vpMtx[i][1].load((d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
+					mvpMatrix:mvMtx[i][1].load(bm).multRight( (d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
+					invMatrix:iMtx[i].load(bm).
+						invert().transpose().getAsWebGLFloatArray()}
+			}
+			uni0.fs_uni = uni0.vs_uni
+			uni1.fs_uni = uni1.vs_uni
+			uni0.fs_uni.vpMatrix_l = uni0.fs_uni.vpMatrix 
+			uni0.fs_uni.vpMatrix_r = uni1.fs_uni.vpMatrix 
+			uni1.fs_uni.vpMatrix_l = uni0.fs_uni.vpMatrix 
+			uni1.fs_uni.vpMatrix_r = uni1.fs_uni.vpMatrix 			
+			mod[0][i] = uni0 
+			mod[1][i] = uni1 
+		}
+		let up = [{model:mod[0],fs_uni:{},vs_uni:{}},
+			{model:mod[1],fs_uni:{},vs_uni:{}}]
+
+		up[0].fs_uni.resolution = [can.width,can.height]
+		up[0].fs_uni.camMatirx = camm[0].camV.getAsWebGLFloatArray()
+		up[0].fs_uni.eyevec = [camm[0].camX,camm[0].camY,camm[0].camZ]
+		up[0].vs_uni.stereo = 1 ;
+		up[0].vs_uni.camMatirx = up[0].fs_uni.camMatirx
+		up[0].vs_uni.eyevec = up[0].fs_uni.eyevec 
+	
+		up[1].fs_uni.resolution = up[0].fs_uni.resolution
+		up[1].fs_uni.camMatirx = camm[1].camV.getAsWebGLFloatArray()
+		up[1].fs_uni.eyevec = [camm[1].camX,camm[1].camY,camm[1].camZ]
+		up[1].vs_uni.stereo = 2  ;	
+		up[1].vs_uni.camMatirx = up[1].fs_uni.camMatirx
+		up[1].vs_uni.eyevec = up[1].fs_uni.eyevec 	
+		return up ;		
+	}
 	// update scene
 
-	function update(render,scene,cam,time) {
+	function update(render,pox,cam,time) {
 		// draw call 
 		let camm,update = {} ;
 		if(Param.isStereo || self.isVR) {
-			render.gl.viewport(0,0,can.width/2,can.height) ;
-			if(!Param.pause) update = scene.update(render,cam,time,-1)
+			if(!Param.pause) update = pox.update(render,cam,time,-1)
 			camm = ccam.getMtx(sset.scale,1) ;
-			if(update.vs_uni==undefined) update.vs_uni = {} ;
-			if(update.fs_uni==undefined) update.fs_uni = {} ;
-			update.vs_uni.stereo = 1 ;
-			update.fs_uni.stereo = 1 ;
-			update.fs_uni.time = time/1000 ;
-			render.draw(modelMtx(render,camm[0],update),false) ;
-			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
-			update.vs_uni.stereo = 2 ;
-			update.fs_uni.stereo = 2 ;
-			render.draw(modelMtx(render,camm[1],update),true) ;
-		} else {
-			render.gl.viewport(0,0,can.width,can.height) ;
-			if(!Param.pause) update = scene.update(render,cam,time,0)
-//			camm = camMtx(render,cam,0) ;
-			camm = (ccam.getMtx(sset.scale,0))[0] ;
+			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
-			update.vs_uni.stereo = 0 ;
-			update.fs_uni.stereo = 0 ;
 			update.fs_uni.time = time/1000 ;
-			render.draw(modelMtx(render,camm,update),false) ;
+			update.vs_uni.time = time/1000 ;			
+			render.gl.viewport(0,0,can.width/2,can.height) ;			
+			render.draw([update,mtx2[0]],false) ;
+			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
+			render.draw([update,mtx2[1]],true) ;
+		} else {
+			if(!Param.pause) update = pox.update(render,cam,time,0)
+			camm = ccam.getMtx(sset.scale,0) ;
+			let mtx2 = modelMtx2(render,camm) ;
+			if(update.vs_uni===undefined) update.vs_uni = {} ;
+			if(update.fs_uni===undefined) update.fs_uni = {} ;
+			mtx2[0].vs_uni.stereo = 0 ;
+			update.fs_uni.time = time/1000 ;
+			update.vs_uni.time = time/1000 ;	
+			render.gl.viewport(0,0,can.width,can.height) ;
+			render.draw([update,mtx2[0]],false) ;
 		}
 	}
 }
@@ -3719,8 +3859,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		vcz:0,
 		vrx:0,
 		vry:0,
-		vrz:0,
-		gyro:true 
+		vrz:0
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
@@ -3797,7 +3936,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 			break ;
 		case "keydown":
 			const z = this.cam.camd ;
-			const keymag= 1 ;
+			const keymag= 0.2 ;
 			let md = "" ;
 			this.keydown = true ;
 			if(m.altKey) {
@@ -3840,7 +3979,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 				}
 			}
 			if(md!="") {
-				const dir = ((md=="d")?-0.01:0.01)*keymag*scale 
+				const dir = ((md=="d")?-1:1)*keymag*scale 
 				const cam = this.cam ;
 				let ry = cam.camRY ;
 				if(md=="l") ry = ry -90 ;
@@ -3872,7 +4011,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 				case "j":
 					this.vrx = 0  ; break ;
 				case "w":
-				case "z":
+				case "d":
 				case "a":
 				case "s":
 				case " ":
@@ -3908,7 +4047,7 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gp,lgp) {
 		} else {
 			this.cam.vcy = 0 
 			let m = gp.buttons[0].pressed
-			let mv = (m)?2:.2
+			let mv = (m)?1:.2
 			this.cam.vcx = 0 
 			this.cam.vcz = 0 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
@@ -3935,7 +4074,7 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	let cx,cy,cz,ex,ey,ez,upx,upy,upz,camX,camY,camZ,camd ;
 	let vrFrame = null
 	camX = 0 ,camY = 0, camZ = 0 ;
-	ex =0, ey=0,ez=0 ;
+	ex =[0,0], ey=[0,0],ez=[0,0] ;
 	if(!this.poxp.isVR) {
 		if(cam.camMode=="fix") {
 			cx = cam.camVX ;
@@ -3972,14 +4111,15 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].makeIdentity()
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
-			ex =  upy * (camZ-cz) - upz * (camY-cy);
-			ey = -upx * (camZ-cz) + upz * (camX-cx);
-			ez =  upx * (camY-cy) - upy * (camX-cx);
-			const mag = Math.sqrt(ex * ex + ey * ey + ez * ez);
-			ex *= dx/mag ; ey *=dx/mag ; ez *= dx/mag ;
+			ex[0] =  upy * (camZ-cz) - upz * (camY-cy);
+			ey[1] = -upx * (camZ-cz) + upz * (camX-cx);
+			ez[2] =  upx * (camY-cy) - upy * (camX-cx);
+			const mag = Math.hypot(ex[0],ey[0],ez[0]);
+			ex[0] *= dx/mag ; ey[0] *=dx/mag ; ez[0] *= dx/mag ;
+			ex[1] = -ex[0] ; ey[1] = -ey[0] ; ez[1] = -ez[0] ;
 	//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
-			this.camV[0].lookat(camX+ex+cam.camCX, camY+ey+cam.camCY, camZ+ez+cam.camCZ, cx+ex+cam.camCX, cy+ey+cam.camCY, cz+ez+cam.camCZ, upx,upy,upz) ;
-			this.camV[1].lookat(camX-ex+cam.camCX, camY-ey+cam.camCY, camZ-ez+cam.camCZ, cx-ex+cam.camCX, cy-ey+cam.camCY, cz-ez+cam.camCZ, upx,upy,upz) ;
+			this.camV[0].lookat(camX+ex[0]+cam.camCX, camY+ey[0]+cam.camCY, camZ+ez[0]+cam.camCZ, cx+ex[0]+cam.camCX, cy+ey[0]+cam.camCY, cz+ez[0]+cam.camCZ, upx,upy,upz) ;
+			this.camV[1].lookat(camX+ex[1]+cam.camCX, camY+ey[1]+cam.camCY, camZ+ez[1]+cam.camCZ, cx+ex[1]+cam.camCX, cy+ey[1]+cam.camCY, cz+ez[1]+cam.camCZ, upx,upy,upz) ;
 
 			if(cam.camAngle!=0) this.camP[0].perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
 			else this.camP[0].pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
@@ -4007,10 +4147,13 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.vrp[1].load(vrFrame.rightProjectionMatrix)
 		this.vrp[0].load(vrFrame.leftProjectionMatrix)
 
-		ex = this.vrv[0].buf[12] 
-		ey = this.vrv[0].buf[13] 
-		ez = this.vrv[0].buf[14]  
-
+		ex[0] = this.vrv[0].buf[12] 
+		ey[0] = this.vrv[0].buf[13] 
+		ez[0] = this.vrv[0].buf[14]  
+		ex[1] = this.vrv[1].buf[12] 
+		ey[1] = this.vrv[1].buf[13] 
+		ez[1] = this.vrv[1].buf[14] 
+ 
 		this.camV[0].makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
 			.rotate(cam.camRY,0,1,0)
@@ -4025,37 +4168,45 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].load(this.vrp[1])
 	}
 //	console.log(camVP)
-	return [{camX:camX+ex,camY:camY+ey,camZ:camZ+ez, 
+	return [{camX:camX+ex[0],camY:camY+ey[0],camZ:camZ+ez[0], 
 		camV:this.camV[0],camVP:this.camVP[0],camP:this.camP[0], vrFrame:vrFrame},
-	{camX:camX-ex,camY:camY-ey,camZ:camZ-ez,
+	{camX:camX+ex[1],camY:camY+ey[1],camZ:camZ+ez[1],
 		camV:this.camV[1],camVP:this.camVP[1],camP:this.camP[1],vrFrame:vrFrame}] ;
 }
 
 //utils
 //console panel
 class Cpanel {
-constructor(render) {
+constructor(render,opt) {
+	if(!opt) opt = {}
+	if(opt.width===undefined) opt.width = 100 
+	if(opt.height===undefined) opt.height = 50 
+	if(opt.font===undefined) opt.font = "10px monospace"
+	if(opt.color===undefined) opt.color = "red" 
+	if(opt.lines===undefined) opt.lines = 5
+	if(opt.lheight===undefined) opt.lheight = 10
+	if(opt.ry===undefined) opt.ry = 40 
+	if(opt.pos===undefined) opt.pos = [-0.3,0.3,-0.8]
+	
 	this.pcanvas = document.createElement('canvas') ;
-	this.pcanvas.width = 100 ;
-	this.pcanvas.height = 50 ;
+	this.pcanvas.width = opt.width ;
+	this.pcanvas.height = opt.height ;	
 	this.j2c = new json2canvas(this.pcanvas)
-	this.j2c.default.font = "10px monospace"
-	this.j2c.default.textColor = "red"
-	this.dd = [
-		{shape:"text",str:"",x:0,y:10,width:100},
-		{shape:"text",str:"",x:0,y:20,width:100},
-		{shape:"text",str:"",x:0,y:30,width:100},
-		{shape:"text",str:"",x:0,y:40,width:100},
-		{shape:"text",str:"",x:0,y:50,width:100}]
+	this.j2c.default.font = opt.font
+	this.j2c.default.textColor = opt.color
+	this.dd = []
+	let y = opt.lheight 
+	for(let i=0;i<opt.lines;i++,y+=opt.lheight) 
+		this.dd.push({shape:"text",str:"",x:0,y:y,width:opt.width})
 	this.j2c.draw(this.dd)	
 		
 	const ptex = {name:"cpanel",canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
 	render.addTex(ptex) 
 	render.addModel(
-		{geo:new WWModel().primitive("plane",{wx:0.1,wy:0.05
+		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
 			camFix:true,
-			bm:new CanvasMatrix4().rotate(40,0,1,0).translate(-0.3,0.3,-0.8),
+			bm:new CanvasMatrix4().rotate(opt.ry,0,1,0).translate(opt.pos),
 			blend:"alpha",
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},
 			fs_uni:{tex1:"cpanel",colmode:2,shmode:1}
