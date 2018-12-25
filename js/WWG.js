@@ -17,7 +17,7 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.9" ;
+	this.version = "0.9.10" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
@@ -139,12 +139,21 @@ WWG.prototype.Render = function(wwg) {
 	this.env = {} ;
 	this.obuf = [] ;
 	this.modelCount = 0 ;
+	this.modelHash = {} ;
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
+	if(uni.pos==null) return 
 //	console.log("set "+uni.type+"("+uni.pos+") = "+value) ;
 	let ar = [] ;
 	if(uni.dim>0 && !(value instanceof Float32Array)) for(let i=0;i<uni.dim;i++) ar = ar.concat(value[i])
 	else ar = value 
+	if(uni.cache!=null) {
+		if(Array.isArray(ar)) {
+			for(let i=0;i<ar.length;i++) if(ar[i]!=uni.cache[i]) break ;
+			if(i==ar.length) return ;
+		} else if(ar == uni.cache) return ;
+	}
+//	console.log("set uni")
 	switch(uni.type) {
 		case "mat2":
 			this.gl.uniformMatrix2fv(uni.pos,false,this.f32Array(value)) ;
@@ -314,6 +323,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.vs_uni = {} ;
 			for(var i in vr.uni) {
 				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
+				vr.uni[i].cache = null 
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
@@ -322,6 +332,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.fs_uni = {} ;
 			for(var i in fr.uni) {
 				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
+				fr.uni[i].cache = null 
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
@@ -352,7 +363,16 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 	var gl = this.gl ;
 	var tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+	if(option.isarray) {
+		if(img instanceof Float32Array ) 
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,gl.RGBA, gl.FLOAT, img,0);
+		else 
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,gl.RGBA, gl.UNSIGNED_BYTE, img);
+		 option.flevel = 0 
+		 option.nomipmap = true 
+		 console.log(img)
+	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, img);
+
 	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
 	switch(option.flevel) {
@@ -419,6 +439,9 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 			resolve( tex.texture) ;
 		} else if(tex.canvas) {
 			resolve( self.genTex(tex.canvas,tex.opt)) ;
+		} else if(tex.array) {
+			tex.opt.isarray = true ;
+			resolve( self.genTex(tex.array,tex.opt)) ;
 		} else {
 			reject("no image")
 		}
@@ -527,6 +550,7 @@ WWG.prototype.Render.prototype.setRender =function(data) {
 				//set model 
 				for(var i =0;i<data.model.length;i++) {
 					self.obuf[i] = self.setObj( data.model[i],true) ;
+					if(data.model[i].name) self.modelHash[data.model[i].name] = i ;
 				}
 				self.modelCount = data.model.length ;
 //				console.log(self.obuf);
@@ -661,14 +685,9 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	return ret ;
 }
 WWG.prototype.Render.prototype.getModelIdx = function(name) {
-	var idx = -1 ;
+	var idx 
 	if(typeof name != 'string') idx = parseInt(name) ;
-	else {
-		for(var i=0;i<this.data.model.length;i++) {
-			if(this.data.model[i].name==name) break ;
-		}
-		idx =i ;
-	}	
+	else idx = this.modelHash[name] ;
 	return idx ;	
 }
 // add model
@@ -676,6 +695,11 @@ WWG.prototype.Render.prototype.addModel = function(model) {
 	this.data.model.push(model) ;
 	this.obuf.push(this.setObj(model,true)) ;
 	this.modelCount = this.data.model.length ;
+	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
+}
+// remove model
+WWG.prototype.Render.prototype.removeModel = function(model) {
+	
 }
 // update attribute buffer 
 WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
@@ -738,16 +762,16 @@ WWG.prototype.Render.prototype.updateUniValues = function(u) {
 		this.update_uni = {vs_uni:{},fs_uni:{}} ;
 		return ;
 	}
-//	console.log(this.update_uni);
+//	console.log("update uni");
 	this.setUniValues(this.update_uni)
 }
 
 // draw call
 WWG.prototype.Render.prototype.draw = function(update,cls) {
-//	console.log("draw");
+//console.log("draw");
 
 	var gl = this.gl ;
-	gl.useProgram(this.program);
+//	gl.useProgram(this.program);
 
 	if(this.env.offscreen) {// renderbuffer 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb.f);
@@ -760,16 +784,18 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(cmodel.hide) continue ;
 		var geo = cmodel.geo ;
 
-		this.updateUniValues(null) ;
+		this.updateUniValues(0) ;
 		this.pushUniValues(this.data) ;
 		this.pushUniValues(cmodel);
 		if(update) {
 			// set modified values
-			this.pushUniValues(update) ;
-			this.pushUniValues(cmodel);
-			if(update.model) {
-				var model =update.model[b] ;
-				if(model) this.pushUniValues(model) ;
+			if(!Array.isArray(update)) update = [update ]
+			for(let i=0;i<update.length;i++) {
+				this.pushUniValues(update[i]) ;
+				if(update[i].model) {
+					var model =update[i].model[b] ;
+					if(model) this.pushUniValues(model) ;
+				}
 			}
 		}
 		this.updateUniValues(1)
@@ -826,7 +852,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 		} else {
 			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
-			else gl.drawArrays(gmode, ofs,geo.vtx.length/3);
+			else gl.drawArrays(gmode, ofs,geo.vtx.length/(obuf.tl/4));
 		}
 		if(this.wwg.ext_vao) this.wwg.vao_bind(null);
 		else {
