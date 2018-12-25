@@ -111,7 +111,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 			var xx =  yy * zz - yz * zy;
 			var xy = -yx * zz + yz * zx;
 			var xz =  yx * zy - yy * zx;
-			var vn = Math.sqrt(xx*xx+xy*xy+xz*xz) ;
+			var vn = Math.hypot(xx,xy,xz) ;
 			xx /= vn ; xy /= vn ; xz /= vn ;
 			sf.push( [xx,xy,xz]) ;
 			//面リスト
@@ -148,7 +148,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 				nz += sf[ii][2] ;
 			}
 		}
-		var vn = Math.sqrt(nx*nx+ny*ny+nz*nz) ;
+		var vn = Math.hypot(nx,ny,nz) ;
 		vbuf.push(nx/vn) ;
 		vbuf.push(ny/vn) ;
 		vbuf.push(nz/vn) ;
@@ -426,7 +426,7 @@ WWModel.prototype.primitive  = function(type,param) {
 			var mx = sr*vx*cx ;
 			var mz = sr*vx*cz ;
 			var my = sr*vy ;
-			var ml = Math.sqrt(mx*mx+my*my+mz*mz) ;
+			var ml = Math.hypot(mx,my,mz) ;
 	
 			var px = R*cx + tx*mx ;
 			var pz = R*cz + tx*mz ;
@@ -464,7 +464,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				vs.push(vi) ;
 				vi++ ;
 			}
-			var vl = Math.sqrt(nx*nx+ny*ny+nz*nz) ;
+			var vl = Math.hypot(nx,ny,nz) ;
 			for(var h = 0 ;h <si[i].length;h++) n.push([nx/vl,ny/vl,nz/vl]) ;
 			s.push(vs) ;
 		}
@@ -512,7 +512,7 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 				var nx = nuy*nvz - nuz*nvy ;
 				var ny = nuz*nvx - nux*nvz ;
 				var nz = nux*nvy - nuy*nvx ;
-				var nl = Math.sqrt(nx*nx+ny*ny+nz*nz); 
+				var nl = Math.hypot(nx,ny,nz); 
 				p.nx = nx/nl ;
 				p.ny = ny/nl ;
 				p.nz = nz/nl ;
@@ -570,7 +570,7 @@ WWModel.snormal = function(pa) {
 	var xx =  yy * zz - yz * zy;
 	var xy = -yx * zz + yz * zx;
 	var xz =  yx * zy - yy * zx;
-	var vn = Math.sqrt(xx*xx+xy*xy+xz*xz) ;
+	var vn = Math.hypot(xx,xy,xz) ;
 	xx /= vn ; xy /= vn ; xz /= vn ;
 	return [xx,xy,xz] ;
 }
