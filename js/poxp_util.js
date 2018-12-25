@@ -1,28 +1,36 @@
 //utils
 //console panel
 class Cpanel {
-constructor(render) {
+constructor(render,opt) {
+	if(!opt) opt = {}
+	if(opt.width===undefined) opt.width = 100 
+	if(opt.height===undefined) opt.height = 50 
+	if(opt.font===undefined) opt.font = "10px monospace"
+	if(opt.color===undefined) opt.color = "red" 
+	if(opt.lines===undefined) opt.lines = 5
+	if(opt.lheight===undefined) opt.lheight = 10
+	if(opt.ry===undefined) opt.ry = 40 
+	if(opt.pos===undefined) opt.pos = [-0.3,0.3,-0.8]
+	
 	this.pcanvas = document.createElement('canvas') ;
-	this.pcanvas.width = 100 ;
-	this.pcanvas.height = 50 ;
+	this.pcanvas.width = opt.width ;
+	this.pcanvas.height = opt.height ;	
 	this.j2c = new json2canvas(this.pcanvas)
-	this.j2c.default.font = "10px monospace"
-	this.j2c.default.textColor = "red"
-	this.dd = [
-		{shape:"text",str:"",x:0,y:10,width:100},
-		{shape:"text",str:"",x:0,y:20,width:100},
-		{shape:"text",str:"",x:0,y:30,width:100},
-		{shape:"text",str:"",x:0,y:40,width:100},
-		{shape:"text",str:"",x:0,y:50,width:100}]
+	this.j2c.default.font = opt.font
+	this.j2c.default.textColor = opt.color
+	this.dd = []
+	let y = opt.lheight 
+	for(let i=0;i<opt.lines;i++,y+=opt.lheight) 
+		this.dd.push({shape:"text",str:"",x:0,y:y,width:opt.width})
 	this.j2c.draw(this.dd)	
 		
 	const ptex = {name:"cpanel",canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
 	render.addTex(ptex) 
 	render.addModel(
-		{geo:new WWModel().primitive("plane",{wx:0.1,wy:0.05
+		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
 			camFix:true,
-			bm:new CanvasMatrix4().rotate(40,0,1,0).translate(-0.3,0.3,-0.8),
+			bm:new CanvasMatrix4().rotate(opt.ry,0,1,0).translate(opt.pos),
 			blend:"alpha",
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},
 			fs_uni:{tex1:"cpanel",colmode:2,shmode:1}
