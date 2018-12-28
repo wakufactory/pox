@@ -369,8 +369,7 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 		else 
 			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,gl.RGBA, gl.UNSIGNED_BYTE, img);
 		 option.flevel = 0 
-		 option.nomipmap = true 
-		 console.log(img)
+		 option.nomipmap = true
 	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, img);
 
 	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
@@ -733,14 +732,24 @@ WWG.prototype.Render.prototype.getModelData =function(name) {
 // update texture 
 WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 	if(typeof idx == 'string') idx = this.getTexIndex(idx)
+	let tdat = this.data.texture[idx]
 	this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[idx]);
-	if(!opt)
-		this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
-	else {
-		if(opt.wx>0 && opt.wy>0)
-			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy,opt.wx,opt.wy,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);	
-		else 	
-			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy , this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
+	if(tdat.array) {
+		if(!opt) 
+			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);	
+		else 
+			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.FLOAT, tex,opt.ofs);
+	} else {
+		if(!opt) {
+			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
+		} else {
+			if(opt.wx>0 && opt.wy>0)
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy,opt.wx,opt.wy,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);	
+			else 	
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy , this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
+		}
 	}
 	if(this.data.texture[idx].opt && !this.data.texture[idx].opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
 }
@@ -772,7 +781,6 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 
 	var gl = this.gl ;
 //	gl.useProgram(this.program);
-
 	if(this.env.offscreen) {// renderbuffer 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb.f);
 		if(this.env.offscreen.mrt) this.wwg.mrt_draw(this.fb.fblist);
