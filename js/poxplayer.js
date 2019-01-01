@@ -188,7 +188,6 @@ PoxPlayer.prototype.loadImage = function(path) {
 	}
 	
 PoxPlayer.prototype.set = async function(d,param={},uidom) { 
-//	return new Promise((resolve,reject) => {
 	const VS = d.vs ;
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
@@ -220,6 +219,8 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		return new Promise((resolve,reject) => {
 			this.setScene(scene).then( () => {
 				resolve() ;
+			}).catch((err)=>	 {
+				console.log("render err")
 			})
 		})
 	}
@@ -229,25 +230,33 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //	this.parseJS(d.m).then((m)=> {
 	const m = await this.parseJS(d.m) ;
 		try {
-//			eval(m);	 //EVALUATE CODE
 			POX.eval = new Function('POX','"use strict";'+m)
+		}catch(err) {
+			console.log(err)
+			this.emsg = ("parse error "+err.message);
+			throw new Error('reject!!')
+			return(null);
+		}
+		try {
 			POX.eval(POX)
 		}catch(err) {
-			this.emsg = ("eval error "+err);
-			console.log("eval error "+err)
+			console.log(err)
+			this.emsg = ("eval error "+err.message);
+			throw new Error('reject!!2')
 			return(null);
 		}
 		if(uidom) this.setParam(uidom)
-		if(POX.init)  try {
-			POX.init() ;
-		}catch(err) {
-			this.emsg = ("init error "+err);
-			return(null);
+		if(POX.init) {
+			try {
+				await POX.init()
+			}catch(err) {
+				console.log(err)
+				this.emsg = ("init error "+err.message);
+				throw new Error('reject!!2')
+				return null
+			}
 		}
 		return(POX) ;
-//	})
-	
-//	})
 }
 PoxPlayer.prototype.parseJS = function(src) {
 
@@ -554,7 +563,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}).catch((err)=>{
 		console.log(err) ;
 		if(this.errCb) this.errCb(err) ;
-		reject() 
+		reject(err) 
 	})
 	}) // promise
 	

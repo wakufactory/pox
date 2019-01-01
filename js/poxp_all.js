@@ -1531,7 +1531,6 @@ CanvasMatrix4 = function(m) {
 		this.buf = m ;
 		return this ;
 	}
-	this.RAD = Math.PI / 180 
 	this.buf = new Float32Array(16)
 	this.matrix = null
     if (typeof m == 'object') {
@@ -1547,7 +1546,7 @@ CanvasMatrix4 = function(m) {
     this.makeIdentity();
     return this ;
 }
-
+CanvasMatrix4.RAD = Math.PI / 180 
 CanvasMatrix4.prototype.load = function()
 {
     if (arguments.length == 1 && typeof arguments[0] == 'object') {
@@ -1713,7 +1712,7 @@ CanvasMatrix4.prototype.invert = function()
 
 CanvasMatrix4.prototype.translate = function(x,y,z)
 {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2]; x = x[0];
 	}
     if (x == undefined)
@@ -1736,7 +1735,7 @@ CanvasMatrix4.prototype.translate = function(x,y,z)
 
 CanvasMatrix4.prototype.scale = function(x,y,z)
 {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2]; x = x[0];
 	}
     if (x == undefined)
@@ -1767,11 +1766,11 @@ CanvasMatrix4.prototype.scale = function(x,y,z)
 CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
 {
     if(angle==0) return this 
- 	if(Array.isArray(x)) {
+ 	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2]; x = x[0];
 	}
     // angles are in degrees. Switch to radians
-    angle = angle * this.RAD ;
+    angle = angle * CanvasMatrix4.RAD ;
     
     angle /= 2;
     var sinA = Math.sin(angle);
@@ -2158,10 +2157,49 @@ CanvasMatrix4.prototype._makeAdjoint = function()
 }
 
 ////utils 
+//vec3 operations
+	CanvasMatrix4.V3add = function() {
+		let x=0,y=0,z=0 ;
+		for(let i=0;i<arguments.length;i++) {
+			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
+		}
+		return [x,y,z] ;
+	}
+	CanvasMatrix4.V3sub = function() {
+		let x=arguments[0][0],y=arguments[0][1],z=arguments[0][2] ;
+		for(let i=1;i<arguments.length;i++) {
+			x -= arguments[i][0] ;y -= arguments[i][1] ;z -= arguments[i][2] ;
+		}
+		return [x,y,z] ;
+	}
+	CanvasMatrix4.V3inv = function(v) {
+		return [-v[0],-v[1],-v[2]] ;
+	}
+	CanvasMatrix4.V3len = function(v) {
+		return Math.hypot(v[0],v[1],v[2]) ;
+	}
+	CanvasMatrix4.V3norm = function(v,s) {
+		const l = CanvasMatrix4.V3len(v) ;
+		if(s===undefined) s = 1 ;
+		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
+	}
+	CanvasMatrix4.V3mult = function(v,s) {
+		return [v[0]*s,v[1]*s,v[2]*s] ;
+	}
+	CanvasMatrix4.V3dot = function(v1,v2) {
+		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
+	}
+	CanvasMatrix4.V3cross = function(v1,v2) {
+		return [	
+			v1[1]*v2[2] - v1[2] * v2[1],
+			v1[2]*v2[0] - v1[0] * v2[2],
+			v1[0]*v2[1] - v1[1] * v2[0] 
+		]
+	}
 
 //multiple vector
 CanvasMatrix4.prototype.multVec4 = function(x,y,z,w) {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2];w=x[3]; x = x[0];
 	}
 	var xx = this.buf[0]*x + this.buf[4]*y + this.buf[8]*z + this.buf[12]*w ;
@@ -2183,7 +2221,7 @@ CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
 
 //quaternion to matrix
 CanvasMatrix4.prototype.q2m = function(x,y,z,w) {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x) || x instanceof Float32Array) {
 		y = x[1]; z = x[2];w=x[3]; x = x[0];
 	}
 	var x2 = x*x; var y2=y*y; var z2=z*z ;
@@ -2200,7 +2238,31 @@ CanvasMatrix4.prototype.q2m = function(x,y,z,w) {
 	this.buf[10] = 1-2*(x2 + y2) ;
 	this.buf[11] = 0 ; this.buf[12]=0; this.buf[13]=0; this.buf[14]=0;this.buf[15]=1;
 	return this 
-}//mouse and touch event handler
+}
+CanvasMatrix4.v2q = function(rot,x,y,z) {
+	if(Array.isArray(x) || x instanceof Float32Array) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
+	let l = x*x + y*y + z*z 
+	if(l==0) return [0,0,0,1]
+	if(l!=1) {
+		l = Math.sqrt(l) 
+		x /= l ; y /=l ; z /= l
+	}
+	rot = rot *CanvasMatrix4.RAD /2 
+	let sr = Math.sin(rot) 
+	return [x*sr,y*sr,z*sr,Math.cos(rot)]
+}
+CanvasMatrix4.qMult = function(q1,q2) {
+	let w = q1[3] * q2[3] -(q1[0]*q2[0]+q1[1]*q2[1]+q1[2]*q2[2])
+	let x = q1[1]*q2[2] - q1[2] * q2[1] + q1[3]*q2[0] + q2[3]*q1[0]
+	let y = q1[2]*q2[0] - q1[0] * q2[2] + q1[3]*q2[1] + q2[3]*q1[1]
+ 	let z = q1[0]*q2[1] - q1[1] * q2[0] + q1[3]*q2[2] + q2[3]*q1[2]
+	return [x,y,z,w]	
+}
+	
+
+//mouse and touch event handler
 Pointer = function(t,cb) {
 	var self = this ;
 	var touch,gesture,EV_S,EV_E,EV_M ;
@@ -3321,7 +3383,6 @@ PoxPlayer.prototype.loadImage = function(path) {
 	}
 	
 PoxPlayer.prototype.set = async function(d,param={},uidom) { 
-//	return new Promise((resolve,reject) => {
 	const VS = d.vs ;
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
@@ -3353,6 +3414,8 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		return new Promise((resolve,reject) => {
 			this.setScene(scene).then( () => {
 				resolve() ;
+			}).catch((err)=>	 {
+				console.log("render err")
 			})
 		})
 	}
@@ -3362,25 +3425,33 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //	this.parseJS(d.m).then((m)=> {
 	const m = await this.parseJS(d.m) ;
 		try {
-//			eval(m);	 //EVALUATE CODE
 			POX.eval = new Function('POX','"use strict";'+m)
+		}catch(err) {
+			console.log(err)
+			this.emsg = ("parse error "+err.message);
+			throw new Error('reject!!')
+			return(null);
+		}
+		try {
 			POX.eval(POX)
 		}catch(err) {
-			this.emsg = ("eval error "+err);
-			console.log("eval error "+err)
+			console.log(err)
+			this.emsg = ("eval error "+err.message);
+			throw new Error('reject!!2')
 			return(null);
 		}
 		if(uidom) this.setParam(uidom)
-		if(POX.init)  try {
-			POX.init() ;
-		}catch(err) {
-			this.emsg = ("init error "+err);
-			return(null);
+		if(POX.init) {
+			try {
+				await POX.init()
+			}catch(err) {
+				console.log(err)
+				this.emsg = ("init error "+err.message);
+				throw new Error('reject!!2')
+				return null
+			}
 		}
 		return(POX) ;
-//	})
-	
-//	})
 }
 PoxPlayer.prototype.parseJS = function(src) {
 
@@ -3687,7 +3758,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}).catch((err)=>{
 		console.log(err) ;
 		if(this.errCb) this.errCb(err) ;
-		reject() 
+		reject(err) 
 	})
 	}) // promise
 	
@@ -4227,6 +4298,48 @@ update(render,text) {
 		if(text[i]!==null) this.dd[i].str = text[i]
 	this.j2c.draw(this.dd)
 	render.updateTex("cpanel",this.pcanvas)	
+}
+}
+
+// controller beam
+class Beam {
+constructor(render) {
+	this.len = 200
+	this.color = [1,1,0,1]
+	this.cofs = [0.3,-0.5,0.2]
+	this.vs = this.cofs.slice(0)
+	this.ve = [this.len/2,this.len/2,-this.len]
+	this.bv = [0,0,-1]
+
+	render.addModel(
+		{name:"beam",
+		geo:{mode:"lines",
+			vtx_at:["position"],
+			vtx:this.vs.concat(this.ve)},
+			fs_uni:{colmode:0,shmode:1,bcolor:this.color}}
+	)
+}
+update(render,cam) {
+	let bm = render.getModelData("beam")
+	let vd = bm.geo.vtx
+	let gp = POX.poxp.gPad
+	if(gp && gp.pose) {
+		this.ori=gp.pose.orientation
+		let sx = this.cofs[0] * ((gp.hand=="right")?1:-1)
+		let sy = this.cofs[1]
+		let sz = this.cofs[2]
+		let cq = Mat4.v2q(-cam.camRY,0,1,0) 
+		let bm = new Mat4().q2m(
+			Mat4.qMult(cq,this.ori) )
+		bm.translate(cam.camCX,cam.camCY,cam.camCZ)
+		this.vs = bm.multVec4(sx,0,sz,1)
+		this.vs[1] = sy + cam.camCY
+		this.ve = bm.multVec4(0,0,-this.len,1)
+		this.bv = Mat4.V3norm(Mat4.V3sub(this.ve,this.vs))
+		vd[0]=this.vs[0],vd[1]=this.vs[1],vd[2]=this.vs[2]
+		vd[3]=this.ve[0],vd[4]=this.ve[1],vd[5]=this.ve[2]
+		render.updateModel("beam","vbo",vd)
+	}	
 }
 }
 
