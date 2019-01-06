@@ -1,4 +1,4 @@
-GPad = {conn:false,gp:null,egp:null,cf:false} ;
+GPad = {conn:false,gp:null,lastGp:null,egp:null,cf:false,ev:null} ;
 
 GPad.init = function() {
 	if(!navigator.getGamepads) return false ;
@@ -20,42 +20,56 @@ GPad.init = function() {
 		console.log("gpad disconnected "+e.gamepad.index) ;
 		GPad.conn = false ;
 	})
-	GPad.dpad = {buttons:[{pressed:0},{pressed:0}],axes:[]}
+	GPad.lastGp = {
+		buttons:[
+			{pressed:false},
+			{pressed:false}
+		],
+		axes:[0,0]
+	}
+	GPad.dbtn = []
+	GPad.dpad = []
 	return true ;
 }
 GPad.get = function(pad) {
-	if(!GPad.conn) {	
-		GPad.lastGp = GPad.gp ;
-		GPad.gp = GPad.egp ;
-		if(GPad.cf) {
-			GPad.egp = GPad.dpad ;
-			GPad.cf = false ;
-		}
-		return GPad.gp ;
+	var gp 
+	if(!GPad.conn) {
+		if(GPad.egp==null) return null ;	
+		gp = GPad.egp
+	} else {
+		var gamepads = navigator.getGamepads();
+		var gp = gamepads[0];
+		if(!gp || gp.buttons.length==0) return null ;
 	}
-	var gamepads = navigator.getGamepads();
-	var gp = gamepads[0];
-	if(!gp || gp.buttons.length==0) return null ;
 	
-	var sgp = {
-		buttons:[],
-		axes:[],
-		faxes:[],
-		id:gp.id,
-		hand:gp.hand,
-		pose:gp.pose
-	}
+	var lgp = GPad.lastGp 
+	let bf = false 
+	let pf = false 
+
+//	if(lgp) console.log(lgp.buttons[1].pressed +" "+ gp.buttons[1].pressed)
 	for(var i=0;i<gp.buttons.length;i++) {
-		sgp.buttons[i] = {pressed:gp.buttons[i].pressed}
+		GPad.dbtn[i] = 0 
+		if(lgp) {
+			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {GPad.dbtn[i] = 1; bf=true} 
+			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {GPad.dbtn[i] = -1;bf=true}
+		}
+		lgp.buttons[i] = {pressed:gp.buttons[i].pressed}
 	}
+
 	for(var i=0;i<gp.axes.length;i++) {
-		sgp.axes[i] = gp.axes[i]
-		sgp.faxes[i] = gp.axes[i] - GPad.axes[i] ;
-		if(Math.abs(sgp.faxes[i])<0.01) sgp.faxes[i] = 0 
+		GPad.dpad[i] = 0 
+		if(lgp) {
+			if(lgp.axes[i]==0 && gp.axes[i]!=0) {GPad.dpad[i] = (gp.axes[i]>0)?1:-1;pf=true}
+			if(lgp.axes[i]!=0 && gp.axes[i]==0) {GPad.dpad[i] = (lgp.axes[i]>0)?1:-1;pf=true}
+		}
+		lgp.axes[i] = gp.axes[i]
 	}
-	GPad.lastGp = GPad.gp ;
-	GPad.gp = sgp ;
-	return sgp ;	
+	GPad.gp = gp 
+	if(GPad.ev && (bf || pf)){
+//		console.log(dbtn)
+		GPad.ev(gp,GPad.dbtn,GPad.dpad) 
+	}
+	return gp ;	
 }
 GPad.set = function(gp) {//for emulation
 	GPad.egp = gp ;	
