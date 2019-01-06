@@ -73,7 +73,6 @@ CanvasMatrix4 = function(m) {
 		this.buf = m ;
 		return this ;
 	}
-	this.RAD = Math.PI / 180 
 	this.buf = new Float32Array(16)
 	this.matrix = null
     if (typeof m == 'object') {
@@ -89,7 +88,7 @@ CanvasMatrix4 = function(m) {
     this.makeIdentity();
     return this ;
 }
-
+CanvasMatrix4.RAD = Math.PI / 180 
 CanvasMatrix4.prototype.load = function()
 {
     if (arguments.length == 1 && typeof arguments[0] == 'object') {
@@ -255,7 +254,7 @@ CanvasMatrix4.prototype.invert = function()
 
 CanvasMatrix4.prototype.translate = function(x,y,z)
 {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2]; x = x[0];
 	}
     if (x == undefined)
@@ -278,7 +277,7 @@ CanvasMatrix4.prototype.translate = function(x,y,z)
 
 CanvasMatrix4.prototype.scale = function(x,y,z)
 {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2]; x = x[0];
 	}
     if (x == undefined)
@@ -309,11 +308,11 @@ CanvasMatrix4.prototype.scale = function(x,y,z)
 CanvasMatrix4.prototype.rotate = function(angle,x,y,z)
 {
     if(angle==0) return this 
- 	if(Array.isArray(x)) {
+ 	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2]; x = x[0];
 	}
     // angles are in degrees. Switch to radians
-    angle = angle * this.RAD ;
+    angle = angle * CanvasMatrix4.RAD ;
     
     angle /= 2;
     var sinA = Math.sin(angle);
@@ -700,10 +699,49 @@ CanvasMatrix4.prototype._makeAdjoint = function()
 }
 
 ////utils 
+//vec3 operations
+	CanvasMatrix4.V3add = function() {
+		let x=0,y=0,z=0 ;
+		for(let i=0;i<arguments.length;i++) {
+			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
+		}
+		return [x,y,z] ;
+	}
+	CanvasMatrix4.V3sub = function() {
+		let x=arguments[0][0],y=arguments[0][1],z=arguments[0][2] ;
+		for(let i=1;i<arguments.length;i++) {
+			x -= arguments[i][0] ;y -= arguments[i][1] ;z -= arguments[i][2] ;
+		}
+		return [x,y,z] ;
+	}
+	CanvasMatrix4.V3inv = function(v) {
+		return [-v[0],-v[1],-v[2]] ;
+	}
+	CanvasMatrix4.V3len = function(v) {
+		return Math.hypot(v[0],v[1],v[2]) ;
+	}
+	CanvasMatrix4.V3norm = function(v,s) {
+		const l = CanvasMatrix4.V3len(v) ;
+		if(s===undefined) s = 1 ;
+		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
+	}
+	CanvasMatrix4.V3mult = function(v,s) {
+		return [v[0]*s,v[1]*s,v[2]*s] ;
+	}
+	CanvasMatrix4.V3dot = function(v1,v2) {
+		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
+	}
+	CanvasMatrix4.V3cross = function(v1,v2) {
+		return [	
+			v1[1]*v2[2] - v1[2] * v2[1],
+			v1[2]*v2[0] - v1[0] * v2[2],
+			v1[0]*v2[1] - v1[1] * v2[0] 
+		]
+	}
 
 //multiple vector
 CanvasMatrix4.prototype.multVec4 = function(x,y,z,w) {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x)|| x instanceof Float32Array) {
 		y = x[1]; z = x[2];w=x[3]; x = x[0];
 	}
 	var xx = this.buf[0]*x + this.buf[4]*y + this.buf[8]*z + this.buf[12]*w ;
@@ -725,7 +763,7 @@ CanvasMatrix4.rotAndTrans = function(rx,ry,rz,tx,ty,tz) {
 
 //quaternion to matrix
 CanvasMatrix4.prototype.q2m = function(x,y,z,w) {
-	if(Array.isArray(x)) {
+	if(Array.isArray(x) || x instanceof Float32Array) {
 		y = x[1]; z = x[2];w=x[3]; x = x[0];
 	}
 	var x2 = x*x; var y2=y*y; var z2=z*z ;
@@ -743,3 +781,26 @@ CanvasMatrix4.prototype.q2m = function(x,y,z,w) {
 	this.buf[11] = 0 ; this.buf[12]=0; this.buf[13]=0; this.buf[14]=0;this.buf[15]=1;
 	return this 
 }
+CanvasMatrix4.v2q = function(rot,x,y,z) {
+	if(Array.isArray(x) || x instanceof Float32Array) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
+	let l = x*x + y*y + z*z 
+	if(l==0) return [0,0,0,1]
+	if(l!=1) {
+		l = Math.sqrt(l) 
+		x /= l ; y /=l ; z /= l
+	}
+	rot = rot *CanvasMatrix4.RAD /2 
+	let sr = Math.sin(rot) 
+	return [x*sr,y*sr,z*sr,Math.cos(rot)]
+}
+CanvasMatrix4.qMult = function(q1,q2) {
+	let w = q1[3] * q2[3] -(q1[0]*q2[0]+q1[1]*q2[1]+q1[2]*q2[2])
+	let x = q1[1]*q2[2] - q1[2] * q2[1] + q1[3]*q2[0] + q2[3]*q1[0]
+	let y = q1[2]*q2[0] - q1[0] * q2[2] + q1[3]*q2[1] + q2[3]*q1[1]
+ 	let z = q1[0]*q2[1] - q1[1] * q2[0] + q1[3]*q2[2] + q2[3]*q1[2]
+	return [x,y,z,w]	
+}
+	
+

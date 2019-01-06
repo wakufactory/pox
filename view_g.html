@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
-<script src="js/poxp_all.js?20181014"></script>
+<script src="js/poxp_all.js?20190106"></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
@@ -47,13 +47,11 @@ onload = function() {
 	$("vrbtn").addEventListener("click", (ev)=>{
 		poxp.enterVR()
 	}) 
+	let pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}	
 	document.querySelectorAll("#pad button").forEach((o)=>{
-		o.addEventListener("mousedown", (ev)=>{
-			const pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}
+		o.addEventListener("mouseover", (ev)=>{	
+//			console.log("over")
 			switch(ev.target.getAttribute("data-key")) {
-				case "1":
-					pad.buttons[1].pressed = true
-					break
 				case "2":
 					pad.axes[1] =  -1 
 					break
@@ -66,15 +64,30 @@ onload = function() {
 				case "5":
 					pad.axes[0] = 1
 			}
-			if(ev.shiftKey) pad.buttons[0].pressed = true
-			if(ev.altKey) pad.buttons[1].pressed = true 
-			
-			if(poxp.pox.event) poxp.pox.event("gpad",pad) ;
+			if(ev.target.getAttribute("data-key")!=1 && window.GPad) GPad.set(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			ev.preventDefault()
+		})
+		o.addEventListener("mousedown", (ev)=>{
+//			console.log("dn")
+			if(ev.target.getAttribute("data-key")==1) pad.buttons[1].pressed = true 
+			else pad.buttons[0].pressed = true 
+			if(window.GPad) GPad.set(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
 			ev.preventDefault()
 		})
 		o.addEventListener("mouseup", (ev)=>{
-			const pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}
-			if(poxp.pox.event) poxp.pox.event("gpad",pad) ;
+//			console.log("up")
+			pad.buttons = [{pressed:false},{pressed:false}]
+			if(window.GPad) GPad.clear(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			ev.preventDefault()
+		})
+		o.addEventListener("mouseout", (ev)=>{
+//			console.log("out")
+			pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}
+			if(window.GPad) GPad.clear(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
 			ev.preventDefault()
 		})
 	})
