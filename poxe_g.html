@@ -15,7 +15,8 @@
 <script src="js/GPad.js"></script>
 <script src="js/was.js"></script>
 <script src="js/json2canvas.js"></script>
-<script src="js/poxplayer.js?201807081"></script>
+<script src="js/poxplayer.js?20190106"></script>
+<script src="js/poxp_util.js?201807081"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.9/ace.js"></script>
 <script>
 function $(e){return document.getElementById(e)}
@@ -33,7 +34,8 @@ onload = ()=> {
 	if(location.search.match(/\?.+\.json/)) {
 		POXE.POXP.load(location.search.substr(1)+"?").then((src)=>{
 			POXE.save(src) ; 
-			location.href ="?" ;
+//			location.href ="?" ;
+			POXE.set(src) ;
 		}) ;
 	} else {
 		var s = localStorage.getItem("poxe_save") ;
@@ -73,7 +75,69 @@ onload = ()=> {
 	$("vrbtn").addEventListener("click", (ev)=>{
 		POXE.POXP.enterVR()
 	}) 
+	$("screen1").addEventListener("mousedown", (ev)=>{
+		POXE.POXP.keyElelment.focus()
+	}) 
+	let pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}	
+	document.querySelectorAll("#pad button").forEach((o)=>{
+		o.addEventListener("mouseover", (ev)=>{	
+//			console.log("over")
+			switch(ev.target.getAttribute("data-key")) {
+				case "2":
+					pad.axes[1] =  -1 
+					break
+				case "3":
+					pad.axes[1] = 1
+					break ;
+				case "4":
+					pad.axes[0] = -1
+					break
+				case "5":
+					pad.axes[0] = 1
+			}
+			if(ev.target.getAttribute("data-key")!=1 && window.GPad) GPad.set(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			ev.preventDefault()
+		})
+		o.addEventListener("mousedown", (ev)=>{
+//			console.log("dn")
+			if(ev.target.getAttribute("data-key")==1) pad.buttons[1].pressed = true 
+			else pad.buttons[0].pressed = true 
+			if(window.GPad) GPad.set(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			ev.preventDefault()
+		})
+		o.addEventListener("mouseup", (ev)=>{
+//			console.log("up")
+			pad.buttons = [{pressed:false},{pressed:false}]
+			if(window.GPad) GPad.clear(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			ev.preventDefault()
+		})
+		o.addEventListener("mouseout", (ev)=>{
+//			console.log("out")
+			pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}
+			if(window.GPad) GPad.clear(pad) 
+//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			ev.preventDefault()
+		})
+	})
+	addvcursor()
 }
+function addvcursor() {
+	let d = document.createElement("div") 
+	d.innerHTML = "I"
+	d.style.position = "absolute" 
+	d.style.pointerEvents = "none"
+	d.style.color = "#a22"
+	d.style.textShadow = "1px 0 1px #eee" 
+	document.body.appendChild(d)
+	document.body.addEventListener("mousemove", (ev)=>{
+				d.style.top = `calc( ${ev.pageY}px - 0.7rem)` ;
+				d.style.left = ev.pageX + "px" ;				
+	})	
+}
+
 POXE.msg = (msg)=> {
 	const e = document.createElement("div")
 	e.innerHTML = msg ;
@@ -115,7 +179,7 @@ POXE.set = (src,edit=true)=> {
 
 		POXE.save(pox.src) ;			
 		POXE.POXP.setParam($('pui'))
-		$('bc').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
+		$('pad').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
 		if(pox.setting.copyright) $("footer").innerHTML = pox.setting.copyright ;
 	})
 }
@@ -243,7 +307,7 @@ div.edit textarea {
 #ec a {
 	color:#eee ;	
 }
-#bc {
+#pad {
 	display:none ;
 	position:absolute ;
 	height:10rem ;
@@ -257,10 +321,10 @@ div.edit textarea {
 	user-select: none;
 	-webkit-user-select: none;
 }
-#bc button {
+#pad button {
 	background-color:#aaa ;
 }
-#bc button:hover {
+#pad button:hover {
 	background-color:#fff ;
 }
 
@@ -403,11 +467,12 @@ label,button {
 <div id=pui>
 </div>
 </div>
-<div id=bc>
+<div id=pad>
 <table>
-<tr><td></td><td><button id=bc_u data-key="w">⬆️</button></td><td></td></tr>
-<tr><td><button id=bc_l data-key="a">⬅️</button></td><td></td><td><button id=bc_r data-key="s">➡️</button></td></tr>
-<tr><td></td><td><button id=bc_d data-key="z">⬇️</button></td><td></td></tr>
+<tr><td colspan=3 align=center><button id=bc_trig data-key=1>TRIG</button></td></tr>
+<tr><td></td><td><button id=bc_u data-key="2">⬆️</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="4">⬅️</button></td><td></td><td><button id=bc_r data-key="5">➡️</button></td></tr>
+<tr><td></td><td><button id=bc_d data-key="3">⬇️</button></td><td></td></tr>
 </table>
 </div>
 <div id=vrbtn></div>
