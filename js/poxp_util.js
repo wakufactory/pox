@@ -46,6 +46,48 @@ update(render,text) {
 }
 }
 
+// controller beam
+class Beam {
+constructor(render) {
+	this.len = 200
+	this.color = [1,1,0,1]
+	this.cofs = [0.3,-0.5,0.2]
+	this.vs = this.cofs.slice(0)
+	this.ve = [this.len/2,this.len/2,-this.len]
+	this.bv = [0,0,-1]
+
+	render.addModel(
+		{name:"beam",
+		geo:{mode:"lines",
+			vtx_at:["position"],
+			vtx:this.vs.concat(this.ve)},
+			fs_uni:{colmode:0,shmode:1,bcolor:this.color}}
+	)
+}
+update(render,cam) {
+	let bm = render.getModelData("beam")
+	let vd = bm.geo.vtx
+	let gp = POX.poxp.gPad
+	if(gp && gp.pose) {
+		this.ori=gp.pose.orientation
+		let sx = this.cofs[0] * ((gp.hand=="right")?1:-1)
+		let sy = this.cofs[1]
+		let sz = this.cofs[2]
+		let cq = Mat4.v2q(-cam.camRY,0,1,0) 
+		let bm = new Mat4().q2m(
+			Mat4.qMult(cq,this.ori) )
+		bm.translate(cam.camCX,cam.camCY,cam.camCZ)
+		this.vs = bm.multVec4(sx,0,sz,1)
+		this.vs[1] = sy + cam.camCY
+		this.ve = bm.multVec4(0,0,-this.len,1)
+		this.bv = Mat4.V3norm(Mat4.V3sub(this.ve,this.vs))
+		vd[0]=this.vs[0],vd[1]=this.vs[1],vd[2]=this.vs[2]
+		vd[3]=this.ve[0],vd[4]=this.ve[1],vd[5]=this.ve[2]
+		render.updateModel("beam","vbo",vd)
+	}	
+}
+}
+
 class Pool  {
 	constructor() {
 		this._use = [] 
