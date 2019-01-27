@@ -546,9 +546,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			rt = tt + ct-st ;
 			fc++ ;
-			if(ct-ft>=1000) {
-				if(this.isVR) console.log(fc)
-				Param.fps = fc ;
+			if(ct-ft>=500) {
+//				if(this.isVR) console.log(fc)
+				Param.fps = Math.floor(fc*1000/(ct-ft)+0.5) ;
 				fc = 0 ;
 				ft = ct ; 
 			}
