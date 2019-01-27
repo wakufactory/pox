@@ -11,7 +11,9 @@
 function $(e){return document.getElementById(e)}
 onload = function() {
 	var q = location.search.substr(1).split("&") ;
-	var poxp = new PoxPlayer('#screen1') ;
+	var poxp = new PoxPlayer('#screen1',{
+		noWebGL2:navigator.userAgent.match(/iPhone|iPad/)
+	}) ;
 	var ss ;
 	poxp.load(q[0]).then(function(src) {
 		ss = src ;
@@ -39,7 +41,8 @@ onload = function() {
 		$("cc").style.opacity = d?0.:0.4 ;
 		$("footer").style.display = d?"none":"block" ;
 		$("vrbtn").style.display = d?"none":"block" ;
-		$("bc").style.opacity = d?0.:0.4 ;
+		$("pad").style.opacity = d?0.:0.4 ;
+		window.scrollTo(0,1000)
 	})
 	$("b_edit").addEventListener("click",function(ev) {
 		location.href="poxe_g.html?"+q ;
@@ -176,7 +179,7 @@ canvas {
 }
 #pad {
 	position:absolute ;
-	height:10rem ;
+	height:8rem ;
 	bottom:0rem;
 	left:0;
 	color:#eee ;
