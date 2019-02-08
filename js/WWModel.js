@@ -24,6 +24,39 @@ WWModel.prototype.loadAjax = function(src) {
 		req.send() ;
 	})
 }
+WWModel.loadLines = function(path,cb,lbufsize) {
+	if(!lbufsize) lbufsize = 10000
+	const decoder = new TextDecoder
+	return new Promise((resolve,reject)=>{
+		fetch( path , {
+			method:"GET"
+		}).then( async resp=>{
+			if(resp.ok) {
+				const reader = resp.body.getReader();
+				const buf = new Uint8Array(lbufsize)
+				let bi = 0 
+				while (true) {
+					const {done, value} = await reader.read();
+					if (done) {
+					  cb(decoder.decode(buf.slice(0,bi))) 
+					  resolve(resp)
+					  break;
+					}
+//					console.log(value.length)
+					for (const char of value) {
+						buf[bi++] = char 
+						if(char == 0x0a ) {
+							cb(decoder.decode(buf.slice(0,bi-1))) 
+							bi = 0 
+						}
+					}
+				}
+			} else {
+				reject(resp)
+			}
+		})
+	})
+}
 // load .obj file
 WWModel.prototype.loadObj = async function(path,scale) {
 	var self = this ;
@@ -86,6 +119,66 @@ WWModel.prototype.loadObj = async function(path,scale) {
 			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+self.obj_v.length) ;
 			resolve(self) ;
 		}).catch(function(err) {
+			reject(err) ;
+		})
+	}) ;
+}
+WWModel.prototype.loadObj2 = async function(path,scale) {
+	if(!scale) scale=1.0 ;
+	return new Promise((resolve,reject)=> {
+		var v = [];
+		var n = [] ;
+		var x = [] ;
+		var t = [] ;
+		var c = [] ;
+		var xi = {} ;
+		var xic = 0 ;
+		WWModel.loadLines(path,l=>{
+				if(l.match(/^#/)) return ;
+				if(l.match(/^eof/)) return ;
+				var ll = l.split(/\s+/) ;
+				if(ll[0] == "v") {
+					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
+					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
+				}
+				if(ll[0] == "vt") {
+					t.push([ll[1],ll[2]]) ;
+				}
+				if(ll[0] == "vn") {
+					n.push([ll[1],ll[2],ll[3]]) ;
+				}
+				if(ll[0] == "f") {
+					var ix = [] ;
+					for(var ii=1;ii<ll.length;ii++) {
+						if(ll[ii]=="") continue ;
+						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
+						ix.push(xi[ll[ii]]) ;
+					}
+					x.push(ix) ;
+				}
+		}).then(r=>{
+			this.obj_v = [] ;
+			if(c.length>0) this.obj_c = [] 
+			this.obj_i =x ;
+			if(n.length>0) this.obj_n = [] ;
+			if(t.length>0) this.obj_t = [] ;
+			if(x.length>0) {
+				for(var i in xi) {
+					var si = i.split("/") ;
+					var ind = xi[i] ;
+					this.obj_v[ind] = v[si[0]-1] ;
+					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
+					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
+					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
+				}
+			} else {
+				this.obj_v = v 
+				if(c.length>0) this.obj_c = c
+				if(n.length>0) this.obj_n = n
+			}
+			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
+			resolve(this) ;				
+		}).catch(err=> {
 			reject(err) ;
 		})
 	}) ;
@@ -187,6 +280,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 	}
 	return ret ;
 }
+
 // generate normal vector lines
 WWModel.prototype.normLines = function(vm) {
 	var nv = [] ;
