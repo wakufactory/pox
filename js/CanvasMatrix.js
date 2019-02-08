@@ -795,6 +795,22 @@ CanvasMatrix4.v2q = function(rot,x,y,z) {
 	let sr = Math.sin(rot) 
 	return [x*sr,y*sr,z*sr,Math.cos(rot)]
 }
+CanvasMatrix4.e2q = function(x,y,z) {
+	if(Array.isArray(x) || x instanceof Float32Array) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
+	x *= CanvasMatrix4.RAD*0.5
+	y *= CanvasMatrix4.RAD*0.5
+	z *= CanvasMatrix4.RAD*0.5
+	let c1 = Math.cos(x),c2=Math.cos(y),c3=Math.cos(z)
+	let s1 = Math.sin(x),s2=Math.sin(y),s3=Math.sin(z)
+	// order YXZ
+	let qx = s1 * c2 * c3 + c1 * s2 * s3;
+    let qy = c1 * s2 * c3 - s1 * c2 * s3;
+    let qz = c1 * c2 * s3 - s1 * s2 * c3;
+    let qw = c1 * c2 * c3 + s1 * s2 * s3;
+    return [qx,qy,qz,qw]
+}
 CanvasMatrix4.qMult = function(q1,q2) {
 	let w = q1[3] * q2[3] -(q1[0]*q2[0]+q1[1]*q2[1]+q1[2]*q2[2])
 	let x = q1[1]*q2[2] - q1[2] * q2[1] + q1[3]*q2[0] + q2[3]*q1[0]
