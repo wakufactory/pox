@@ -61,10 +61,10 @@ const PoxPlayer  = function(can,opt) {
 			window.addEventListener('vrdisplaypresentchange', ()=>{
 				console.log("vr presenting= "+this.vrDisplay.isPresenting)
 				if(this.vrDisplay.isPresenting) {
-					if(this.pox.event) this.pox.event("vrchange",1)
+					this.callEvent("vrchange",1)
 				} else {
 					this.resize() ;
-					if(this.pox.event) this.pox.event("vrchange",0)
+					this.callEvent("vrchange",0)
 				}
 			}, false);
 			window.addEventListener('vrdisplayactivate', ()=>{
@@ -221,7 +221,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			this.setScene(scene).then( () => {
 				resolve() ;
 			}).catch((err)=>	 {
-				console.log("render err")
+				console.log("render err"+err.stack)
 			})
 		})
 	}
@@ -231,29 +231,31 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //	this.parseJS(d.m).then((m)=> {
 	const m = await this.parseJS(d.m) ;
 		try {
-			POX.eval = new Function('POX','"use strict";'+m)
+			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
 			console.log(err)
-			this.emsg = ("parse error "+err.message);
-			throw new Error('reject!!')
+			this.emsg = ("parse error "+err.stack);
+//			throw new Error('reject!!')
 			return(null);
 		}
 		try {
 			POX.eval(POX)
+
 		}catch(err) {
-			console.log(err)
-			this.emsg = ("eval error "+err.message);
-			throw new Error('reject!!2')
+			console.log(err.stack)
+			this.emsg = ("eval error "+err.stack);
+//			throw new Error('reject!!2')
 			return(null);
 		}
+
 		if(uidom) this.setParam(uidom)
 		if(POX.init) {
 			try {
 				await POX.init()
 			}catch(err) {
 				console.log(err)
-				this.emsg = ("init error "+err.message);
-				throw new Error('reject!!2')
+				this.emsg = ("init error "+err.stack);
+//				throw new Error('reject!!2')
 				return null
 			}
 		}
@@ -293,6 +295,16 @@ PoxPlayer.prototype.cls = function() {
 }
 PoxPlayer.prototype.setError = function(err) {
 	this.errCb = err ;
+}
+PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
+	if(!this.pox.event) return true
+	let ret = true 
+	try {
+		ret = this.pox.event(kind,ev,opt)
+	} catch(err) {
+		this.errCb(err.stack)
+	}
+	return ret 
 }
 PoxPlayer.prototype.setParam = function(dom) {
 	const param = this.pox.setting.param ;
@@ -364,7 +376,7 @@ PoxPlayer.prototype.setEvent = function() {
 		down:(d)=> {
 			if(!this.ccam || Param.pause) return true ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
+			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
 			if(ret) this.ccam.event("down",d)
 			dragging = true ;
 //			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
@@ -373,7 +385,7 @@ PoxPlayer.prototype.setEvent = function() {
 		move:(d)=> {
 			if(!this.ccam || Param.pause) return true;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			ret = this.callEvent("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
 			if(ret) this.ccam.event("move",d) 
 			return false ;
 		},
@@ -381,7 +393,7 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.ccam) return true ;
 			dragging = false ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
+			ret = this.callEvent("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
 			if(ret) this.ccam.event("up",d)
 			return false ;
 		},
@@ -389,29 +401,29 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.ccam) return true ;
 			dragging = false ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			ret = this.callEvent("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
 			if(ret) this.ccam.event("out",d) 
 			return false ;
 		},
 		wheel:(d)=> {
 			if(!this.ccam || Param.pause) return true;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("wheel",d) ;
+			ret = this.callEvent("wheel",d) ;
 			if(ret) this.ccam.event("wheel",d) 
 			return false ;
 		},
 		gesture:(z,r)=> {
 			if(!this.ccam || Param.pause) return true;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("gesture",{z:z,r:r}) ;
+			ret = this.callEvent("gesture",{z:z,r:r}) ;
 			if(ret) this.ccam.event("gesture",{z:z,r:r}) 
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause || !this.pox.setting.gyro) return true;
+			if(!this.ccam || Param.pause ) return true;
 			if(dragging) return true ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("gyro",ev) ;
+			ret = this.callEvent("gyro",ev) ;
 			if(ret) this.ccam.event("gyro",ev) 
 			return false ;
 		}
@@ -420,7 +432,7 @@ PoxPlayer.prototype.setEvent = function() {
 //		console.log("key:"+ev.key);
 		if( Param.pause) return true ;
 		if(this.pox.event) {
-			if(!this.pox.event("keydown",ev)) return true ;
+			if(!this.callEvent("keydown",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keydown",ev) 
 		return false ;
@@ -429,31 +441,31 @@ PoxPlayer.prototype.setEvent = function() {
 //		console.log("key up:"+ev.key);
 		if(Param.pause) return true ;
 		if(this.pox.event) {
-			if(!this.pox.event("keyup",ev)) return true ;
+			if(!this.callEvent("keyup",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keyup",ev)
 		return false ;
 	})		
 	document.querySelectorAll("#bc button").forEach((o)=>{
 		o.addEventListener("mousedown", (ev)=>{
-			if(this.pox.event) this.pox.event("btndown",ev.target.id) ;
+			this.callEvent("btndown",ev.target.id) ;
 			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
 		o.addEventListener("touchstart", (ev)=>{
-			if(this.pox.event) this.pox.event("touchstart",ev.target.id) ;
+			this.callEvent("touchstart",ev.target.id) ;
 			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
 		o.addEventListener("mouseup", (ev)=>{
-			if(this.pox.event) this.pox.event("btnup",ev.target.id) ;
+			this.callEvent("btnup",ev.target.id) ;
 			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 //			this.keyElelment.focus() ;
 			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
 			ret = true; 
-			if(this.pox.event) ret = this.pox.event("touchend",ev.target.id) ;
+			ret = this.callEvent("touchend",ev.target.id) ;
 			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
@@ -461,7 +473,7 @@ PoxPlayer.prototype.setEvent = function() {
 	// gamepad event
 	if(window.GPad) {
 		GPad.ev = (pad,b,p)=> {
-			if(this.pox.event) ret = this.pox.event("gpad",pad,{btrig:b,ptrig:p}) ;
+			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
 		}
 	}
 }
@@ -554,7 +566,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
 			if(window.GPad &&(this.gPad  = GPad.get())) {	
-//				if(pox.event) ret = pox.event("gpad",gp,GPad.lastGp) 
+//				ret = callEvent("gpad",gp,GPad.lastGp) 
 				if(ccam.cam.gPad ) ccam.setPad( GPad)
 			}
 			ccam.update()	// camera update
@@ -566,7 +578,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		loopf() ;		
 	}).catch((err)=>{
 		console.log(err) ;
-		if(this.errCb) this.errCb(err) ;
+		if(this.errCb) this.errCb(err.stack?err.stack:err) ;
 		reject(err) 
 	})
 	}) // promise

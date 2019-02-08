@@ -608,7 +608,6 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		ats.push( this.vs_att[geo.vtx_at[i]] ) ;
 		tl += this.wwg.vsize[this.vs_att[geo.vtx_at[i]].type] ;
 	}
-	tl = tl*4 ;
 
 	ret.ats = ats ;
 	ret.tl = tl ;
@@ -619,7 +618,7 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	for(var i=0;i<ats.length;i++) {
 		var s = this.wwg.vsize[ats[i].type] ;
 		gl.enableVertexAttribArray(this.vs_att[ats[i].name].pos);
-		gl.vertexAttribPointer(this.vs_att[ats[i].name].pos, s, gl.FLOAT, false, tl, ofs);
+		gl.vertexAttribPointer(this.vs_att[ats[i].name].pos, s, gl.FLOAT, false, tl*4, ofs);
 		ofs += s*4 ;	
 	} 	
 	ret.vbo = vbo ;
@@ -664,7 +663,7 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 	}
 	if(flag && geo.idx) {
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
-		if(geo.vtx.length/(ret.tl/4) > 65536 && this.wwg.ext_i32) {
+		if(geo.vtx.length/(ret.tl) > 65536 && this.wwg.ext_i32) {
 			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, 
 				this.i32Array(geo.idx),gl.STATIC_DRAW ) ;
 			ret.i32 = true ;
@@ -809,7 +808,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		this.updateUniValues(1)
 
 		var obuf = this.obuf[b] ;
-		var ofs = 0 ;
+		var ofs = (geo.ofs>0)?geo.ofs:0 ;
 		if(this.wwg.ext_vao)  this.wwg.vao_bind(obuf.vao);
 		else {
 			gl.bindBuffer(gl.ARRAY_BUFFER, obuf.vbo) ;
@@ -820,7 +819,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			for(var i=0;i<obuf.ats.length;i++) {
 				var s = this.wwg.vsize[obuf.ats[i].type] ;
 				gl.enableVertexAttribArray(this.vs_att[obuf.ats[i].name].pos);
-				gl.vertexAttribPointer(this.vs_att[obuf.ats[i].name].pos, s, gl.FLOAT, false, obuf.tl, aofs);
+				gl.vertexAttribPointer(this.vs_att[obuf.ats[i].name].pos, s, gl.FLOAT, false, obuf.tl*4, aofs);
 				aofs += s*4 ;	
 			}
 			if(this.obuf[b].ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.obuf[b].ibo) ;
@@ -860,7 +859,8 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
 		} else {
 			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
-			else gl.drawArrays(gmode, ofs,geo.vtx.length/(obuf.tl/4));
+			else gl.drawArrays(gmode, ofs,
+				(geo.count>0)?geo.count:geo.vtx.length/obuf.tl);
 		}
 		if(this.wwg.ext_vao) this.wwg.vao_bind(null);
 		else {
@@ -905,6 +905,39 @@ WWModel.prototype.loadAjax = function(src) {
 			reject("Ajax error:"+this.statusText)
 		}
 		req.send() ;
+	})
+}
+WWModel.loadLines = function(path,cb,lbufsize) {
+	if(!lbufsize) lbufsize = 10000
+	const decoder = new TextDecoder
+	return new Promise((resolve,reject)=>{
+		fetch( path , {
+			method:"GET"
+		}).then( async resp=>{
+			if(resp.ok) {
+				const reader = resp.body.getReader();
+				const buf = new Uint8Array(lbufsize)
+				let bi = 0 
+				while (true) {
+					const {done, value} = await reader.read();
+					if (done) {
+					  cb(decoder.decode(buf.slice(0,bi))) 
+					  resolve(resp)
+					  break;
+					}
+//					console.log(value.length)
+					for (const char of value) {
+						buf[bi++] = char 
+						if(char == 0x0a ) {
+							cb(decoder.decode(buf.slice(0,bi-1))) 
+							bi = 0 
+						}
+					}
+				}
+			} else {
+				reject(resp)
+			}
+		})
 	})
 }
 // load .obj file
@@ -969,6 +1002,66 @@ WWModel.prototype.loadObj = async function(path,scale) {
 			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+self.obj_v.length) ;
 			resolve(self) ;
 		}).catch(function(err) {
+			reject(err) ;
+		})
+	}) ;
+}
+WWModel.prototype.loadObj2 = async function(path,scale) {
+	if(!scale) scale=1.0 ;
+	return new Promise((resolve,reject)=> {
+		var v = [];
+		var n = [] ;
+		var x = [] ;
+		var t = [] ;
+		var c = [] ;
+		var xi = {} ;
+		var xic = 0 ;
+		WWModel.loadLines(path,l=>{
+				if(l.match(/^#/)) return ;
+				if(l.match(/^eof/)) return ;
+				var ll = l.split(/\s+/) ;
+				if(ll[0] == "v") {
+					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
+					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
+				}
+				if(ll[0] == "vt") {
+					t.push([ll[1],ll[2]]) ;
+				}
+				if(ll[0] == "vn") {
+					n.push([ll[1],ll[2],ll[3]]) ;
+				}
+				if(ll[0] == "f") {
+					var ix = [] ;
+					for(var ii=1;ii<ll.length;ii++) {
+						if(ll[ii]=="") continue ;
+						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
+						ix.push(xi[ll[ii]]) ;
+					}
+					x.push(ix) ;
+				}
+		}).then(r=>{
+			this.obj_v = [] ;
+			if(c.length>0) this.obj_c = [] 
+			this.obj_i =x ;
+			if(n.length>0) this.obj_n = [] ;
+			if(t.length>0) this.obj_t = [] ;
+			if(x.length>0) {
+				for(var i in xi) {
+					var si = i.split("/") ;
+					var ind = xi[i] ;
+					this.obj_v[ind] = v[si[0]-1] ;
+					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
+					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
+					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
+				}
+			} else {
+				this.obj_v = v 
+				if(c.length>0) this.obj_c = c
+				if(n.length>0) this.obj_n = n
+			}
+			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
+			resolve(this) ;				
+		}).catch(err=> {
 			reject(err) ;
 		})
 	}) ;
@@ -1070,6 +1163,7 @@ WWModel.prototype.objModel  = function(addvec,mode) {
 	}
 	return ret ;
 }
+
 // generate normal vector lines
 WWModel.prototype.normLines = function(vm) {
 	var nv = [] ;
@@ -2390,6 +2484,22 @@ CanvasMatrix4.v2q = function(rot,x,y,z) {
 	let sr = Math.sin(rot) 
 	return [x*sr,y*sr,z*sr,Math.cos(rot)]
 }
+CanvasMatrix4.e2q = function(x,y,z) {
+	if(Array.isArray(x) || x instanceof Float32Array) {
+		y = x[1]; z = x[2]; x = x[0];
+	}
+	x *= CanvasMatrix4.RAD*0.5
+	y *= CanvasMatrix4.RAD*0.5
+	z *= CanvasMatrix4.RAD*0.5
+	let c1 = Math.cos(x),c2=Math.cos(y),c3=Math.cos(z)
+	let s1 = Math.sin(x),s2=Math.sin(y),s3=Math.sin(z)
+	// order YXZ
+	let qx = s1 * c2 * c3 + c1 * s2 * s3;
+    let qy = c1 * s2 * c3 - s1 * c2 * s3;
+    let qz = c1 * c2 * s3 - s1 * s2 * c3;
+    let qw = c1 * c2 * c3 + s1 * s2 * s3;
+    return [qx,qy,qz,qw]
+}
 CanvasMatrix4.qMult = function(q1,q2) {
 	let w = q1[3] * q2[3] -(q1[0]*q2[0]+q1[1]*q2[1]+q1[2]*q2[2])
 	let x = q1[1]*q2[2] - q1[2] * q2[1] + q1[3]*q2[0] + q2[3]*q1[0]
@@ -3407,10 +3517,10 @@ const PoxPlayer  = function(can,opt) {
 			window.addEventListener('vrdisplaypresentchange', ()=>{
 				console.log("vr presenting= "+this.vrDisplay.isPresenting)
 				if(this.vrDisplay.isPresenting) {
-					if(this.pox.event) this.pox.event("vrchange",1)
+					this.callEvent("vrchange",1)
 				} else {
 					this.resize() ;
-					if(this.pox.event) this.pox.event("vrchange",0)
+					this.callEvent("vrchange",0)
 				}
 			}, false);
 			window.addEventListener('vrdisplayactivate', ()=>{
@@ -3567,7 +3677,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			this.setScene(scene).then( () => {
 				resolve() ;
 			}).catch((err)=>	 {
-				console.log("render err")
+				console.log("render err"+err.stack)
 			})
 		})
 	}
@@ -3577,29 +3687,31 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //	this.parseJS(d.m).then((m)=> {
 	const m = await this.parseJS(d.m) ;
 		try {
-			POX.eval = new Function('POX','"use strict";'+m)
+			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
 			console.log(err)
-			this.emsg = ("parse error "+err.message);
-			throw new Error('reject!!')
+			this.emsg = ("parse error "+err.stack);
+//			throw new Error('reject!!')
 			return(null);
 		}
 		try {
 			POX.eval(POX)
+
 		}catch(err) {
-			console.log(err)
-			this.emsg = ("eval error "+err.message);
-			throw new Error('reject!!2')
+			console.log(err.stack)
+			this.emsg = ("eval error "+err.stack);
+//			throw new Error('reject!!2')
 			return(null);
 		}
+
 		if(uidom) this.setParam(uidom)
 		if(POX.init) {
 			try {
 				await POX.init()
 			}catch(err) {
 				console.log(err)
-				this.emsg = ("init error "+err.message);
-				throw new Error('reject!!2')
+				this.emsg = ("init error "+err.stack);
+//				throw new Error('reject!!2')
 				return null
 			}
 		}
@@ -3639,6 +3751,16 @@ PoxPlayer.prototype.cls = function() {
 }
 PoxPlayer.prototype.setError = function(err) {
 	this.errCb = err ;
+}
+PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
+	if(!this.pox.event) return true
+	let ret = true 
+	try {
+		ret = this.pox.event(kind,ev,opt)
+	} catch(err) {
+		this.errCb(err.stack)
+	}
+	return ret 
 }
 PoxPlayer.prototype.setParam = function(dom) {
 	const param = this.pox.setting.param ;
@@ -3710,7 +3832,7 @@ PoxPlayer.prototype.setEvent = function() {
 		down:(d)=> {
 			if(!this.ccam || Param.pause) return true ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
+			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
 			if(ret) this.ccam.event("down",d)
 			dragging = true ;
 //			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
@@ -3719,7 +3841,7 @@ PoxPlayer.prototype.setEvent = function() {
 		move:(d)=> {
 			if(!this.ccam || Param.pause) return true;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			ret = this.callEvent("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
 			if(ret) this.ccam.event("move",d) 
 			return false ;
 		},
@@ -3727,7 +3849,7 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.ccam) return true ;
 			dragging = false ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
+			ret = this.callEvent("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
 			if(ret) this.ccam.event("up",d)
 			return false ;
 		},
@@ -3735,29 +3857,29 @@ PoxPlayer.prototype.setEvent = function() {
 			if(!this.ccam) return true ;
 			dragging = false ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			ret = this.callEvent("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
 			if(ret) this.ccam.event("out",d) 
 			return false ;
 		},
 		wheel:(d)=> {
 			if(!this.ccam || Param.pause) return true;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("wheel",d) ;
+			ret = this.callEvent("wheel",d) ;
 			if(ret) this.ccam.event("wheel",d) 
 			return false ;
 		},
 		gesture:(z,r)=> {
 			if(!this.ccam || Param.pause) return true;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("gesture",{z:z,r:r}) ;
+			ret = this.callEvent("gesture",{z:z,r:r}) ;
 			if(ret) this.ccam.event("gesture",{z:z,r:r}) 
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause || !this.pox.setting.gyro) return true;
+			if(!this.ccam || Param.pause ) return true;
 			if(dragging) return true ;
 			let ret = true ;
-			if(this.pox.event) ret = this.pox.event("gyro",ev) ;
+			ret = this.callEvent("gyro",ev) ;
 			if(ret) this.ccam.event("gyro",ev) 
 			return false ;
 		}
@@ -3766,7 +3888,7 @@ PoxPlayer.prototype.setEvent = function() {
 //		console.log("key:"+ev.key);
 		if( Param.pause) return true ;
 		if(this.pox.event) {
-			if(!this.pox.event("keydown",ev)) return true ;
+			if(!this.callEvent("keydown",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keydown",ev) 
 		return false ;
@@ -3775,31 +3897,31 @@ PoxPlayer.prototype.setEvent = function() {
 //		console.log("key up:"+ev.key);
 		if(Param.pause) return true ;
 		if(this.pox.event) {
-			if(!this.pox.event("keyup",ev)) return true ;
+			if(!this.callEvent("keyup",ev)) return true ;
 		}
 		if(this.ccam) this.ccam.event("keyup",ev)
 		return false ;
 	})		
 	document.querySelectorAll("#bc button").forEach((o)=>{
 		o.addEventListener("mousedown", (ev)=>{
-			if(this.pox.event) this.pox.event("btndown",ev.target.id) ;
+			this.callEvent("btndown",ev.target.id) ;
 			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
 		o.addEventListener("touchstart", (ev)=>{
-			if(this.pox.event) this.pox.event("touchstart",ev.target.id) ;
+			this.callEvent("touchstart",ev.target.id) ;
 			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
 		o.addEventListener("mouseup", (ev)=>{
-			if(this.pox.event) this.pox.event("btnup",ev.target.id) ;
+			this.callEvent("btnup",ev.target.id) ;
 			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 //			this.keyElelment.focus() ;
 			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
 			ret = true; 
-			if(this.pox.event) ret = this.pox.event("touchend",ev.target.id) ;
+			ret = this.callEvent("touchend",ev.target.id) ;
 			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
 			ev.preventDefault()
 		})
@@ -3807,7 +3929,7 @@ PoxPlayer.prototype.setEvent = function() {
 	// gamepad event
 	if(window.GPad) {
 		GPad.ev = (pad,b,p)=> {
-			if(this.pox.event) ret = this.pox.event("gpad",pad,{btrig:b,ptrig:p}) ;
+			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
 		}
 	}
 }
@@ -3900,7 +4022,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
 			if(window.GPad &&(this.gPad  = GPad.get())) {	
-//				if(pox.event) ret = pox.event("gpad",gp,GPad.lastGp) 
+//				ret = callEvent("gpad",gp,GPad.lastGp) 
 				if(ccam.cam.gPad ) ccam.setPad( GPad)
 			}
 			ccam.update()	// camera update
@@ -3912,7 +4034,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		loopf() ;		
 	}).catch((err)=>{
 		console.log(err) ;
-		if(this.errCb) this.errCb(err) ;
+		if(this.errCb) this.errCb(err.stack?err.stack:err) ;
 		reject(err) 
 	})
 	}) // promise
