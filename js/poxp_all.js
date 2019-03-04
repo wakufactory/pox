@@ -2678,15 +2678,15 @@ GPad.get = function(pad) {
 	}
 	
 	var lgp = GPad.lastGp 
-	let bf = false 
-	let pf = false 
+	gp.bf = false 
+	gp.pf = false 
 
 //	if(lgp) console.log(lgp.buttons[1].pressed +" "+ gp.buttons[1].pressed)
 	for(var i=0;i<gp.buttons.length;i++) {
 		GPad.dbtn[i] = 0 
 		if(lgp) {
-			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {GPad.dbtn[i] = 1; bf=true} 
-			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {GPad.dbtn[i] = -1;bf=true}
+			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {GPad.dbtn[i] = 1; gp.bf=true} 
+			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {GPad.dbtn[i] = -1;gp.bf=true}
 		}
 		lgp.buttons[i] = {pressed:gp.buttons[i].pressed}
 	}
@@ -2694,16 +2694,17 @@ GPad.get = function(pad) {
 	for(var i=0;i<gp.axes.length;i++) {
 		GPad.dpad[i] = 0 
 		if(lgp) {
-			if(lgp.axes[i]==0 && gp.axes[i]!=0) {GPad.dpad[i] = (gp.axes[i]>0)?1:-1;pf=true}
-			if(lgp.axes[i]!=0 && gp.axes[i]==0) {GPad.dpad[i] = (lgp.axes[i]>0)?1:-1;pf=true}
+			if(lgp.axes[i]==0 && gp.axes[i]!=0) {GPad.dpad[i] = (gp.axes[i]>0)?1:-1;gp.pf=true}
+			if(lgp.axes[i]!=0 && gp.axes[i]==0) {GPad.dpad[i] = (lgp.axes[i]>0)?1:-1;gp.pf=true}
 		}
 		lgp.axes[i] = gp.axes[i]
 	}
 	GPad.gp = gp 
-	if(GPad.ev && (bf || pf)){
+	if(GPad.ev && (gp.bf || gp.pf)){
 //		console.log(dbtn)
 		GPad.ev(gp,GPad.dbtn,GPad.dpad) 
 	}
+//	console.log(gp)
 	return gp ;	
 }
 GPad.set = function(gp) {//for emulation
@@ -3461,7 +3462,7 @@ static loadFont(name,path) {
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
 const PoxPlayer  = function(can,opt) {
-	this.version = "1.1.0" 
+	this.version = "1.1.2" 
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
@@ -3689,7 +3690,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 		try {
 			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
-			console.log(err)
+//			console.log(err)
 			this.emsg = ("parse error "+err.stack);
 //			throw new Error('reject!!')
 			return(null);
@@ -3698,7 +3699,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			POX.eval(POX)
 
 		}catch(err) {
-			console.log(err.stack)
+//			console.log(err.stack)
 			this.emsg = ("eval error "+err.stack);
 //			throw new Error('reject!!2')
 			return(null);
@@ -3709,7 +3710,7 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 			try {
 				await POX.init()
 			}catch(err) {
-				console.log(err)
+//				console.log(err)
 				this.emsg = ("init error "+err.stack);
 //				throw new Error('reject!!2')
 				return null
@@ -4209,13 +4210,16 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camNear:0.01, 	//near
 		camFar:1000, 	//far
 		camGyro:true, // use gyro
-		sbase:0.05, 	//streobase 
+		sbase:0.06, 	//streobase 
 		vcx:0,
 		vcy:0,
 		vcz:0,
 		vrx:0,
 		vry:0,
-		vrz:0
+		vrz:0,
+		moveSp:0.05,
+		moveY:false,
+		cv:[0,0,0]
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
@@ -4397,22 +4401,40 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 	let gp = gpad.gp
+	if(gp.bf || gp.pf ) {
+		let cx =0,cy =0,cz=1
+		if(this.cam.orientation ) {
+			let x = this.cam.orientation[0] ;
+			let y = this.cam.orientation[1] ;
+			let z = this.cam.orientation[2] ;
+			let w = this.cam.orientation[3] ;
+			cx = -2*(-x*z-y*w) 
+			cy = -2*(-y*z+x*w)
+			cz = -(x*x+y*y-z*z-w*w)
+			let l = Math.hypot(cx,cy,cz)
+			cx /= l ,cy /=l, cz /= l 
+		}
+		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.cam.cv = cmat.multVec4(cx,cy,cz,0)
+	}
 	if(this.cam.camMode=="walk") {
 		if(gp.buttons[1] && gp.buttons[1].pressed) {
-			this.cam.vcy = -gp.axes[1]*0.1
+			this.cam.vcy = -gp.axes[1]*this.cam.moveSp
 		} else {
 			this.cam.vcy = 0 
 			let m = gp.buttons[0].pressed
-			let mv = (m)?0.5:0.05
-			this.cam.vcx = 0 
-			this.cam.vcz = 0 
+			let mv = (m)?this.cam.moveSp*5:this.cam.moveSp
+
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
-				this.cam.vcx = -Math.sin(this.cam.camRY*RAD) * gp.axes[1]*mv
-				this.cam.vcz = Math.cos(this.cam.camRY*RAD) * gp.axes[1]*mv
+				this.cam.vcx = this.cam.cv[0] * gp.axes[1]*mv
+				if(this.cam.moveY) this.cam.vcy = this.cam.cv[1] * gp.axes[1]*mv
+				this.cam.vcz = this.cam.cv[2] * gp.axes[1]*mv
 			} else if(!m && Math.abs(gp.axes[0])>0) {
 //				this.cam.vcx = -Math.sin((this.cam.camRY-90)*RAD) *gp.axes[0]*mv
 //				this.cam.vcz = Math.cos((this.cam.camRY-90)*RAD) *gp.axes[0]*mv			
 			} else {
+				this.cam.vcx = 0 
+				this.cam.vcz = 0 
 				if(gpad.dbtn[0]==1 && m) 
 					this.cam.camRY += (gp.axes[0]>0)?15:-15  
 			}
