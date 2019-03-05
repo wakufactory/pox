@@ -2633,86 +2633,97 @@ Pointer = function(t,cb) {
 		})
 	}
 }
-GPad = {conn:false,gp:null,lastGp:null,egp:null,cf:false,ev:null} ;
+GPad = function() {
+	this.idx = 0 
+	this.conn = false 
+}
 
-GPad.init = function() {
+GPad.prototype.init = function(idx) {
+	if(idx==undefined) idx = 0 
+	this.idx = idx 
 	if(!navigator.getGamepads) return false ;
 	gamepads = navigator.getGamepads();
 //	console.log(gamepads)
-	if(gamepads[0]) {
+	if(gamepads[this.idx]) {
 		console.log("gpad connected "+0) ;
-		GPad.axes =gamepads[0].axes 
-		GPad.conn = true ;
-		GPad.egp = null ;
+		this.axes =gamepads[this.idx].axes 
+		this.conn = true ;
+		this.egp = null ;
 	}
-	addEventListener("gamepadconnected", function(e) {
+	addEventListener("gamepadconnected", (e)=> {
 		console.log("gpad reconnected "+e.gamepad.index) ;
 //		console.log(e.gamepad) ;
-		GPad.axes = e.gamepad.axes 
-		GPad.conn = true; 
+		this.axes = e.gamepad.axes 
+		this.conn = true; 
 	})	
-	addEventListener("gamepaddisconnected", function(e) {
+	addEventListener("gamepaddisconnected", (e)=> {
 		console.log("gpad disconnected "+e.gamepad.index) ;
-		GPad.conn = false ;
+		this.conn = false ;
 	})
-	GPad.lastGp = {
+	this.lastGp = {
 		buttons:[
 			{pressed:false},
 			{pressed:false}
 		],
 		axes:[0,0]
 	}
-	GPad.dbtn = []
-	GPad.dpad = []
 	return true ;
 }
-GPad.get = function(pad) {
+GPad.prototype.get = function(pad) {
 	var gp 
-	if(!GPad.conn) {
-		if(GPad.egp==null) return null ;	
-		gp = GPad.egp
+	if(!this.conn) {
+		if(this.egp==null) return null ;	
+		gp = this.egp
 	} else {
 		var gamepads = navigator.getGamepads();
-		var gp = gamepads[0];
+		var gp = gamepads[this.idx];
 		if(!gp || gp.buttons.length==0) return null ;
 	}
 	
-	var lgp = GPad.lastGp 
+	var lgp = this.lastGp 
 	gp.bf = false 
 	gp.pf = false 
+	gp.dbtn = [] 
+	gp.dpad = []
 
 //	if(lgp) console.log(lgp.buttons[1].pressed +" "+ gp.buttons[1].pressed)
 	for(var i=0;i<gp.buttons.length;i++) {
-		GPad.dbtn[i] = 0 
+		gp.dbtn[i] = 0 
 		if(lgp) {
-			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {GPad.dbtn[i] = 1; gp.bf=true} 
-			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {GPad.dbtn[i] = -1;gp.bf=true}
+			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {gp.dbtn[i] = 1; gp.bf=true} 
+			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {gp.dbtn[i] = -1;gp.bf=true}
 		}
 		lgp.buttons[i] = {pressed:gp.buttons[i].pressed}
 	}
 
 	for(var i=0;i<gp.axes.length;i++) {
-		GPad.dpad[i] = 0 
+		gp.dpad[i] = 0 
 		if(lgp) {
-			if(lgp.axes[i]==0 && gp.axes[i]!=0) {GPad.dpad[i] = (gp.axes[i]>0)?1:-1;gp.pf=true}
-			if(lgp.axes[i]!=0 && gp.axes[i]==0) {GPad.dpad[i] = (lgp.axes[i]>0)?1:-1;gp.pf=true}
+			if(lgp.axes[i]==0 && gp.axes[i]!=0) {gp.dpad[i] = (gp.axes[i]>0)?1:-1;gp.pf=true}
+			if(lgp.axes[i]!=0 && gp.axes[i]==0) {gp.dpad[i] = (lgp.axes[i]>0)?1:-1;gp.pf=true}
 		}
 		lgp.axes[i] = gp.axes[i]
 	}
-	GPad.gp = gp 
-	if(GPad.ev && (gp.bf || gp.pf)){
-//		console.log(dbtn)
-		GPad.ev(gp,GPad.dbtn,GPad.dpad) 
+	this.gp = gp 
+	if(this.ev && (gp.bf || gp.pf)){
+		this.ev(gp,gp.dbtn,gp.dpad) 
 	}
 //	console.log(gp)
 	return gp ;	
 }
-GPad.set = function(gp) {//for emulation
-	GPad.egp = gp ;	
+GPad.prototype.set = function(gp) {//for emulation
+	this.egp = gp ;	
 }
-GPad.clear = function(gp) {//for emulation
-	GPad.egp = gp
-	GPad.cf = true ;	
+GPad.prototype.clear = function(gp) {//for emulation
+	if(gp==undefined ) gp = {
+		buttons:[
+			{pressed:false},
+			{pressed:false}
+		],
+		axes:[0,0]
+	}
+	this.egp = gp
+	this.cf = true ;	
 }//WBind 
 // license MIT
 // 2017 wakufactory 
@@ -3648,7 +3659,12 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	const VS = d.vs ;
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
-	if(window.GPad) this.pox.gPad = GPad
+	if(window.GPad) {
+		this.pox.gPad = new GPad()
+		this.pox.gPad.ev = (pad,b,p)=> {
+			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
+		}
+	}
 	const POX = this.pox ;
 	POX.loadImage = this.loadImage 
 	POX.loadAjax = this.wwg.loadAjax
@@ -3927,12 +3943,7 @@ PoxPlayer.prototype.setEvent = function() {
 			ev.preventDefault()
 		})
 	})
-	// gamepad event
-	if(window.GPad) {
-		GPad.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
-		}
-	}
+
 }
 
 PoxPlayer.prototype.setScene = function(sc) {
@@ -3974,7 +3985,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
 		if(this.renderStart) this.renderStart() ;
-		if(window.GPad) GPad.init() ;	
+		if(pox.gPad) pox.gPad.init(0) ;	
 		if(pox.setting && pox.setting.pixRatio) { 
 			this.pixRatio = pox.setting.pixRatio ;
 		} else {
@@ -3995,6 +4006,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let rt = 0 ;
 		let ft = st ;
 		let fc = 0 ;
+		let gpad 
 		const loopf = () => {
 //			console.log("************loop")
 			if(this.vrDisplay && this.vrDisplay.isPresenting) {
@@ -4022,9 +4034,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 				ft = ct ; 
 			}
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
-			if(window.GPad &&(this.gPad  = GPad.get())) {	
+			if(pox.gPad &&(gpad = pox.gPad.get())) {	
 //				ret = callEvent("gpad",gp,GPad.lastGp) 
-				if(ccam.cam.gPad ) ccam.setPad( GPad)
+				if(ccam.cam.gPad ) ccam.setPad( gpad )
 			}
 			ccam.update()	// camera update
 			update(r,pox,ccam.cam,rt) ; // scene update 
@@ -4217,7 +4229,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		vrx:0,
 		vry:0,
 		vrz:0,
-		moveSp:0.05,
+		moveSpeed:0.05,
 		moveY:false,
 		cv:[0,0,0]
 	} ;
@@ -4400,7 +4412,7 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
-	let gp = gpad.gp
+	let gp = gpad
 	if(gp.bf || gp.pf ) {
 		let cx =0,cy =0,cz=1
 		if(this.cam.orientation ) {
@@ -4419,11 +4431,11 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 	}
 	if(this.cam.camMode=="walk") {
 		if(gp.buttons[1] && gp.buttons[1].pressed) {
-			this.cam.vcy = -gp.axes[1]*this.cam.moveSp
+			this.cam.vcy = -gp.axes[1]*this.cam.moveSpeed
 		} else {
 			this.cam.vcy = 0 
 			let m = gp.buttons[0].pressed
-			let mv = (m)?this.cam.moveSp*5:this.cam.moveSp
+			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
 				this.cam.vcx = this.cam.cv[0] * gp.axes[1]*mv
@@ -4435,7 +4447,7 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 			} else {
 				this.cam.vcx = 0 
 				this.cam.vcz = 0 
-				if(gpad.dbtn[0]==1 && m) 
+				if(gp.dbtn[0]==1 && m) 
 					this.cam.camRY += (gp.axes[0]>0)?15:-15  
 			}
 		}

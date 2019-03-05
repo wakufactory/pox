@@ -1,81 +1,92 @@
-GPad = {conn:false,gp:null,lastGp:null,egp:null,cf:false,ev:null} ;
+GPad = function() {
+	this.idx = 0 
+	this.conn = false 
+}
 
-GPad.init = function() {
+GPad.prototype.init = function(idx) {
+	if(idx==undefined) idx = 0 
+	this.idx = idx 
 	if(!navigator.getGamepads) return false ;
 	gamepads = navigator.getGamepads();
 //	console.log(gamepads)
-	if(gamepads[0]) {
+	if(gamepads[this.idx]) {
 		console.log("gpad connected "+0) ;
-		GPad.axes =gamepads[0].axes 
-		GPad.conn = true ;
-		GPad.egp = null ;
+		this.axes =gamepads[this.idx].axes 
+		this.conn = true ;
+		this.egp = null ;
 	}
-	addEventListener("gamepadconnected", function(e) {
+	addEventListener("gamepadconnected", (e)=> {
 		console.log("gpad reconnected "+e.gamepad.index) ;
 //		console.log(e.gamepad) ;
-		GPad.axes = e.gamepad.axes 
-		GPad.conn = true; 
+		this.axes = e.gamepad.axes 
+		this.conn = true; 
 	})	
-	addEventListener("gamepaddisconnected", function(e) {
+	addEventListener("gamepaddisconnected", (e)=> {
 		console.log("gpad disconnected "+e.gamepad.index) ;
-		GPad.conn = false ;
+		this.conn = false ;
 	})
-	GPad.lastGp = {
+	this.lastGp = {
 		buttons:[
 			{pressed:false},
 			{pressed:false}
 		],
 		axes:[0,0]
 	}
-	GPad.dbtn = []
-	GPad.dpad = []
 	return true ;
 }
-GPad.get = function(pad) {
+GPad.prototype.get = function(pad) {
 	var gp 
-	if(!GPad.conn) {
-		if(GPad.egp==null) return null ;	
-		gp = GPad.egp
+	if(!this.conn) {
+		if(this.egp==null) return null ;	
+		gp = this.egp
 	} else {
 		var gamepads = navigator.getGamepads();
-		var gp = gamepads[0];
+		var gp = gamepads[this.idx];
 		if(!gp || gp.buttons.length==0) return null ;
 	}
 	
-	var lgp = GPad.lastGp 
+	var lgp = this.lastGp 
 	gp.bf = false 
 	gp.pf = false 
+	gp.dbtn = [] 
+	gp.dpad = []
 
 //	if(lgp) console.log(lgp.buttons[1].pressed +" "+ gp.buttons[1].pressed)
 	for(var i=0;i<gp.buttons.length;i++) {
-		GPad.dbtn[i] = 0 
+		gp.dbtn[i] = 0 
 		if(lgp) {
-			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {GPad.dbtn[i] = 1; gp.bf=true} 
-			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {GPad.dbtn[i] = -1;gp.bf=true}
+			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {gp.dbtn[i] = 1; gp.bf=true} 
+			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {gp.dbtn[i] = -1;gp.bf=true}
 		}
 		lgp.buttons[i] = {pressed:gp.buttons[i].pressed}
 	}
 
 	for(var i=0;i<gp.axes.length;i++) {
-		GPad.dpad[i] = 0 
+		gp.dpad[i] = 0 
 		if(lgp) {
-			if(lgp.axes[i]==0 && gp.axes[i]!=0) {GPad.dpad[i] = (gp.axes[i]>0)?1:-1;gp.pf=true}
-			if(lgp.axes[i]!=0 && gp.axes[i]==0) {GPad.dpad[i] = (lgp.axes[i]>0)?1:-1;gp.pf=true}
+			if(lgp.axes[i]==0 && gp.axes[i]!=0) {gp.dpad[i] = (gp.axes[i]>0)?1:-1;gp.pf=true}
+			if(lgp.axes[i]!=0 && gp.axes[i]==0) {gp.dpad[i] = (lgp.axes[i]>0)?1:-1;gp.pf=true}
 		}
 		lgp.axes[i] = gp.axes[i]
 	}
-	GPad.gp = gp 
-	if(GPad.ev && (gp.bf || gp.pf)){
-//		console.log(dbtn)
-		GPad.ev(gp,GPad.dbtn,GPad.dpad) 
+	this.gp = gp 
+	if(this.ev && (gp.bf || gp.pf)){
+		this.ev(gp,gp.dbtn,gp.dpad) 
 	}
 //	console.log(gp)
 	return gp ;	
 }
-GPad.set = function(gp) {//for emulation
-	GPad.egp = gp ;	
+GPad.prototype.set = function(gp) {//for emulation
+	this.egp = gp ;	
 }
-GPad.clear = function(gp) {//for emulation
-	GPad.egp = gp
-	GPad.cf = true ;	
+GPad.prototype.clear = function(gp) {//for emulation
+	if(gp==undefined ) gp = {
+		buttons:[
+			{pressed:false},
+			{pressed:false}
+		],
+		axes:[0,0]
+	}
+	this.egp = gp
+	this.cf = true ;	
 }

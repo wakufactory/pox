@@ -191,7 +191,12 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	const VS = d.vs ;
 	const FS = d.fs ;
 	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
-	if(window.GPad) this.pox.gPad = GPad
+	if(window.GPad) {
+		this.pox.gPad = new GPad()
+		this.pox.gPad.ev = (pad,b,p)=> {
+			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
+		}
+	}
 	const POX = this.pox ;
 	POX.loadImage = this.loadImage 
 	POX.loadAjax = this.wwg.loadAjax
@@ -470,12 +475,7 @@ PoxPlayer.prototype.setEvent = function() {
 			ev.preventDefault()
 		})
 	})
-	// gamepad event
-	if(window.GPad) {
-		GPad.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
-		}
-	}
+
 }
 
 PoxPlayer.prototype.setScene = function(sc) {
@@ -517,7 +517,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
 		if(this.renderStart) this.renderStart() ;
-		if(window.GPad) GPad.init() ;	
+		if(pox.gPad) pox.gPad.init(0) ;	
 		if(pox.setting && pox.setting.pixRatio) { 
 			this.pixRatio = pox.setting.pixRatio ;
 		} else {
@@ -538,6 +538,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let rt = 0 ;
 		let ft = st ;
 		let fc = 0 ;
+		let gpad 
 		const loopf = () => {
 //			console.log("************loop")
 			if(this.vrDisplay && this.vrDisplay.isPresenting) {
@@ -565,9 +566,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 				ft = ct ; 
 			}
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
-			if(window.GPad &&(this.gPad  = GPad.get())) {	
+			if(pox.gPad &&(gpad = pox.gPad.get())) {	
 //				ret = callEvent("gpad",gp,GPad.lastGp) 
-				if(ccam.cam.gPad ) ccam.setPad( GPad)
+				if(ccam.cam.gPad ) ccam.setPad( gpad )
 			}
 			ccam.update()	// camera update
 			update(r,pox,ccam.cam,rt) ; // scene update 
@@ -760,7 +761,7 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		vrx:0,
 		vry:0,
 		vrz:0,
-		moveSp:0.05,
+		moveSpeed:0.05,
 		moveY:false,
 		cv:[0,0,0]
 	} ;
@@ -943,7 +944,7 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
-	let gp = gpad.gp
+	let gp = gpad
 	if(gp.bf || gp.pf ) {
 		let cx =0,cy =0,cz=1
 		if(this.cam.orientation ) {
@@ -962,11 +963,11 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 	}
 	if(this.cam.camMode=="walk") {
 		if(gp.buttons[1] && gp.buttons[1].pressed) {
-			this.cam.vcy = -gp.axes[1]*this.cam.moveSp
+			this.cam.vcy = -gp.axes[1]*this.cam.moveSpeed
 		} else {
 			this.cam.vcy = 0 
 			let m = gp.buttons[0].pressed
-			let mv = (m)?this.cam.moveSp*5:this.cam.moveSp
+			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
 				this.cam.vcx = this.cam.cv[0] * gp.axes[1]*mv
@@ -978,7 +979,7 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 			} else {
 				this.cam.vcx = 0 
 				this.cam.vcz = 0 
-				if(gpad.dbtn[0]==1 && m) 
+				if(gp.dbtn[0]==1 && m) 
 					this.cam.camRY += (gp.axes[0]>0)?15:-15  
 			}
 		}
