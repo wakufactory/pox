@@ -18,7 +18,7 @@ onload = function() {
 	poxp.load(q[0]).then(function(src) {
 		ss = src ;
 		poxp.set(src).then(function(pox){
-			poxp.param.isStereo = true ;
+//			poxp.param.isStereo = true ;
 			if(pox.setting.copyright) $("footer").innerHTML += "&nbsp;&nbsp;"+pox.setting.copyright;
 			poxp.setParam($('pui'))
 //			$('bc').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
@@ -67,7 +67,7 @@ onload = function() {
 				case "5":
 					pad.axes[0] = 1
 			}
-			if(ev.target.getAttribute("data-key")!=1 && window.GPad) GPad.set(pad) 
+			if(ev.target.getAttribute("data-key")!=1 && poxp.pox.gPad) poxp.pox.gPad.set(pad) 
 //			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
 			ev.preventDefault()
 		})
@@ -75,22 +75,19 @@ onload = function() {
 //			console.log("dn")
 			if(ev.target.getAttribute("data-key")==1) pad.buttons[1].pressed = true 
 			else pad.buttons[0].pressed = true 
-			if(window.GPad) GPad.set(pad) 
-//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			if(poxp.pox.gPad) poxp.pox.gPad.set(pad) 
 			ev.preventDefault()
 		})
 		o.addEventListener("mouseup", (ev)=>{
 //			console.log("up")
 			pad.buttons = [{pressed:false},{pressed:false}]
-			if(window.GPad) GPad.clear(pad) 
-//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			if(poxp.pox.gPad) poxp.pox.gPad.clear() 
 			ev.preventDefault()
 		})
 		o.addEventListener("mouseout", (ev)=>{
 //			console.log("out")
 			pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}
-			if(window.GPad) GPad.clear(pad) 
-//			if(POXE.POXP.pox.event) POXE.POXP.pox.event("gpad",pad) ;
+			if(poxp.pox.gPad) poxp.pox.gPad.clear() 
 			ev.preventDefault()
 		})
 	})
