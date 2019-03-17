@@ -1372,6 +1372,28 @@ WWModel.prototype.primitive  = function(type,param) {
 			
 		}
 		break; 
+	case "ring":
+		var divy = (param.divy)?param.divy:1
+		for(var i = 0 ; i <= div ; ++i) {
+			var v = i / (0.0+div);
+			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+			for(var yi=0;yi<divy;yi++) {
+				p.push([x,wy,z])
+				n.push([x*ninv,0,z*ninv])
+				t.push([(ninv>0)?1-v:v,1])
+				p.push([x,-wy,z])
+				n.push([x*ninv,0,z*ninv,0])
+				t.push([(ninv>0)?1-v:v,0])
+			}			
+		}
+		for(var j =0; j < div ;j++) {
+			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
+			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
+		}
+		if(param.cap) {
+			
+		}
+		break; 
 	case "cone":
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
@@ -2667,6 +2689,13 @@ GPad.prototype.init = function(idx) {
 		],
 		axes:[0,0]
 	}
+	this.egp = {
+		buttons:[
+			{pressed:false},
+			{pressed:false}
+		],
+		axes:[0,0]
+	}
 	return true ;
 }
 GPad.prototype.get = function(pad) {
@@ -3473,7 +3502,7 @@ static loadFont(name,path) {
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
 const PoxPlayer  = function(can,opt) {
-	this.version = "1.1.2" 
+	this.version = "1.2.0" 
 	if(!Promise) {
 		alert("This browser is not supported!!") ;
 		return null ;		
@@ -3501,7 +3530,8 @@ const PoxPlayer  = function(can,opt) {
 	Param.bindInput("autorot",(opt.ui && opt.ui.autorot)?opt.ui.autorot:"#autorot") ;
 	Param.bindInput("pause",(opt.ui && opt.ui.pause)?opt.ui.pause:"#pause") ;
 	Param.bindHtml("fps",(opt.ui && opt.ui.fps)?opt.ui.fps:"#fps") ;
-
+	Param.bindInput("camselect",(opt.ui && opt.ui.camselect)?opt.ui.camselect:"#camselect") ;
+	
 	this.pixRatio = 1 
 	this.pox = {} ;
 
@@ -3543,6 +3573,12 @@ const PoxPlayer  = function(can,opt) {
 			}, false);
 		})
 	}
+	//create default camera
+
+	this.cam0 = this.createCamera()
+	this.cam0.setCam({})
+	this.cam1 = this.createCamera() ;
+	this.ccam = this.cam1 
 	console.log(this)
 }
 PoxPlayer.prototype.enterVR = function() {
@@ -3585,6 +3621,113 @@ PoxPlayer.prototype.enterVR = function() {
 		base.webkitRequestFullscreen()
 	} else ret = false 
 	return ret 
+}
+PoxPlayer.prototype.setEvent = function() {
+	// mouse and key intaraction
+	let dragging = false ;
+	const Param = this.param ;
+	const can = this.can ;
+
+	//mouse intraction
+	const m = new Pointer(can,{
+		down:(d)=> {
+			if(!this.ccam || Param.pause) return true ;
+			let ret = true ;
+			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
+			if(ret) this.ccam.event("down",d)
+			dragging = true ;
+//			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
+			return false ;
+		},
+		move:(d)=> {
+			if(!this.ccam || Param.pause) return true;
+			let ret = true ;
+			ret = this.callEvent("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			if(ret) this.ccam.event("move",d) 
+			return false ;
+		},
+		up:(d)=> {
+			if(!this.ccam) return true ;
+			dragging = false ;
+			let ret = true ;
+			ret = this.callEvent("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
+			if(ret) this.ccam.event("up",d)
+			return false ;
+		},
+		out:(d)=> {
+			if(!this.ccam) return true ;
+			dragging = false ;
+			let ret = true ;
+			ret = this.callEvent("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
+			if(ret) this.ccam.event("out",d) 
+			return false ;
+		},
+		wheel:(d)=> {
+			if(!this.ccam || Param.pause) return true;
+			let ret = true ;
+			ret = this.callEvent("wheel",d) ;
+			if(ret) this.ccam.event("wheel",d) 
+			return false ;
+		},
+		gesture:(z,r)=> {
+			if(!this.ccam || Param.pause) return true;
+			let ret = true ;
+			ret = this.callEvent("gesture",{z:z,r:r}) ;
+			if(ret) this.ccam.event("gesture",{z:z,r:r}) 
+			return false ;
+		},
+		gyro:(ev)=> {
+			if(!this.ccam || Param.pause ) return true;
+			if(dragging) return true ;
+			let ret = true ;
+			ret = this.callEvent("gyro",ev) ;
+			if(ret) this.ccam.event("gyro",ev) 
+			return false ;
+		}
+	})
+	WBind.addev(this.keyElelment,"keydown", (ev)=>{
+//		console.log("key:"+ev.key);
+		if( Param.pause) return true ;
+		if(this.pox.event) {
+			if(!this.callEvent("keydown",ev)) return true ;
+		}
+		if(this.ccam) this.ccam.event("keydown",ev) 
+		return false ;
+	})
+	WBind.addev(this.keyElelment,"keyup", (ev)=>{
+//		console.log("key up:"+ev.key);
+		if(Param.pause) return true ;
+		if(this.pox.event) {
+			if(!this.callEvent("keyup",ev)) return true ;
+		}
+		if(this.ccam) this.ccam.event("keyup",ev)
+		return false ;
+	})		
+	document.querySelectorAll("#bc button").forEach((o)=>{
+		o.addEventListener("mousedown", (ev)=>{
+			this.callEvent("btndown",ev.target.id) ;
+			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
+		})
+		o.addEventListener("touchstart", (ev)=>{
+			this.callEvent("touchstart",ev.target.id) ;
+			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
+		})
+		o.addEventListener("mouseup", (ev)=>{
+			this.callEvent("btnup",ev.target.id) ;
+			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+//			this.keyElelment.focus() ;
+			ev.preventDefault()
+		})
+		o.addEventListener("touchend", (ev)=>{
+			ret = true; 
+			ret = this.callEvent("touchend",ev.target.id) ;
+			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
+			ev.preventDefault()
+		})
+	})
+
 }
 PoxPlayer.prototype.resize = function() {
 //	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
@@ -3838,113 +3981,7 @@ PoxPlayer.prototype.setParam = function(dom) {
 	}
 	this.pox.param = this.uparam ;
 }
-PoxPlayer.prototype.setEvent = function() {
-	// mouse and key intaraction
-	let dragging = false ;
-	const Param = this.param ;
-	const can = this.can ;
 
-	//mouse intraction
-	const m = new Pointer(can,{
-		down:(d)=> {
-			if(!this.ccam || Param.pause) return true ;
-			let ret = true ;
-			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
-			if(ret) this.ccam.event("down",d)
-			dragging = true ;
-//			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
-			return false ;
-		},
-		move:(d)=> {
-			if(!this.ccam || Param.pause) return true;
-			let ret = true ;
-			ret = this.callEvent("move",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,ox:d.ox*this.pixRatio,oy:d.oy*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
-			if(ret) this.ccam.event("move",d) 
-			return false ;
-		},
-		up:(d)=> {
-			if(!this.ccam) return true ;
-			dragging = false ;
-			let ret = true ;
-			ret = this.callEvent("up",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio,ex:d.ex*this.pixRatio,ey:d.ey*this.pixRatio}) ;
-			if(ret) this.ccam.event("up",d)
-			return false ;
-		},
-		out:(d)=> {
-			if(!this.ccam) return true ;
-			dragging = false ;
-			let ret = true ;
-			ret = this.callEvent("out",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,dx:d.dx*this.pixRatio,dy:d.dy*this.pixRatio}) ;
-			if(ret) this.ccam.event("out",d) 
-			return false ;
-		},
-		wheel:(d)=> {
-			if(!this.ccam || Param.pause) return true;
-			let ret = true ;
-			ret = this.callEvent("wheel",d) ;
-			if(ret) this.ccam.event("wheel",d) 
-			return false ;
-		},
-		gesture:(z,r)=> {
-			if(!this.ccam || Param.pause) return true;
-			let ret = true ;
-			ret = this.callEvent("gesture",{z:z,r:r}) ;
-			if(ret) this.ccam.event("gesture",{z:z,r:r}) 
-			return false ;
-		},
-		gyro:(ev)=> {
-			if(!this.ccam || Param.pause ) return true;
-			if(dragging) return true ;
-			let ret = true ;
-			ret = this.callEvent("gyro",ev) ;
-			if(ret) this.ccam.event("gyro",ev) 
-			return false ;
-		}
-	})
-	WBind.addev(this.keyElelment,"keydown", (ev)=>{
-//		console.log("key:"+ev.key);
-		if( Param.pause) return true ;
-		if(this.pox.event) {
-			if(!this.callEvent("keydown",ev)) return true ;
-		}
-		if(this.ccam) this.ccam.event("keydown",ev) 
-		return false ;
-	})
-	WBind.addev(this.keyElelment,"keyup", (ev)=>{
-//		console.log("key up:"+ev.key);
-		if(Param.pause) return true ;
-		if(this.pox.event) {
-			if(!this.callEvent("keyup",ev)) return true ;
-		}
-		if(this.ccam) this.ccam.event("keyup",ev)
-		return false ;
-	})		
-	document.querySelectorAll("#bc button").forEach((o)=>{
-		o.addEventListener("mousedown", (ev)=>{
-			this.callEvent("btndown",ev.target.id) ;
-			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
-			ev.preventDefault()
-		})
-		o.addEventListener("touchstart", (ev)=>{
-			this.callEvent("touchstart",ev.target.id) ;
-			this.ccam.event("keydown",{key:ev.target.getAttribute("data-key")})
-			ev.preventDefault()
-		})
-		o.addEventListener("mouseup", (ev)=>{
-			this.callEvent("btnup",ev.target.id) ;
-			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
-//			this.keyElelment.focus() ;
-			ev.preventDefault()
-		})
-		o.addEventListener("touchend", (ev)=>{
-			ret = true; 
-			ret = this.callEvent("touchend",ev.target.id) ;
-			if(ret) this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
-			ev.preventDefault()
-		})
-	})
-
-}
 
 PoxPlayer.prototype.setScene = function(sc) {
 //	console.log(sc) ;
@@ -3967,11 +4004,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const r = wwg.createRender() ;
 	this.render = r ;
 	pox.render = r ;
-	
-	//create default camera
-	const ccam = this.createCamera() ;
-	this.ccam = ccam ;
-	pox.cam = ccam.cam ;
+
+	let ccam = this.ccam
+	pox.cam = this.cam1.cam ;
 	this.isVR = false 
 	const self = this 
 	const bm = new CanvasMatrix4()
@@ -3992,8 +4027,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 			this.pixRatio = window.devicePixelRatio ;
 		}
 		this.resize();
-
-		if(pox.setting.cam) ccam.setCam(pox.setting.cam)
+		
+		if(pox.setting.cam) this.cam1.setCam(pox.setting.cam)
 //		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
 		
@@ -4033,13 +4068,16 @@ PoxPlayer.prototype.setScene = function(sc) {
 				fc = 0 ;
 				ft = ct ; 
 			}
+			this.ccam = (Param.camselect)?this.cam0:this.cam1
+			ccam = this.ccam 
+
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
 			if(pox.gPad &&(gpad = pox.gPad.get())) {	
 //				ret = callEvent("gpad",gp,GPad.lastGp) 
 				if(ccam.cam.gPad ) ccam.setPad( gpad )
 			}
 			ccam.update()	// camera update
-			update(r,pox,ccam.cam,rt) ; // scene update 
+			update(r,pox,this.cam1.cam,rt) ; // scene update 
 			Param.updateTimer() ;
 			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
 			this.ltime = ct 
@@ -4053,50 +4091,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}) // promise
 	
 	// calc model matrix
-
-	function modelMtx(render,cam,update) {
-		// calc each mvp matrix and invert matrix
-		const mod = [] ;		
-		for(let i=0;i<render.modelCount;i++) {
-			let d = render.getModelData(i) ;
-			bm.load(d.bm)
-			if(d.mm) bm.multRight(d.mm) ;
-			if(render.data.group) {
-				let g = render.data.group ;
-				for(let gi = 0 ;gi < g.length;gi++) {
-					let gg = g[gi] ;
-					if(!gg.bm) continue ;
-					for(let ggi=0;ggi<gg.model.length;ggi++) {
-						if(render.getModelIdx(gg.model[ggi])==i) bm.multRight(gg.bm) ;
-					}
-				}
-			}
-			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
-			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
-			if(!vMtx[i]) vMtx[i] = new CanvasMatrix4()			
-			const uni = {
-				vs_uni:{
-					modelMatrix:mMtx[i].load(bm).getAsWebGLFloatArray(),
-					mvpMatrix:vMtx[i].load(bm).
-						multRight( (d.camFix)?cam.camP:cam.camVP).getAsWebGLFloatArray(),
-					invMatrix:iMtx[i].load(bm).
-						invert().transpose().getAsWebGLFloatArray()}
-			}
-			uni.fs_uni = uni.vs_uni
-			mod[i]  = uni ;
-		}
-		update.model = mod ;
-		if(!update.fs_uni) update.fs_uni = {} ;
-		if(!update.vs_uni) update.vs_uni = {} ;
-		update.fs_uni.resolution = [can.width,can.height]
-		update.fs_uni.camMatirx = cam.camV.getAsWebGLFloatArray()
-		update.fs_uni.eyevec = [cam.camX,cam.camY,cam.camZ]
-		update.vs_uni.camMatirx = cam.camV.getAsWebGLFloatArray()
-		update.vs_uni.eyevec = [cam.camX,cam.camY,cam.camZ]		
-
-//	console.log(update) ;
-		return update ;		
-	}
 	function modelMtx2(render,camm) {
 
 		// calc each mvp matrix and invert matrix
@@ -4194,14 +4188,12 @@ PoxPlayer.prototype.setScene = function(sc) {
 		}
 	}
 }
-
-// camera object
+// poxplayercamera object
 PoxPlayer.prototype.createCamera = function(cam) {
 	return new this.Camera(this,cam) ;
 }
 PoxPlayer.prototype.Camera = function(poxp,cam) {
 	this.poxp = poxp ;
-	this.render = poxp.render ;
 	//camera initial
 	this.cam = {
 		camCX:0,
@@ -4216,33 +4208,29 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camRX:30,
 		camRY:-30,
 		camRZ:0,
-		camd:5,
-		camAngle:60,	//cam angle(deg) 
+		camd:20,
+		camAngle:90,	//cam angle(deg) 
 		camWidth:1.0,
 		camNear:0.01, 	//near
 		camFar:1000, 	//far
 		camGyro:true, // use gyro
+		gPad:true, //use gpad
 		sbase:0.06, 	//streobase 
-		vcx:0,
-		vcy:0,
-		vcz:0,
-		vrx:0,
-		vry:0,
-		vrz:0,
 		moveSpeed:0.05,
 		moveY:false,
-		cv:[0,0,0]
+		cv:[0,0,0]	//head direction
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
+	this.cama = false ; // on animation
 	this.rotX = 0 ;
 	this.rotY = 0 ;
 	this.gev = null ;
 	this.gx = 0 ; this.gy = 0 ; this.gz = 0 ;
-	this.vrx = 0 ;this.vry = 0 ;
+	this.vcx = 0 ;this.vcy = 0 ; this.vcz=0
+	this.vrx = 0 ;this.vry = 0 ; this.vrz=0
 	this.keydown = false ;
-	this.RAD = Math.PI/180 
 	this.vr = false ;
 	this.camVP = [new CanvasMatrix4(),new CanvasMatrix4()]
 	this.camP =  [new CanvasMatrix4(),new CanvasMatrix4()]
@@ -4256,7 +4244,6 @@ PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
 	}
 }
 PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
-	const RAD = Math.PI/180 ;
 	const mag = 300*this.poxp.pixRatio /this.poxp.can.width;
 	const scale = this.poxp.pox.setting.scale ;
 
@@ -4341,23 +4328,31 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 				
 					case "w":
 					case " ":
-						md = "u" ; break ;
+						md = "f" ; break ;
 					case "s":
-						md = "d" ;break ;
+						md = "b" ;break ;
 					case "a":
 						md = "l" ;break ;
 					case "d":
-						md = "r" ;break ;					
+						md = "r" ;break ;	
+					case "q":
+						md = "u" ;break ;
+					case "e":
+						md = "d" ;break ;
 				}
 			}
 			if(md!="") {
-				const dir = ((md=="d")?-1:1)*keymag*scale 
+				const dir = ((md=="b"||md=="d")?-1:1)*keymag*scale 
 				const cam = this.cam ;
-				let ry = cam.camRY ;
-				if(md=="l") ry = ry -90 ;
-				if(md=="r") ry = ry +90 ;
-				this.cam.vcx =  Math.sin(ry*this.RAD) *dir ;
-				this.cam.vcz = -Math.cos(ry*this.RAD)* dir ;	
+				if(md=="u"||md=="d") {
+					this.vcy = dir ;
+				} else {
+					let ry = cam.camRY ;
+					if(md=="l") ry = ry -90 ;
+					if(md=="r") ry = ry +90 ;
+					this.vcx =  Math.sin(ry*RAD) *dir ;
+					this.vcz = -Math.cos(ry*RAD)* dir ;						
+				}
 			}
 			break ;
 		case "keyup":
@@ -4387,9 +4382,12 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 				case "a":
 				case "s":
 				case " ":
-					this.cam.vcx = 0 ; this.cam.vcz = 0 ; break ;
+					this.vcx = 0 ; this.vcz = 0 ; break ;
+				case "q":
+				case "e":
+					this.vcy = 0 ;break ;
 				case "Dead": //mobile safari no keyup key
-					this.vrx = 0 ; this.vry = 0 ; this.cam.vcx = 0 ; this.cam.vcz = 0 ; 
+					this.vrx = 0 ; this.vry = 0 ; this.vcx = 0 ; this.vcz = 0 ; 
 					break ;
 			}			
 			break ;	
@@ -4405,10 +4403,23 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 		this.cam.camRY += this.vry ;
 	}
 	if(this.cam.camMode=="walk") {
-		this.cam.camCX += this.cam.vcx *ft ;
-		this.cam.camCY += this.cam.vcy *ft ;
-		this.cam.camCZ += this.cam.vcz *ft ;
-		this.cam.camRY += this.cam.vry *ft ;
+		this.cam.camCX += this.vcx *ft ;
+		this.cam.camCY += this.vcy *ft ;
+		this.cam.camCZ += this.vcz *ft ;
+		this.cam.camRY += this.vry *ft ;
+	}
+	if(this.cama) {
+		this.cam.camCX += this.acx *ft ;
+		this.cam.camCY += this.acy *ft ;
+		this.cam.camCZ += this.acz *ft ;	
+		this.ad += this.av 
+		if( this.ad > this.al ) {
+			this.cam.camCX = this.aex
+			this.cam.camCY = this.aey
+			this.cam.camCZ = this.aez
+			this.cama = false 
+		}
+		
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
@@ -4431,66 +4442,91 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 	}
 	if(this.cam.camMode=="walk") {
 		if(gp.buttons[1] && gp.buttons[1].pressed) {
-			this.cam.vcy = -gp.axes[1]*this.cam.moveSpeed
+			this.vcy = -gp.axes[1]*this.cam.moveSpeed
 		} else {
-			this.cam.vcy = 0 
+			this.vcy = 0 
 			let m = gp.buttons[0].pressed
 			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
 
 			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
-				this.cam.vcx = this.cam.cv[0] * gp.axes[1]*mv
-				if(this.cam.moveY) this.cam.vcy = this.cam.cv[1] * gp.axes[1]*mv
-				this.cam.vcz = this.cam.cv[2] * gp.axes[1]*mv
+				this.vcx = this.cam.cv[0] * gp.axes[1]*mv
+				if(this.cam.moveY) this.vcy = this.cam.cv[1] * gp.axes[1]*mv
+				this.vcz = this.cam.cv[2] * gp.axes[1]*mv
 			} else if(!m && Math.abs(gp.axes[0])>0) {
 //				this.cam.vcx = -Math.sin((this.cam.camRY-90)*RAD) *gp.axes[0]*mv
 //				this.cam.vcz = Math.cos((this.cam.camRY-90)*RAD) *gp.axes[0]*mv			
 			} else {
-				this.cam.vcx = 0 
-				this.cam.vcz = 0 
+				this.vcx = 0 
+				this.vcz = 0 
 				if(gp.dbtn[0]==1 && m) 
 					this.cam.camRY += (gp.axes[0]>0)?15:-15  
 			}
 		}
 	}
 }
+PoxPlayer.prototype.Camera.prototype.moveTo = function(x,y,z,opt) {
+	if(this.cama) return 
+	let cx = (x!==null)?x:this.cam.camCX
+	let cy = (y!==null)?y:this.cam.camCY
+	let cz = (z!==null)?z:this.cam.camCZ 
+	if(opt && opt.velocity) {
+		let vx = cx - this.cam.camCX 
+		let vy = cy - this.cam.camCY 
+		let vz = cz - this.cam.camCZ
+		let l = opt.velocity / Math.hypot(vx,vy,vz)
+		vx *= l , vy *= l, vz *= l
+		this.acx = vx 
+		this.acy = vy
+		this.acz = vz
+		this.aex = cx 
+		this.aey = cy 
+		this.aez = cz
+		this.al = opt.velocity/l
+		this.ad = 0 
+		this.av = opt.velocity 
+		this.cama = true 
+	} else {
+		this.cam.camCX = cx 
+		this.cam.camCY = cy 
+		this.cam.camCZ = cz 
+		this.cama = false 
+	}
+}
 PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	const cam = this.cam ;
-	const can = this.render.wwg.can ;
+	const can = this.poxp.render.wwg.can ;
 
 	const aspect = can.width/(can.height*((sf)?2:1)) ;
 	const cams = [];
 //console.log(cam);
 //console.log(cam.camRX+"/"+cam.camRY) ;
-	let cx,cy,cz,ex,ey,ez,upx,upy,upz,camX,camY,camZ,camd ;
+	let cx,cy,cz,ex,ey,ez,upx,upy,upz,camd ;
 	let vrFrame = null
-	camX = 0 ,camY = 0, camZ = 0 ;
+	upx = cam.camUPX ;
+	upy = cam.camUPY ;
+	upz = cam.camUPZ ;	
 	ex =[0,0], ey=[0,0],ez=[0,0] ;
 	if(!this.poxp.isVR) {
 		if(cam.camMode=="fix") {
 			cx = cam.camVX ;
 			cy = cam.camVY ;
 			cz = cam.camVZ ;
-			upx = cam.camUPX ;
-			upy = cam.camUPY ;
-			upz = cam.camUPZ ;		
 		}
 		else if(cam.camMode=="vr" || cam.camMode=="walk") {
 			// self camera mode 
-			cx = Math.sin(cam.camRY*this.RAD)*1*Math.cos(cam.camRX*this.RAD)
-			cy = -Math.sin(cam.camRX*this.RAD)*1 ; 
-			cz = -Math.cos(cam.camRY*this.RAD)*1*Math.cos(cam.camRX*this.RAD)
-			upx =0 ,upy = 1 ,upz = 0 ;		
+			cx = cam.camCX + Math.sin(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)
+			cy = cam.camCY + -Math.sin(cam.camRX*RAD)*1 ; 
+			cz = cam.camCZ + -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)	
 		} else  {
 		// bird camera mode 
 			camd=  cam.camd*scale ;
-			camX = -Math.sin(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
-			camY = Math.sin(cam.camRX*this.RAD)*camd ; 
-			camZ = Math.cos(cam.camRY*this.RAD)*camd*Math.cos(cam.camRX*this.RAD)
+			cam.camCX  = -Math.sin(cam.camRY*RAD)*camd*Math.cos(cam.camRX*RAD)
+			cam.camCY = Math.sin(cam.camRX*RAD)*camd ; 
+			cam.camCZ = Math.cos(cam.camRY*RAD)*camd*Math.cos(cam.camRX*RAD)
 			cx = 0 ,cy = 0, cz = 0 ;
 			if(camd<0) {
-				cx = camX*2 ;cy = camY*2 ;cz = camZ*2 ;
+				cx = cam.camCX*2 ;cy = cam.camCY*2 ;cz = cam.camCZ*2 ;
 			}
-			upx = 0.,upy = 1 ,upz = 0. ;
 		}
 
 		this.camVP[0].makeIdentity()
@@ -4501,15 +4537,15 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].makeIdentity()
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
-			ex[0] =  upy * (camZ-cz) - upz * (camY-cy);
-			ey[1] = -upx * (camZ-cz) + upz * (camX-cx);
-			ez[2] =  upx * (camY-cy) - upy * (camX-cx);
+			ex[0] =  upy * (cam.camCZ-cz) - upz * (cam.camCY-cy);
+			ey[1] = -upx * (cam.camCZ-cz) + upz * (cam.camCX-cx);
+			ez[2] =  upx * (cam.camCY-cy) - upy * (cam.camCX-cx);
 			const mag = Math.hypot(ex[0],ey[0],ez[0]);
 			ex[0] *= dx/mag ; ey[0] *=dx/mag ; ez[0] *= dx/mag ;
 			ex[1] = -ex[0] ; ey[1] = -ey[0] ; ez[1] = -ez[0] ;
 	//			console.log(dx+":"+xx+"/"+xy+"/"+xz)
-			this.camV[0].lookat(camX+ex[0]+cam.camCX, camY+ey[0]+cam.camCY, camZ+ez[0]+cam.camCZ, cx+ex[0]+cam.camCX, cy+ey[0]+cam.camCY, cz+ez[0]+cam.camCZ, upx,upy,upz) ;
-			this.camV[1].lookat(camX+ex[1]+cam.camCX, camY+ey[1]+cam.camCY, camZ+ez[1]+cam.camCZ, cx+ex[1]+cam.camCX, cy+ey[1]+cam.camCY, cz+ez[1]+cam.camCZ, upx,upy,upz) ;
+			this.camV[0].lookat(ex[0]+cam.camCX, ey[0]+cam.camCY, ez[0]+cam.camCZ, cx+ex[0], cy+ey[0], cz+ez[0], upx,upy,upz) ;
+			this.camV[1].lookat(ex[1]+cam.camCX, ey[1]+cam.camCY, ez[1]+cam.camCZ, cx+ex[1], cy+ey[1], cz+ez[1], upx,upy,upz) ;
 
 			if(cam.camAngle!=0) this.camP[0].perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
 			else this.camP[0].pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
@@ -4517,7 +4553,7 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			this.camVP[0].load(this.camV[0]).multRight(this.camP[0])
 			this.camVP[1].load(this.camV[1]).multRight(this.camP[1])
 		} else {
-			this.camV[0].lookat(camX+cam.camCX, camY+cam.camCY, camZ+cam.camCZ, cx+cam.camCX, cy+cam.camCY, cz+cam.camCZ, upx,upy,upz) ;
+			this.camV[0].lookat(cam.camCX, cam.camCY, cam.camCZ, cx, cy, cz, upx,upy,upz) ;
 			if(cam.camAngle!=0) this.camP[0].perspective(cam.camAngle,aspect, cam.camNear, cam.camFar)
 			else this.camP[0].pallarel(cam.camd,aspect, cam.camNear, cam.camFar) ;
 			this.camVP[0].load(this.camV[0]).multRight(this.camP[0])
@@ -4558,9 +4594,9 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].load(this.vrp[1])
 	}
 //	console.log(camVP)
-	return [{camX:camX+ex[0],camY:camY+ey[0],camZ:camZ+ez[0], 
+	return [{camX:cam.camCX+ex[0],camY:cam.camCY+ey[0],camZ:cam.camCZ+ez[0], 
 		camV:this.camV[0],camVP:this.camVP[0],camP:this.camP[0], vrFrame:vrFrame},
-	{camX:camX+ex[1],camY:camY+ey[1],camZ:camZ+ez[1],
+	{camX:cam.camCX+ex[1],camY:cam.camCY+ey[1],camZ:cam.camCZ+ez[1],
 		camV:this.camV[1],camVP:this.camVP[1],camP:this.camP[1],vrFrame:vrFrame}] ;
 }
 

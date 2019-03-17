@@ -32,6 +32,13 @@ GPad.prototype.init = function(idx) {
 		],
 		axes:[0,0]
 	}
+	this.egp = {
+		buttons:[
+			{pressed:false},
+			{pressed:false}
+		],
+		axes:[0,0]
+	}
 	return true ;
 }
 GPad.prototype.get = function(pad) {

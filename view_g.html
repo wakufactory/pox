@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
-<script src="js/poxp_all.js?20190106"></script>
+<script src="js/poxp_all.js?20190316" defer></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
@@ -23,6 +23,7 @@ onload = function() {
 			poxp.setParam($('pui'))
 //			$('bc').style.display = (pox.setting.cam && pox.setting.cam.camMode=="walk")?"block":"none" 
 			if(pox.setting.title) document.title = pox.setting.title + " - PoExE Player"
+			document.title = `PoExV:${pox.setting.name}` 
 		})
 	}).catch(function(err) {
 		$("loading").style.display = "none" ;
