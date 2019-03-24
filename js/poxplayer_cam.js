@@ -27,7 +27,10 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		gPad:true, //use gpad
 		sbase:0.06, 	//streobase 
 		moveSpeed:0.05,
+		rotAngle:30,
 		moveY:false,
+		padMoveUD:true,
+		padRot:true,
 		cv:[0,0,0]	//head direction
 	} ;
 	for(let i in cam) {
@@ -204,7 +207,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 		}
 }
 PoxPlayer.prototype.Camera.prototype.update = function(time) {
-	const ft = (this.poxp.ctime - this.poxp.ltime)/100*6  
+	const ft = (this.poxp.ctime - this.poxp.ltime)*6/100
 //console.log(ft)
 	if(this.cam.camMode!="fix") {
 		this.cam.camRX += this.vrx ;
@@ -213,23 +216,24 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 		this.cam.camRY += this.vry ;
 	}
 	if(this.cam.camMode=="walk") {
-		this.cam.camCX += this.vcx *ft ;
-		this.cam.camCY += this.vcy *ft ;
-		this.cam.camCZ += this.vcz *ft ;
+		if(!this.cama) {
+			this.cam.camCX += this.vcx *ft ;
+			this.cam.camCY += this.vcy *ft ;
+			this.cam.camCZ += this.vcz *ft ;
+		}
 		this.cam.camRY += this.vry *ft ;
 	}
 	if(this.cama) {
 		this.cam.camCX += this.acx *ft ;
 		this.cam.camCY += this.acy *ft ;
 		this.cam.camCZ += this.acz *ft ;	
-		this.ad += this.av 
+		this.ad += this.av * ft 
 		if( this.ad > this.al ) {
 			this.cam.camCX = this.aex
 			this.cam.camCY = this.aey
 			this.cam.camCZ = this.aez
 			this.cama = false 
 		}
-		
 	}
 }
 PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
@@ -251,7 +255,7 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 		this.cam.cv = cmat.multVec4(cx,cy,cz,0)
 	}
 	if(this.cam.camMode=="walk") {
-		if(gp.buttons[1] && gp.buttons[1].pressed) {
+		if(this.cam.padMoveUD && gp.buttons[1] && gp.buttons[1].pressed) {
 			this.vcy = -gp.axes[1]*this.cam.moveSpeed
 		} else {
 			this.vcy = 0 
@@ -268,8 +272,8 @@ PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
 			} else {
 				this.vcx = 0 
 				this.vcz = 0 
-				if(gp.dbtn[0]==1 && m) 
-					this.cam.camRY += (gp.axes[0]>0)?15:-15  
+				if(this.cam.padRot && gp.dbtn[0]==1 && m) 
+					this.cam.camRY += ((gp.axes[0]>0)?1:-1) * this.cam.rotAngle
 			}
 		}
 	}
@@ -301,6 +305,9 @@ PoxPlayer.prototype.Camera.prototype.moveTo = function(x,y,z,opt) {
 		this.cam.camCZ = cz 
 		this.cama = false 
 	}
+}
+PoxPlayer.prototype.Camera.prototype.moveCancel = function() {
+	this.cama = false 
 }
 PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	const cam = this.cam ;

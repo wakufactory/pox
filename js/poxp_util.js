@@ -11,6 +11,7 @@ constructor(render,opt) {
 	if(opt.lheight===undefined) opt.lheight = 10
 	if(opt.ry===undefined) opt.ry = 40 
 	if(opt.pos===undefined) opt.pos = [-0.3,0.3,-0.8]
+	if(opt.camFix===undefined) opt.camFix = true 
 	
 	this.pcanvas = document.createElement('canvas') ;
 	this.pcanvas.width = opt.width ;
@@ -29,7 +30,7 @@ constructor(render,opt) {
 	render.addModel(
 		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
-			camFix:true,
+			camFix:opt.camFix,
 			bm:new CanvasMatrix4().rotate(opt.ry,0,1,0).translate(opt.pos),
 			blend:"alpha",
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},
