@@ -366,6 +366,10 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //			throw new Error('reject!!2')
 			return(null);
 		}
+		if(POX.setting.needWGL2 && this.wwg.version!=2) {
+			this.emsg = "needs WebGL 2.0"
+			return(null)
+		}
 
 		if(uidom) this.setParam(uidom)
 		if(POX.init) {
