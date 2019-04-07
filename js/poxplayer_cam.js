@@ -55,6 +55,7 @@ PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
+	this.cama = false 
 }
 PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 	const mag = 300*this.poxp.pixRatio /this.poxp.can.width;

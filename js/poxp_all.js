@@ -1355,18 +1355,22 @@ WWModel.prototype.primitive  = function(type,param) {
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
 			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
-			for(var yi=0;yi<divy;yi++) {
-				p.push([x,wy,z])
+			let dy = wy*2/divy ;
+			for(var yi=0;yi<=divy;yi++) {
+				p.push([x,yi*dy-wy,z])
 				n.push([x*ninv,0,z*ninv])
-				t.push([(ninv>0)?1-v:v,1])
-				p.push([x,-wy,z])
-				n.push([x*ninv,0,z*ninv,0])
-				t.push([(ninv>0)?1-v:v,0])
+				t.push([(ninv>0)?1-v:v,yi/divy])
+//				p.push([x,(yi+1)*dy-wy,z])
+//				n.push([x*ninv,0,z*ninv,0])
+//				t.push([(ninv>0)?1-v:v,0])
 			}			
 		}
 		for(var j =0; j < div ;j++) {
-			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
-			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
+			for(let yi=0;yi<divy;yi++) {
+				let j2 = j*(divy+1)+yi 
+				if(ninv>0)s.push([j2,j2+(divy+1),j2+(divy+1)+1,j2+1]) ;
+				else s.push([j2,j2+1,j2+3,j2+2]) ;
+			}
 		}
 		if(param.cap) {
 			
@@ -3576,7 +3580,7 @@ const PoxPlayer  = function(can,opt) {
 	//create default camera
 
 	this.cam0 = this.createCamera()
-	this.cam0.setCam({})
+	this.cam0.setCam({camFar:10000})
 	this.cam1 = this.createCamera() ;
 	this.ccam = this.cam1 
 	console.log(this)
@@ -3918,6 +3922,7 @@ PoxPlayer.prototype.setError = function(err) {
 }
 PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
 	if(!this.pox.event) return true
+	if(typeof ev == "object") ev.rtime = this.rtime
 	let ret = true 
 	try {
 		ret = this.pox.event(kind,ev,opt)
@@ -4026,7 +4031,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		if(this.renderStart) this.renderStart() ;
 		if(pox.gPad) pox.gPad.init(0) ;	
 		if(pox.setting && pox.setting.pixRatio) { 
-			this.pixRatio = pox.setting.pixRatio ;
+			this.pixRatio = window.devicePixelRatio * pox.setting.pixRatio ;
 		} else {
 			this.pixRatio = window.devicePixelRatio ;
 		}
@@ -4085,6 +4090,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			Param.updateTimer() ;
 			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
 			this.ltime = ct 
+			this.rtime = rt 
 		}
 		loopf() ;		
 	}).catch((err)=>{
@@ -4249,6 +4255,7 @@ PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
+	this.cama = false 
 }
 PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 	const mag = 300*this.poxp.pixRatio /this.poxp.can.width;

@@ -79,7 +79,7 @@ const PoxPlayer  = function(can,opt) {
 	//create default camera
 
 	this.cam0 = this.createCamera()
-	this.cam0.setCam({})
+	this.cam0.setCam({camFar:10000})
 	this.cam1 = this.createCamera() ;
 	this.ccam = this.cam1 
 	console.log(this)
@@ -421,6 +421,7 @@ PoxPlayer.prototype.setError = function(err) {
 }
 PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
 	if(!this.pox.event) return true
+	if(typeof ev == "object") ev.rtime = this.rtime
 	let ret = true 
 	try {
 		ret = this.pox.event(kind,ev,opt)
@@ -529,7 +530,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		if(this.renderStart) this.renderStart() ;
 		if(pox.gPad) pox.gPad.init(0) ;	
 		if(pox.setting && pox.setting.pixRatio) { 
-			this.pixRatio = pox.setting.pixRatio ;
+			this.pixRatio = window.devicePixelRatio * pox.setting.pixRatio ;
 		} else {
 			this.pixRatio = window.devicePixelRatio ;
 		}
@@ -588,6 +589,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			Param.updateTimer() ;
 			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
 			this.ltime = ct 
+			this.rtime = rt 
 		}
 		loopf() ;		
 	}).catch((err)=>{
