@@ -356,8 +356,8 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
 			ex[0] =  upy * (cam.camCZ-cz) - upz * (cam.camCY-cy);
-			ey[1] = -upx * (cam.camCZ-cz) + upz * (cam.camCX-cx);
-			ez[2] =  upx * (cam.camCY-cy) - upy * (cam.camCX-cx);
+			ey[0] = -upx * (cam.camCZ-cz) + upz * (cam.camCX-cx);
+			ez[0] =  upx * (cam.camCY-cy) - upy * (cam.camCX-cx);
 			const mag = Math.hypot(ex[0],ey[0],ez[0]);
 			ex[0] *= dx/mag ; ey[0] *=dx/mag ; ez[0] *= dx/mag ;
 			ex[1] = -ex[0] ; ey[1] = -ey[0] ; ez[1] = -ez[0] ;
@@ -390,13 +390,6 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.vrv[0].load(vrFrame.leftViewMatrix)
 		this.vrp[1].load(vrFrame.rightProjectionMatrix)
 		this.vrp[0].load(vrFrame.leftProjectionMatrix)
-
-		ex[0] = this.vrv[0].buf[12] 
-		ey[0] = this.vrv[0].buf[13] 
-		ez[0] = this.vrv[0].buf[14]  
-		ex[1] = this.vrv[1].buf[12] 
-		ey[1] = this.vrv[1].buf[13] 
-		ez[1] = this.vrv[1].buf[14] 
  
 		this.camV[0].makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
@@ -410,6 +403,15 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].multRight( this.vrv[1] )
 		this.camVP[1].load(this.camV[1]).multRight(this.vrp[1]) 
 		this.camP[1].load(this.vrp[1])
+
+		let ivr = new Mat4().load(this.camV[1]).invert() ;
+		let ivl = new Mat4().load(this.camV[0]).invert() ;
+		ex[0] = ivl.buf[12] -cam.camCX
+		ey[0] = ivl.buf[13] -cam.camCY
+		ez[0] = ivl.buf[14] -cam.camCZ 
+		ex[1] = ivr.buf[12] -cam.camCX
+		ey[1] = ivr.buf[13] -cam.camCY
+		ez[1] = ivr.buf[14] -cam.camCZ
 	}
 //	console.log(camVP)
 	return [{camX:cam.camCX+ex[0],camY:cam.camCY+ey[0],camZ:cam.camCZ+ez[0], 
