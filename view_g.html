@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>PolygonExplorerPlayer</title>
-<script src="js/poxp_all.js?20190316" defer></script>
+<script src="js/poxp_all.js?20190512" defer></script>
 <script>
 function $(e){return document.getElementById(e)}
 onload = function() {
@@ -15,7 +15,7 @@ onload = function() {
 	var ss ;
 	poxp.load(q[0]).then(function(src) {
 		ss = src ;
-		poxp.set(src).then(function(pox){
+		poxp.set(src,{},$('pui')).then(function(pox){
 			if(pox===null) {
 				alert (poxp.emsg);		
 				$("loading").style.display = "none" ;
@@ -38,6 +38,7 @@ onload = function() {
 	poxp.setError( function(msg) {
 		console.log(msg) ;
 	})
+/*
 	window.addEventListener("deviceorientation", function(ev) {
 		var or = window.orientation ;
 		var d = (or==90||or==-90) ;
@@ -48,11 +49,15 @@ onload = function() {
 		$("pad").style.opacity = d?0.:0.4 ;
 		window.scrollTo(0,1000)
 	})
+*/
 	$("b_edit").addEventListener("click",function(ev) {
 		location.href="poxe_g.html?"+q ;
 	})
 	$("vrbtn").addEventListener("click", (ev)=>{
 		poxp.enterVR()
+	}) 	
+	$("screen1").addEventListener("mousedown", (ev)=>{
+		poxp.keyElelment.focus()
 	}) 
 	let pad = {buttons:[{pressed:false},{pressed:false}],axes:[0,0]}	
 	document.querySelectorAll("#pad button").forEach((o)=>{
