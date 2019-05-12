@@ -472,6 +472,32 @@ WWModel.prototype.primitive  = function(type,param) {
 		for(var i = 0 ; i <= div ; ++i) {
 			var v = i / (0.0+div);
 			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+			let dy = wy*2/divy ;
+			for(var yi=0;yi<=divy;yi++) {
+				p.push([x,yi*dy-wy,z])
+				n.push([x*ninv,0,z*ninv])
+				t.push([(ninv>0)?1-v:v,yi/divy])
+//				p.push([x,(yi+1)*dy-wy,z])
+//				n.push([x*ninv,0,z*ninv,0])
+//				t.push([(ninv>0)?1-v:v,0])
+			}			
+		}
+		for(var j =0; j < div ;j++) {
+			for(let yi=0;yi<divy;yi++) {
+				let j2 = j*(divy+1)+yi 
+				if(ninv<0)s.push([j2,j2+(divy+1),j2+(divy+1)+1,j2+1]) ;
+				else s.push([j2,j2+1,j2+3,j2+2]) ;
+			}
+		}
+		if(param.cap) {
+			
+		}
+		break; 
+	case "ring":
+		var divy = (param.divy)?param.divy:1
+		for(var i = 0 ; i <= div ; ++i) {
+			var v = i / (0.0+div);
+			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			for(var yi=0;yi<divy;yi++) {
 				p.push([x,wy,z])
 				n.push([x*ninv,0,z*ninv])
