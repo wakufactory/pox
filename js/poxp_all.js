@@ -461,6 +461,12 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 		}).catch((err)=>reject(err));
 	})
 }
+WWG.prototype.Render.prototype.removeTex = function(tex) {
+	if(typeof tex == "string") tex = this.getTexIndex(tex) 
+	this.data.texture[tex] = null
+	this.texobj[tex] = null 
+}
+
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
 	var gl = this.gl ;
 	console.log("create framebuffer "+os.width+"x"+os.height) ;
@@ -692,12 +698,15 @@ WWG.prototype.Render.prototype.getModelIdx = function(name) {
 WWG.prototype.Render.prototype.addModel = function(model) {
 	this.data.model.push(model) ;
 	this.obuf.push(this.setObj(model,true)) ;
-	this.modelCount = this.data.model.length ;
+	this.modelCount++
 	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
 }
 // remove model
 WWG.prototype.Render.prototype.removeModel = function(model) {
-	
+	let mi = this.getModelIndex(mode) 
+	this.data.model[mi] = null 
+	this.obuf[mi] = null 
+	this.modelCount--  
 }
 // update attribute buffer 
 WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
@@ -787,6 +796,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 	}
 	if(!cls) this.clear() ;
 	for(var b=0;b<this.obuf.length;b++) {
+		if(this.obuf[b]==null) continue ;
 		var cmodel = this.data.model[b] ;
 		if(cmodel.hide) continue ;
 		var geo = cmodel.geo ;
@@ -1368,7 +1378,7 @@ WWModel.prototype.primitive  = function(type,param) {
 		for(var j =0; j < div ;j++) {
 			for(let yi=0;yi<divy;yi++) {
 				let j2 = j*(divy+1)+yi 
-				if(ninv>0)s.push([j2,j2+(divy+1),j2+(divy+1)+1,j2+1]) ;
+				if(ninv<0)s.push([j2,j2+(divy+1),j2+(divy+1)+1,j2+1]) ;
 				else s.push([j2,j2+1,j2+3,j2+2]) ;
 			}
 		}
@@ -3640,7 +3650,7 @@ PoxPlayer.prototype.setEvent = function() {
 			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
 			if(ret) this.ccam.event("down",d)
 			dragging = true ;
-//			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
+			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 			return false ;
 		},
 		move:(d)=> {
@@ -3681,7 +3691,7 @@ PoxPlayer.prototype.setEvent = function() {
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause ) return true;
+			if(!this.ccam || Param.pause || this.vrDisplay ) return true;
 			if(dragging) return true ;
 			let ret = true ;
 			ret = this.callEvent("gyro",ev) ;
@@ -3721,7 +3731,7 @@ PoxPlayer.prototype.setEvent = function() {
 		o.addEventListener("mouseup", (ev)=>{
 			this.callEvent("btnup",ev.target.id) ;
 			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
-//			this.keyElelment.focus() ;
+			this.keyElelment.focus() ;
 			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
@@ -4024,7 +4034,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const mvMtx = []
 	const vpMtx = []
 	const iMtx = []
-	
+	const miMtx = []	
 	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
@@ -4121,6 +4131,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
 			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
+			if(!miMtx[i]) miMtx[i] = new CanvasMatrix4()
 			if(!mvMtx[i]) mvMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
 			if(!vpMtx[i]) vpMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
 
@@ -4130,7 +4141,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 					vpMatrix:vpMtx[i][0].load((d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
 					mvpMatrix:mvMtx[i][0].load(bm).multRight( (d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
 					invMatrix:iMtx[i].load(bm).
-						invert().transpose().getAsWebGLFloatArray()}
+						invert().transpose().getAsWebGLFloatArray(),
+					minvMatrix:miMtx[i].load(bm).
+						invert().getAsWebGLFloatArray()}
 			}
 			const uni1 = {
 				vs_uni:{
@@ -4138,7 +4151,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 					vpMatrix:vpMtx[i][1].load((d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
 					mvpMatrix:mvMtx[i][1].load(bm).multRight( (d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
 					invMatrix:iMtx[i].load(bm).
-						invert().transpose().getAsWebGLFloatArray()}
+						invert().transpose().getAsWebGLFloatArray(),
+					minvMatrix:miMtx[i].load(bm).
+						invert().getAsWebGLFloatArray()}
 			}
 			uni0.fs_uni = uni0.vs_uni
 			uni1.fs_uni = uni1.vs_uni
@@ -4556,8 +4571,8 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
 			ex[0] =  upy * (cam.camCZ-cz) - upz * (cam.camCY-cy);
-			ey[1] = -upx * (cam.camCZ-cz) + upz * (cam.camCX-cx);
-			ez[2] =  upx * (cam.camCY-cy) - upy * (cam.camCX-cx);
+			ey[0] = -upx * (cam.camCZ-cz) + upz * (cam.camCX-cx);
+			ez[0] =  upx * (cam.camCY-cy) - upy * (cam.camCX-cx);
 			const mag = Math.hypot(ex[0],ey[0],ez[0]);
 			ex[0] *= dx/mag ; ey[0] *=dx/mag ; ez[0] *= dx/mag ;
 			ex[1] = -ex[0] ; ey[1] = -ey[0] ; ez[1] = -ez[0] ;
@@ -4590,13 +4605,6 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.vrv[0].load(vrFrame.leftViewMatrix)
 		this.vrp[1].load(vrFrame.rightProjectionMatrix)
 		this.vrp[0].load(vrFrame.leftProjectionMatrix)
-
-		ex[0] = this.vrv[0].buf[12] 
-		ey[0] = this.vrv[0].buf[13] 
-		ez[0] = this.vrv[0].buf[14]  
-		ex[1] = this.vrv[1].buf[12] 
-		ey[1] = this.vrv[1].buf[13] 
-		ez[1] = this.vrv[1].buf[14] 
  
 		this.camV[0].makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
@@ -4610,6 +4618,15 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camV[1].multRight( this.vrv[1] )
 		this.camVP[1].load(this.camV[1]).multRight(this.vrp[1]) 
 		this.camP[1].load(this.vrp[1])
+
+		let ivr = new Mat4().load(this.camV[1]).invert() ;
+		let ivl = new Mat4().load(this.camV[0]).invert() ;
+		ex[0] = ivl.buf[12] -cam.camCX
+		ey[0] = ivl.buf[13] -cam.camCY
+		ez[0] = ivl.buf[14] -cam.camCZ 
+		ex[1] = ivr.buf[12] -cam.camCX
+		ey[1] = ivr.buf[13] -cam.camCY
+		ez[1] = ivr.buf[14] -cam.camCZ
 	}
 //	console.log(camVP)
 	return [{camX:cam.camCX+ex[0],camY:cam.camCY+ey[0],camZ:cam.camCZ+ez[0], 

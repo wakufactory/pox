@@ -461,6 +461,12 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 		}).catch((err)=>reject(err));
 	})
 }
+WWG.prototype.Render.prototype.removeTex = function(tex) {
+	if(typeof tex == "string") tex = this.getTexIndex(tex) 
+	this.data.texture[tex] = null
+	this.texobj[tex] = null 
+}
+
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
 	var gl = this.gl ;
 	console.log("create framebuffer "+os.width+"x"+os.height) ;
@@ -692,12 +698,15 @@ WWG.prototype.Render.prototype.getModelIdx = function(name) {
 WWG.prototype.Render.prototype.addModel = function(model) {
 	this.data.model.push(model) ;
 	this.obuf.push(this.setObj(model,true)) ;
-	this.modelCount = this.data.model.length ;
+	this.modelCount++
 	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
 }
 // remove model
 WWG.prototype.Render.prototype.removeModel = function(model) {
-	
+	let mi = this.getModelIndex(mode) 
+	this.data.model[mi] = null 
+	this.obuf[mi] = null 
+	this.modelCount--  
 }
 // update attribute buffer 
 WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
@@ -787,6 +796,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 	}
 	if(!cls) this.clear() ;
 	for(var b=0;b<this.obuf.length;b++) {
+		if(this.obuf[b]==null) continue ;
 		var cmodel = this.data.model[b] ;
 		if(cmodel.hide) continue ;
 		var geo = cmodel.geo ;
