@@ -34,11 +34,13 @@ function setpox(base,param) {
 		pause:base.querySelector(".pause"),
 		isStereo:base.querySelector(".isStereo"),
 		fps:base.querySelector(".fps")},
-		noWebGL2:navigator.userAgent.match(/iPhone|iPad/)}) ;
+		noWebGL2:false}) ;
 	base.poxp = poxp
 	var ss ;
 	if(param.mode>0) poxp.param.isStereo=true 
-
+	can.addEventListener("mousedown", (ev)=>{
+		poxp.keyElelment.focus()
+	}) 
 	poxp.load(param.src).then(function(src) {
 		ss = src ;
 		poxp.set(src,{param:param.param}).then(function(pox){
