@@ -139,7 +139,7 @@ PoxPlayer.prototype.setEvent = function() {
 			ret = this.callEvent("down",{x:d.x*this.pixRatio,y:d.y*this.pixRatio,sx:d.sx*this.pixRatio,sy:d.sy*this.pixRatio}) ;
 			if(ret) this.ccam.event("down",d)
 			dragging = true ;
-//			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
+			if(this.ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 			return false ;
 		},
 		move:(d)=> {
@@ -180,7 +180,7 @@ PoxPlayer.prototype.setEvent = function() {
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause ) return true;
+			if(!this.ccam || Param.pause || this.vrDisplay ) return true;
 			if(dragging) return true ;
 			let ret = true ;
 			ret = this.callEvent("gyro",ev) ;
@@ -220,7 +220,7 @@ PoxPlayer.prototype.setEvent = function() {
 		o.addEventListener("mouseup", (ev)=>{
 			this.callEvent("btnup",ev.target.id) ;
 			this.ccam.event("keyup",{key:ev.target.getAttribute("data-key")})
-//			this.keyElelment.focus() ;
+			this.keyElelment.focus() ;
 			ev.preventDefault()
 		})
 		o.addEventListener("touchend", (ev)=>{
@@ -523,7 +523,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const mvMtx = []
 	const vpMtx = []
 	const iMtx = []
-	
+	const miMtx = []	
 	return new Promise((resolve,reject) => {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
@@ -620,6 +620,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			if(!mMtx[i]) mMtx[i] = new CanvasMatrix4()
 			if(!iMtx[i]) iMtx[i] = new CanvasMatrix4()
+			if(!miMtx[i]) miMtx[i] = new CanvasMatrix4()
 			if(!mvMtx[i]) mvMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
 			if(!vpMtx[i]) vpMtx[i] = [new CanvasMatrix4(),new CanvasMatrix4()]			
 
@@ -629,7 +630,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 					vpMatrix:vpMtx[i][0].load((d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
 					mvpMatrix:mvMtx[i][0].load(bm).multRight( (d.camFix)?camm[0].camP:camm[0].camVP).getAsWebGLFloatArray(),
 					invMatrix:iMtx[i].load(bm).
-						invert().transpose().getAsWebGLFloatArray()}
+						invert().transpose().getAsWebGLFloatArray(),
+					minvMatrix:miMtx[i].load(bm).
+						invert().getAsWebGLFloatArray()}
 			}
 			const uni1 = {
 				vs_uni:{
@@ -637,7 +640,9 @@ PoxPlayer.prototype.setScene = function(sc) {
 					vpMatrix:vpMtx[i][1].load((d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
 					mvpMatrix:mvMtx[i][1].load(bm).multRight( (d.camFix)?camm[1].camP:camm[1].camVP).getAsWebGLFloatArray(),
 					invMatrix:iMtx[i].load(bm).
-						invert().transpose().getAsWebGLFloatArray()}
+						invert().transpose().getAsWebGLFloatArray(),
+					minvMatrix:miMtx[i].load(bm).
+						invert().getAsWebGLFloatArray()}
 			}
 			uni0.fs_uni = uni0.vs_uni
 			uni1.fs_uni = uni1.vs_uni
