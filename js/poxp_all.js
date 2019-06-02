@@ -2699,6 +2699,10 @@ GPad.prototype.init = function(idx) {
 	this.lastGp = {
 		buttons:[
 			{pressed:false},
+			{pressed:false},
+			{pressed:false},
+			{pressed:false},
+			{pressed:false},
 			{pressed:false}
 		],
 		axes:[0,0]
@@ -2719,6 +2723,7 @@ GPad.prototype.get = function(pad) {
 		gp = this.egp
 	} else {
 		var gamepads = navigator.getGamepads();
+//		console.log(gamepads)
 		var gp = gamepads[this.idx];
 		if(!gp || gp.buttons.length==0) return null ;
 	}
@@ -3614,7 +3619,8 @@ PoxPlayer.prototype.enterVR = function() {
 			}
 			this.can.width= this.can.width * this.pixRatio 
 			this.can.height= this.can.height * this.pixRatio 
-			console.log("vr canvas:"+this.can.width+" x "+this.can.height);
+			this.pox.log(this.vrDisplay.displayName)
+			this.pox.log("vr canvas:"+this.can.width+" x "+this.can.height);
 		}).catch((err)=> {
 			console.log(err)
 		})
