@@ -4,28 +4,28 @@
 "use strict" ;
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
-const PoxPlayer  = function(can,opt) {
-	this.version = "1.2.0" 
+class PoxPlayer {
+
+constructor(can,opt) {
+	this.version = "2.2.0" 
 	if(!Promise) {
-		alert("This browser is not supported!!") ;
-		return null ;		
+		throw "This browser is not supported!!"	
 	}
 	if(!opt) opt = {} 
 	this.can = (can instanceof HTMLElement)?can:document.querySelector(can)  ;
 
 	// wwg initialize
 	const wwg = new WWG() ;
+	const initopt = {preserveDrawingBuffer: opt.capture,antialias:true, xrCompatible: true }
 	const useWebGL2 = !opt.noWebGL2
-	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: opt.capture})) && !wwg.init(this.can,{preserveDrawingBuffer: opt.capture})) {
-		alert("wgl not supported") ;
-		return null ;
+	if(!(useWebGL2 && wwg.init2(this.can,initopt)) && !wwg.init(this.can,initopt)) {
+		throw "wgl not supported!"
 	}
 	if(opt.needWebGL2 && wwg.version!=2) {
-		alert("needs wgl2")
-		return null 
+		throw "needs wgl2"
 	}
 	this.wwg = wwg ;
-	if(window.WAS!=undefined) this.synth = new WAS.synth() 
+//	if(window.WAS!=undefined) this.synth = new WAS.synth() 
 	
 	const Param = WBind.create() ;
 	this.param = Param ;
@@ -36,8 +36,32 @@ const PoxPlayer  = function(can,opt) {
 	Param.bindInput("camselect",(opt.ui && opt.ui.camselect)?opt.ui.camselect:"#camselect") ;
 	
 	this.pixRatio = 1 
-	this.pox = {} ;
+	this.pox = {can:this.can,wwg:this.wwg,synth:this.synth,poxp:this}
+	this.eventListener = {}
 
+	if(window.GPad) {
+		this.pox.gPad = new GPad()
+		this.pox.gPad.name = "1"
+		this.pox.gPad2 = new GPad()
+		this.pox.gPad2.name = "2"
+		if(!this.pox.gPad.init(0,(pad,f)=>{
+			if(f) {
+				this.pox.log("set 1"+pad.gp.hand)
+			}
+		}))
+		if(!this.pox.gPad2.init(1,(pad,f)=>{
+			if(f) {
+				this.pox.log("set 2"+pad.gp.hand)
+			}
+		}))
+//		console.log(this.pox.gPad)
+		this.pox.gPad.ev = (pad)=> {
+			ret = this.callEvent("gpad",pad) ;
+		}
+		this.pox.gPad2.ev = (pad,b,p)=> {
+			ret = this.callEvent("gpad",pad) ;
+		}
+	}
 	// canvas initialize
 	this.resize() ;
 	window.addEventListener("resize",()=>{this.resize()}) ;
@@ -47,72 +71,62 @@ const PoxPlayer  = function(can,opt) {
 	const e = document.createElement("input") ;
 	e.setAttribute("type","checkbox") ;
 	e.style.position = "absolute" ; e.style.zIndex = -100 ;
-	e.style.top = 0
-	e.style.width = 10 ; e.style.height =10 ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
+	e.style.top = 0 ;e.style.left = "-20px"
+	e.style.width = "10px" ; e.style.height ="10px" ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
 	this.can.parentNode.appendChild(e) ;
 	this.keyElelment = e ;
 	this.keyElelment.focus() ;
 
 	this.setEvent() ;
 	// VR init 
-	if(navigator.getVRDisplays) {
-		navigator.getVRDisplays().then((displays)=> {
-			this.vrDisplay = displays[displays.length - 1]
-			console.log(this.vrDisplay)
-			window.addEventListener('vrdisplaypresentchange', ()=>{
-				console.log("vr presenting= "+this.vrDisplay.isPresenting)
-				if(this.vrDisplay.isPresenting) {
-					this.callEvent("vrchange",1)
-				} else {
-					this.resize() ;
-					this.callEvent("vrchange",0)
-				}
-			}, false);
-			window.addEventListener('vrdisplayactivate', ()=>{
-				console.log("vr active")
-			}, false);
-			window.addEventListener('vrdisplaydeactivate', ()=>{
-				console.log("vr deactive")
-			}, false);
-		})
-	}
+	POXPDevice.checkVR(this).then(f=>{
+		if(f) console.log((POXPDevice.vrDisplay)?"WebVR":"WebXR"+" supported")
+		this.vrReady = f 
+	})
 	//create default camera
-
 	this.cam0 = this.createCamera()
 	this.cam0.setCam({camFar:10000})
 	this.cam1 = this.createCamera() ;
 	this.ccam = this.cam1 
-	console.log(this)
 }
-PoxPlayer.prototype.enterVR = function() {
+addEvent(ev,cb) {
+	let el = null
+	switch(ev) {
+		case "frame":
+			el = {cb:cb,active:true}
+			this.eventListener.frame.push(el)
+			break 
+		case "gpad":
+			el = {cb:cb,active:true}
+			this.eventListener.gpad.push(el)
+			break 
+		case "vrchange":
+			el = {cb:cb,active:true}
+			this.eventListener.vrchange.push(el)
+			break 
+	}
+	return el
+}
+removeEvent (ev) {
+	this.eventListener.frame = this.eventListener.frame.filter((e)=>(e!==ev))
+	this.eventListener.gpad = this.eventListener.gpad.filter((e)=>(e!==ev))
+	this.eventListener.vrchange = this.eventListener.vrchange.filter((e)=>(e!==ev))
+}
+clearEvent() {
+	this.eventListener.frame = []
+	this.eventListener.gpad = []
+	this.eventListener.vrchange = []
+}
+enterVR() {
 	let ret = true
-	if(this.vrDisplay) {
+	if(POXPDevice.VRReady) {
 		console.log("enter VR")
-		const p = { source: this.can,attributes:{} }
-		if(this.pox.setting.highRefreshRate!==undefined) p.attributes.highRefreshRate = this.pox.setting.highRefreshRate
-		if(this.pox.setting.foveationLevel!==undefined) p.attributes.foveationLevel = this.pox.setting.foveationLevel
-		this.vrDisplay.requestPresent([p]).then( () =>{
-			console.log("present ok")
-			const leftEye = this.vrDisplay.getEyeParameters("left");
-			const rightEye = this.vrDisplay.getEyeParameters("right");
-			this.can.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
-			this.can.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
-			if(this.vrDisplay.displayName=="Oculus Go") {
-				this.can.width = 2560
-				this.can.height = 1280
-			}
-			this.can.width= this.can.width * this.pixRatio 
-			this.can.height= this.can.height * this.pixRatio 
-			console.log("vr canvas:"+this.can.width+" x "+this.can.height);
-		}).catch((err)=> {
-			console.log(err)
-		})
+		POXPDevice.presentVR(this)
 	} else if(document.body.webkitRequestFullscreen) {
 		console.log("fullscreen")
 		const base = this.can.parentNode
 		this.ssize = {width:base.offsetWidth,height:base.offsetHeight}
 		document.addEventListener("webkitfullscreenchange",(ev)=>{
-			console.log("fs "+document.webkitFullscreenElement)
 			if( document.webkitFullscreenElement) {
 				base.style.width = window.innerWidth + "px"
 				base.style.height = window.innerHeight + "px"				
@@ -125,7 +139,12 @@ PoxPlayer.prototype.enterVR = function() {
 	} else ret = false 
 	return ret 
 }
-PoxPlayer.prototype.setEvent = function() {
+exitVR() {
+	if(POXPDevice.VRReady) {
+		POXPDevice.closeVR(this)
+	}
+}
+setEvent() {
 	// mouse and key intaraction
 	let dragging = false ;
 	const Param = this.param ;
@@ -180,7 +199,7 @@ PoxPlayer.prototype.setEvent = function() {
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause || this.vrDisplay ) return true;
+			if(!this.ccam || Param.pause || POXPDevice.VRReady ) return true;
 			if(dragging) return true ;
 			let ret = true ;
 			ret = this.callEvent("gyro",ev) ;
@@ -232,15 +251,15 @@ PoxPlayer.prototype.setEvent = function() {
 	})
 
 }
-PoxPlayer.prototype.resize = function() {
+resize() {
 //	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
 	if(this.can.offsetWidth < 300 || 
-		(this.vrDisplay && this.vrDisplay.isPresenting)) return 
-	this.can.width= this.can.offsetWidth*this.pixRatio  ;
-	this.can.height = this.can.offsetHeight*this.pixRatio  ;
+		(POXPDevice.isPresenting)) return 
+	this.can.width= this.can.offsetWidth*this.pixRatio*window.devicePixelRatio  ;
+	this.can.height = this.can.offsetHeight*this.pixRatio*window.devicePixelRatio  ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		
 }
-PoxPlayer.prototype.load = async function(d) {
+async load(d) {
 	return new Promise((resolve,reject) => {
 		if(typeof d == "string") {
 			const req = new XMLHttpRequest();
@@ -262,7 +281,7 @@ PoxPlayer.prototype.load = async function(d) {
 	})
 }
 
-PoxPlayer.prototype.loadImage = function(path) {
+loadImage(path) {
 	if(path.match(/^https?:/)) {
 		return this.wwg.loadImageAjax(path)
 	}else {
@@ -278,42 +297,19 @@ PoxPlayer.prototype.loadImage = function(path) {
 		})
 	}
 }
-//for compati
-	function V3add() {
-		let x=0,y=0,z=0 ;
-		for(let i=0;i<arguments.length;i++) {
-			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
-		}
-		return [x,y,z] ;
-	}
-	function V3len(v) {
-		return Math.hypot(v[0],v[1],v[2]) ;
-	}
-	function V3norm(v,s) {
-		const l = V3len(v) ;
-		if(s===undefined) s = 1 ;
-		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
-	}
-	function V3mult(v,s) {
-		return [v[0]*s,v[1]*s,v[2]*s] ;
-	}
-	function V3dot(v1,v2) {
-		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
-	}
 	
-PoxPlayer.prototype.set = async function(d,param={},uidom) { 
+async set(d,param={},uidom) { 
 	const VS = d.vs ;
 	const FS = d.fs ;
-	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
-	if(window.GPad) {
-		this.pox.gPad = new GPad()
-		this.pox.gPad.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
-		}
-	}
-	const POX = this.pox ;
+	this.pox.src = d 
+	this.pox.param = param 
+	const POX = this.pox
+
 	POX.loadImage = this.loadImage 
 	POX.loadAjax = this.wwg.loadAjax
+	POX.addEvent = (e,f) => this.addEvent(e,f)
+	POX.exitVR = this.exitVR 
+	
 	POX.V3add = function() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
@@ -335,6 +331,9 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	POX.V3dot = function(v1,v2) {
 		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
 	}
+	POX.Vdistance = function(v1,v2) {
+			return Math.hypot(...v1.map((v,i)=>v-v2[i]))
+	}
 	POX.setScene = async (scene)=> {
 		return new Promise((resolve,reject) => {
 			this.setScene(scene).then( () => {
@@ -347,12 +346,16 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
 	}
+	POX.addModel = (model)=>{ if(this.render) return this.render.addModel(model) }
+	POX.removeModel = (model)=>{ if(this.render) return this.render.removeModel(model) }
+	POX.getModelData = (model)=>{ if(this.render) return this.render.getModelData(model) }
 //	this.parseJS(d.m).then((m)=> {
-	const m = await this.parseJS(d.m) ;
+	if(typeof d.m  == "string") {
+		const m = await this.parseJS(d.m) ;
 		try {
 			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
-//			console.log(err)
+			console.log(err)
 			this.emsg = ("parse error "+err.stack);
 //			throw new Error('reject!!')
 			return(null);
@@ -366,25 +369,35 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //			throw new Error('reject!!2')
 			return(null);
 		}
-		if(POX.setting.needWGL2 && this.wwg.version!=2) {
-			this.emsg = "needs WebGL 2.0"
-			return(null)
+	} else if(d.m.constructor === Function) {
+		try {
+			d.m(POX)
+		}catch(err) {
+//			console.log(err.stack)
+			this.emsg = ("eval error "+err.stack);
+//			throw new Error('reject!!2')
+			return(null);
 		}
+	}
+	if(POX.setting.needWGL2 && this.wwg.version!=2) {
+		this.emsg = "needs WebGL 2.0"
+		return(null)
+	}
 
-		if(uidom) this.setParam(uidom)
-		if(POX.init) {
-			try {
-				await POX.init()
-			}catch(err) {
+	if(uidom) this.setParam(uidom)
+	if(POX.init) {
+		try {
+			await POX.init()
+		}catch(err) {
 //				console.log(err)
-				this.emsg = ("init error "+err.stack);
+			this.emsg = ("init error "+err.stack);
 //				throw new Error('reject!!2')
-				return null
-			}
+			return null
 		}
-		return(POX) ;
+	}
+	return(POX) ;
 }
-PoxPlayer.prototype.parseJS = function(src) {
+parseJS(src) {
 
 	return new Promise((resolve,reject) => {
 		const s = src.split("\n") ;
@@ -406,31 +419,52 @@ PoxPlayer.prototype.parseJS = function(src) {
 		})
 	})
 }
-PoxPlayer.prototype.setPacked = function(param={}) { 
-	
-}
-PoxPlayer.prototype.stop = function() {
+stop() {
 	window.cancelAnimationFrame(this.loop) ; 
 	if(this.pox.unload) this.pox.unload() ;
 }
-PoxPlayer.prototype.cls = function() {
+cls() {
 	if(this.render) this.render.clear() ;
 }
-PoxPlayer.prototype.setError = function(err) {
+setError(err) {
 	this.errCb = err ;
 }
-PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
-	if(!this.pox.event) return true
+callEvent(kind,ev,opt) {
 	if(typeof ev == "object") ev.rtime = this.rtime
 	let ret = true 
-	try {
-		ret = this.pox.event(kind,ev,opt)
-	} catch(err) {
-		this.errCb(err.stack)
+	if(this.pox.event) {
+		try {
+			ret = this.pox.event(kind,ev,opt)
+		} catch(err) {
+			this.errCb(err.stack)
+		}
+	}
+	if(kind=="vrchange") {
+		this.ccam.vrchange(ev)
+		for(let i=0;i<this.eventListener.vrchange.length;i++) {	//attached event
+			const f = this.eventListener.vrchange[i]
+			if(f.active) {
+				f.cb({vrmode:ev})
+			}
+		}
+	}
+	if(kind=="gpad") {
+		if(ev.dbtn[5]==-1) POXPDevice.closeVR()
+		for(let i=0;i<this.eventListener.gpad.length;i++) {	//attached event
+			const f = this.eventListener.gpad[i]
+			if(f.active) {
+				let p = {gpad:ev}
+				if(ev.hand=="left") p.leftPad = ev
+				if(ev.hand=="right") p.rightPad = ev
+				if(this.pox.setting.primaryPad == ev.hand) p.primaryPad = ev
+				else p.secondaryPad = ev 
+				f.cb(p)
+			}
+		}		
 	}
 	return ret 
 }
-PoxPlayer.prototype.setParam = function(dom) {
+setParam(dom) {
 	const param = this.pox.setting.param ;
 	if(param===undefined) return ;
 	this.uparam = WBind.create()
@@ -491,7 +525,7 @@ PoxPlayer.prototype.setParam = function(dom) {
 }
 
 
-PoxPlayer.prototype.setScene = function(sc) {
+setScene(sc) {
 //	console.log(sc) ;
 
 	const wwg = this.wwg ;
@@ -502,8 +536,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const Param = this.param ;
 	const sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
+	if(!sset.primaryPad) sset.primaryPad = "right";
 	
-
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
@@ -514,7 +548,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.render = r ;
 
 	let ccam = this.ccam
-	pox.cam = this.cam1.cam ;
+	
 	this.isVR = false 
 	const self = this 
 	const bm = new CanvasMatrix4()
@@ -528,17 +562,18 @@ PoxPlayer.prototype.setScene = function(sc) {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
 		if(this.renderStart) this.renderStart() ;
-		if(pox.gPad) pox.gPad.init(0) ;	
+
 		if(pox.setting && pox.setting.pixRatio) { 
-			this.pixRatio = window.devicePixelRatio * pox.setting.pixRatio ;
+			this.pixRatio = pox.setting.pixRatio ;
 		} else {
-			this.pixRatio = window.devicePixelRatio ;
+			this.pixRatio = 1 ;
 		}
 		this.resize();
 		
 		if(pox.setting.cam) this.cam1.setCam(pox.setting.cam)
 //		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
+		this.clearEvent()
 		
 		resolve()
 		//draw loop
@@ -550,16 +585,10 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let ft = st ;
 		let fc = 0 ;
 		let gpad 
-		const loopf = () => {
+		const loopf = (timestamp,frame) => {
 //			console.log("************loop")
-			if(this.vrDisplay && this.vrDisplay.isPresenting) {
-				this.loop = this.vrDisplay.requestAnimationFrame(loopf)
-				this.isVR = true 
+			POXPDevice.animationFrame(this,loopf,frame)
 
-			} else {
-				this.loop = window.requestAnimationFrame(loopf) ;
-				this.isVR = false ;
-			}
 			const ct = new Date().getTime() ;
 			this.ctime = ct 
 			if(Param.pause) {
@@ -578,16 +607,46 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			this.ccam = (Param.camselect)?this.cam0:this.cam1
 			ccam = this.ccam 
+			pox.cam = ccam.cam ;
 
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
-			if(pox.gPad &&(gpad = pox.gPad.get())) {	
-//				ret = callEvent("gpad",gp,GPad.lastGp) 
-				if(ccam.cam.gPad ) ccam.setPad( gpad )
+			let rp=null,lp=null,pp=null,sp=null
+			if(pox.gPad) {
+				let p1 = pox.gPad.get()
+				let p2 = pox.gPad2.get() 
+				if(this.isVR) {
+					if(!p1.emu && p1.hand == "right") rp = p1 ;
+					if(!p1.emu && p1.hand == "left") lp = p1 ;
+					if(!p2.emu && p2.hand == "right") rp = p2 ;
+					if(!p2.emu && p2.hand == "left") lp = p2 
+				} else {
+					if(p1.hand == "right" ) rp = p1
+					if(p2.hand == "right" ) rp = p2				
+					if(p1.hand == "left" ) lp = p1
+					if(p2.hand == "left" ) lp = p2
+				}
+				if(sset.primaryPad=="left") pp = lp,sp = rp
+				else pp=rp,sp=lp
+				if(!pp || !pp.conn) pp = sp, sp = null 
+//				console.log(pp)
+//				console.log(sp)
+				if(ccam.cam.gPad) ccam.setPad(pp,sp)
 			}
 			ccam.update()	// camera update
-			update(r,pox,this.cam1.cam,rt) ; // scene update 
+			let camm = ccam.getMtx(sset.scale,(Param.isStereo || self.isVR)?1:0) ;
+			
+			for(let i=0;i<this.eventListener.frame.length;i++) {	//attached event
+				const f = this.eventListener.frame[i]
+				if(f.active) {
+					f.cb({render:r,pox:pox,ccam:ccam,cam:ccam.cam,rtime:rt,
+						rightPad:rp,leftPad:lp,primaryPad:pp,secondaryPad:sp})
+				}
+			}
+			let upd = {}
+			if(pox.update)  upd = pox.update(r,ccam.cam,rt,-1)
 			Param.updateTimer() ;
-			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
+			update(r,pox,camm,rt,upd) ; // scene update 
+			POXPDevice.submitFrame(this)
 			this.ltime = ct 
 			this.rtime = rt 
 		}
@@ -599,15 +658,31 @@ PoxPlayer.prototype.setScene = function(sc) {
 	})
 	}) // promise
 	
+	function getParentMtx(render,parent) {
+		let p = render.getModelData(parent) 
+		if(!p) return new Mat4() 
+		let mm = new Mat4(p.bm)
+		if(!mm) mm = new Mat4() 
+		if(p.mm) mm.multRight(p.mm)
+		if(p.parent!==undefined) {
+			mm.multRight( getParentMtx(render,p.parent)) 
+		} 
+		return mm 
+	}
 	// calc model matrix
 	function modelMtx2(render,camm) {
 
 		// calc each mvp matrix and invert matrix
-		const mod = [[],[]] ;		
-		for(let i=0;i<render.modelCount;i++) {
-			let d = render.getModelData(i) ;
+		const mod = [[],[]] ;	
+		const models = render.data.model 	
+		for(let i=0;i<models.length;i++) {
+			let d = models[i] ;
+			if(!d) continue 
 			bm.load(d.bm)
 			if(d.mm) bm.multRight(d.mm) ;
+			if(d.parent!==undefined) {
+				bm.multRight( getParentMtx(render,d.parent ))
+			}
 			if(render.data.group) {
 				let g = render.data.group ;
 				for(let gi = 0 ;gi < g.length;gi++) {
@@ -656,6 +731,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let up = [{model:mod[0],fs_uni:{},vs_uni:{}},
 			{model:mod[1],fs_uni:{},vs_uni:{}}]
 
+		up[0].fs_uni.stereo = 1 ;
 		up[0].fs_uni.resolution = [can.width,can.height]
 		up[0].fs_uni.camMatirx = camm[0].camV.getAsWebGLFloatArray()
 		up[0].fs_uni.eyevec = [camm[0].camX,camm[0].camY,camm[0].camZ]
@@ -663,6 +739,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		up[0].vs_uni.camMatirx = up[0].fs_uni.camMatirx
 		up[0].vs_uni.eyevec = up[0].fs_uni.eyevec 
 	
+		up[1].fs_uni.stereo = 2  ;
 		up[1].fs_uni.resolution = up[0].fs_uni.resolution
 		up[1].fs_uni.camMatirx = camm[1].camV.getAsWebGLFloatArray()
 		up[1].fs_uni.eyevec = [camm[1].camX,camm[1].camY,camm[1].camZ]
@@ -673,24 +750,39 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}
 	// update scene
 
-	function update(render,pox,cam,time) {
+	function update(render,pox,camm,time,update) {
 		// draw call 
-		let camm,update = {} ;
+
+		render.data.model.sort((a,b)=>{
+			if(a===null) return -1
+			if(b===null) return 1
+			let al = a.layer, bl = b.layer 
+			if(al===undefined) al = 0 
+			if(bl===undefined) bl = 0 
+			return al- bl  
+		}) 
+
 		if(Param.isStereo || self.isVR) {
-			if(!Param.pause) update = pox.update(render,cam,time,-1)
-			camm = ccam.getMtx(sset.scale,1) ;
+			let vp = POXPDevice.getViewport(can)
+			if(POXPDevice.WebXR && POXPDevice.isPresenting) {
+//				console.log("fbs")
+				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER, 
+					POXPDevice.webGLLayer.framebuffer)
+			}
 			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
 			update.fs_uni.time = time/1000 ;
 			update.vs_uni.time = time/1000 ;			
-			render.gl.viewport(0,0,can.width/2,can.height) ;			
+			render.gl.viewport(vp.leftViewport.x,vp.leftViewport.y, vp.leftViewport.width,vp.leftViewport.height) ;
 			render.draw([update,mtx2[0]],false) ;
-			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
+			render.gl.viewport(vp.rightViewport.x,vp.rightViewport.y, vp.rightViewport.width,vp.rightViewport.height) ;
 			render.draw([update,mtx2[1]],true) ;
+			if(POXPDevice.WebXR && POXPDevice.isPresenting) {
+//				console.log("fbe")
+				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER,null)
+			}
 		} else {
-			if(!Param.pause) update = pox.update(render,cam,time,0)
-			camm = ccam.getMtx(sset.scale,0) ;
 			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
@@ -702,3 +794,6 @@ PoxPlayer.prototype.setScene = function(sc) {
 		}
 	}
 }
+
+} //class PoxPlayer
+

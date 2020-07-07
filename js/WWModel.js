@@ -1,372 +1,28 @@
 //Model library for WWG
-// Version 0.9 
+// Version 1.0 
 // 2016-2017 wakufactory.jp 
 // license: MIT 
 
-var WWModel = function(){
-	
-}
-WWModel.prototype.loadAjax = function(src) {
-	return new Promise(function(resolve,reject) {
-		var req = new XMLHttpRequest();
-		req.open("get",src,true) ;
-		req.responseType = "text" ;
-		req.onload = function() {
-			if(this.status==200) {
-				resolve(this.response) ;
-			} else {
-				reject("Ajax error:"+this.statusText) ;					
-			}
-		}
-		req.onerror = function() {
-			reject("Ajax error:"+this.statusText)
-		}
-		req.send() ;
-	})
-}
-WWModel.loadLines = function(path,cb,lbufsize) {
-	if(!lbufsize) lbufsize = 10000
-	const decoder = new TextDecoder
-	return new Promise((resolve,reject)=>{
-		fetch( path , {
-			method:"GET"
-		}).then( async resp=>{
-			if(resp.ok) {
-				const reader = resp.body.getReader();
-				const buf = new Uint8Array(lbufsize)
-				let bi = 0 
-				while (true) {
-					const {done, value} = await reader.read();
-					if (done) {
-					  cb(decoder.decode(buf.slice(0,bi))) 
-					  resolve(resp)
-					  break;
-					}
-//					console.log(value.length)
-					for (const char of value) {
-						buf[bi++] = char 
-						if(char == 0x0a ) {
-							cb(decoder.decode(buf.slice(0,bi-1))) 
-							bi = 0 
-						}
-					}
-				}
-			} else {
-				reject(resp)
-			}
-		})
-	})
-}
-// load .obj file
-WWModel.prototype.loadObj = async function(path,scale) {
-	var self = this ;
-	if(!scale) scale=1.0 ;
-	return new Promise(function(resolve,reject) {
-		self.loadAjax(path).then(function(data) {
-//			console.log(data) ;
-			var l = data.split("\n") ;
-			var v = [];
-			var n = [] ;
-			var x = [] ;
-			var t = [] ;
-			var c = [] ;
-			var xi = {} ;
-			var xic = 0 ;
+// export default 
+class WWModel {
 
-			for(var i = 0;i<l.length;i++) {
-				if(l[i].match(/^#/)) continue ;
-				if(l[i].match(/^eof/)) break ;
-				var ll = l[i].split(/\s+/) ;
-				if(ll[0] == "v") {
-					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
-					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
-				}
-				if(ll[0] == "vt") {
-					t.push([ll[1],ll[2]]) ;
-				}
-				if(ll[0] == "vn") {
-					n.push([ll[1],ll[2],ll[3]]) ;
-				}
-				if(ll[0] == "f") {
-					var ix = [] ;
-					for(var ii=1;ii<ll.length;ii++) {
-						if(ll[ii]=="") continue ;
-						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
-						ix.push(xi[ll[ii]]) ;
-					}
-					x.push(ix) ;
-				}
-			}
-			self.obj_v = [] ;
-			if(c.length>0) self.obj_c = [] 
-			self.obj_i =x ;
-			if(n.length>0) self.obj_n = [] ;
-			if(t.length>0) self.obj_t = [] ;
-			if(x.length>0) {
-				for(var i in xi) {
-					var si = i.split("/") ;
-					var ind = xi[i] ;
-					self.obj_v[ind] = v[si[0]-1] ;
-					if(c.length>0) self.obj_c[ind] = c[si[0]-1]  
-					if(t.length>0) self.obj_t[ind] = t[si[1]-1] ;
-					if(n.length>0) self.obj_n[ind] = n[si[2]-1] ;
-				}
-			} else {
-				self.obj_v = v 
-				if(c.length>0) self.obj_c = c
-				if(n.length>0) self.obj_n = n
-			}
-			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+self.obj_v.length) ;
-			resolve(self) ;
-		}).catch(function(err) {
-			reject(err) ;
-		})
-	}) ;
-}
-WWModel.prototype.loadObj2 = async function(path,scale) {
-	if(!scale) scale=1.0 ;
-	return new Promise((resolve,reject)=> {
-		var v = [];
-		var n = [] ;
-		var x = [] ;
-		var t = [] ;
-		var c = [] ;
-		var xi = {} ;
-		var xic = 0 ;
-		WWModel.loadLines(path,l=>{
-				if(l.match(/^#/)) return ;
-				if(l.match(/^eof/)) return ;
-				var ll = l.split(/\s+/) ;
-				if(ll[0] == "v") {
-					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
-					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
-				}
-				if(ll[0] == "vt") {
-					t.push([ll[1],ll[2]]) ;
-				}
-				if(ll[0] == "vn") {
-					n.push([ll[1],ll[2],ll[3]]) ;
-				}
-				if(ll[0] == "f") {
-					var ix = [] ;
-					for(var ii=1;ii<ll.length;ii++) {
-						if(ll[ii]=="") continue ;
-						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
-						ix.push(xi[ll[ii]]) ;
-					}
-					x.push(ix) ;
-				}
-		}).then(r=>{
-			this.obj_v = [] ;
-			if(c.length>0) this.obj_c = [] 
-			this.obj_i =x ;
-			if(n.length>0) this.obj_n = [] ;
-			if(t.length>0) this.obj_t = [] ;
-			if(x.length>0) {
-				for(var i in xi) {
-					var si = i.split("/") ;
-					var ind = xi[i] ;
-					this.obj_v[ind] = v[si[0]-1] ;
-					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
-					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
-					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
-				}
-			} else {
-				this.obj_v = v 
-				if(c.length>0) this.obj_c = c
-				if(n.length>0) this.obj_n = n
-			}
-			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
-			resolve(this) ;				
-		}).catch(err=> {
-			reject(err) ;
-		})
-	}) ;
-}
-//convert vtx data to vbo array
-WWModel.prototype.objModel  = function(addvec,mode) {
-	var v = this.obj_v ;
-	var s = this.obj_i ;
-	var n = this.obj_n ;
-	var t = this.obj_t ;
-
-	var vbuf = [] ;
-	var ibuf = [] ;
-	var sf = [] ;
-	var sn = [] ;
-	var ii = 0 ;
-	if(!n) this.obj_n = [] ;
-
-	for(var i=0;i<s.length;i++) {
-		var p = s[i] ;
-		if(!n) {
-			//面法線算出
-			var pa = [] ;
-			for(var j=0;j<3;j++) {
-				pa[j] = v[p[j]] ;
-			}
-			var yx = pa[1][0]-pa[0][0];
-			var yy = pa[1][1]-pa[0][1];
-			var yz = pa[1][2]-pa[0][2];
-			var zx = pa[2][0]-pa[0][0];
-			var zy = pa[2][1]-pa[0][1];
-			var zz = pa[2][2]-pa[0][2];				
-			var xx =  yy * zz - yz * zy;
-			var xy = -yx * zz + yz * zx;
-			var xz =  yx * zy - yy * zx;
-			var vn = Math.hypot(xx,xy,xz) ;
-			xx /= vn ; xy /= vn ; xz /= vn ;
-			sf.push( [xx,xy,xz]) ;
-			//面リスト
-			for(var j=0;j<p.length;j++) {
-				if(!sn[p[j]]) sn[p[j]] = [] ;
-				sn[p[j]].push(i) ;
-			}
-		}
-		//3角分割
-		for(var j=1;j<p.length-1;j++) {
-			ibuf.push(p[0]) ;
-			ibuf.push(p[j]) ;
-			ibuf.push(p[j+1] ) ;
-		}
-		ii += p.length ;
-	}
-	console.log(" vert:"+v.length);
-	console.log(" poly:"+ibuf.length/3);
-	for(var i=0;i<v.length;i++) {
-		vbuf.push( v[i][0] ) ;
-		vbuf.push( v[i][1] ) ;
-		vbuf.push( v[i][2] ) ;
-		var nx=0,ny=0,nz=0 ;		
-		if(n) {
-			nx = n[i][0] ;
-			ny = n[i][1] ;
-			nz = n[i][2] ;
-		} else {
-			//面法線の合成
-			for(var j=0;j<sn[i].length;j++) {
-				var ii = sn[i][j] ;
-				nx += sf[ii][0] ;
-				ny += sf[ii][1] ;
-				nz += sf[ii][2] ;
-			}
-		}
-		var vn = Math.hypot(nx,ny,nz) ;
-		vbuf.push(nx/vn) ;
-		vbuf.push(ny/vn) ;
-		vbuf.push(nz/vn) ;
-		if(!n) {
-			this.obj_n.push([nx/vn,ny/vn,nz/vn]); 
-		}
-		if(t) {
-			vbuf.push(t[i][0]) ;
-			vbuf.push(t[i][1]) ;
-		}
-		if(addvec) {
-			for(av=0;av<addvec.length;av++) {
-				vbuf = vbuf.concat(addvec[av].data[i]) ;
-			}
-		}
-	}
-
-//	console.log(vbuf) ;
-//	console.log(ibuf) ;
-	this.ibuf = ibuf ;
-	this.vbuf = vbuf ;
-	var ret = {mode:"tri",vtx_at:["position","norm"],vtx:vbuf,idx:ibuf} ;
-	if(t) ret.vtx_at.push("uv") ;
-	if(addvec) {
-		for(av=0;av<addvec.length;av++) ret.vtx_at.push(addvec[av].attr) ;
-	}
-	return ret ;
-}
-
-// generate normal vector lines
-WWModel.prototype.normLines = function(vm) {
-	var nv = [] ;
-	var v = this.obj_v
-	var n = this.obj_n ;
-	if(vm==undefined) vm = 0.1
-	for(var i=0;i<v.length;i++) {
-		nv.push(v[i][0]) ;
-		nv.push(v[i][1]) ;
-		nv.push(v[i][2]) ;
-		nv.push(v[i][0]+n[i][0]*vm) ;
-		nv.push(v[i][1]+n[i][1]*vm) ;
-		nv.push(v[i][2]+n[i][2]*vm) ;
-	}
-	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;
-}
-// generate wireframe lines
-WWModel.prototype.wireframe = function() {
-	var nv = [] ;
-	var v = this.obj_v ;
-	var s = this.obj_i ;
-	for(var k=0;k<s.length;k++) {
-		var ss = s[k]; 
-		for(var i=1;i<ss.length;i++) {
-			nv.push(v[ss[i-1]][0]) ;
-			nv.push(v[ss[i-1]][1]) ;
-			nv.push(v[ss[i-1]][2]) ;
-			nv.push(v[ss[i]][0]) ;
-			nv.push(v[ss[i]][1]) ;
-			nv.push(v[ss[i]][2]) ;
-		}
-		nv.push(v[ss[i-1]][0]) ;
-		nv.push(v[ss[i-1]][1]) ;
-		nv.push(v[ss[i-1]][2]) ;		
-		nv.push(v[ss[0]][0]) ;
-		nv.push(v[ss[0]][1]) ;
-		nv.push(v[ss[0]][2]) ;	
-	}
-	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;	
-}
-
-// mult 4x4 matrix
-WWModel.prototype.multMatrix4 = function(m4) {
-	var inv = new CanvasMatrix4(m4).invert().transpose() ;
-	var buf = m4.getAsArray()
-	for(var i=0;i<this.obj_v.length;i++) {
-		var v = this.obj_v[i] ;
-		var vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
-		var vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
-		var vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
-		this.obj_v[i] = [vx,vy,vz] ;
-	}
-}
-WWModel.prototype.mergeModels = function(models) {
-	var m = this ;
-	var ofs = 0 ;
-	for(var i=0;i<models.length;i++) {
-		m.obj_v = m.obj_v.concat(models[i].obj_v) 
-		m.obj_n = m.obj_n.concat(models[i].obj_n) 
-		m.obj_t = m.obj_t.concat(models[i].obj_t)
-		for(var j=0;j<models[i].obj_i.length;j++) {
-			var p = models[i].obj_i[j] ;
-			var pp = [] ;
-			for( n=0;n<p.length;n++) {
-				pp.push( p[n]+ofs ) ;
-			}
-			m.obj_i.push(pp) ;
-		}
-		ofs += models[i].obj_v.length ;
-	}
-	return m ;
-}
 // generate primitive
-WWModel.prototype.primitive  = function(type,param) {
+ primitive(type,param) {
 	if(!param) param = {} ;
-	var wx = (param.wx)?param.wx:1.0 ;
-	var wy = (param.wy)?param.wy:1.0 ;
-	var wz = (param.wz)?param.wz:1.0 ;
-	var div = (param.div)?param.div:10 ;
-	var ninv = (param.ninv)?-1:1 ;
-	var p = [] ;
-	var n = [] ;
-	var t = [] ;
-	var s = [] ;
-	var PHI = Math.PI *2 ;
-		var m = { "r05":{"v":[[-0.52573111,-0.7236068,0.4472136],[-0.85065081,0.2763932,0.4472136],[-0,0.89442719,0.4472136],[0.85065081,0.2763932,0.4472136],[0.52573111,-0.7236068,0.4472136],[0,-0.89442719,-0.4472136],[-0.85065081,-0.2763932,-0.4472136],[-0.52573111,0.7236068,-0.4472136],[0.52573111,0.7236068,-0.4472136],[0.85065081,-0.2763932,-0.4472136],[0,0,1],[-0,0,-1]],"s":[[0,1,6],[0,6,5],[0,5,4],[0,4,10],[0,10,1],[1,2,7],[1,7,6],[1,10,2],[2,3,8],[2,8,7],[2,10,3],[3,4,9],[3,9,8],[3,10,4],[4,5,9],[5,6,11],[5,11,9],[6,7,11],[7,8,11],[8,9,11]]},
+	let wx = (param.wx)?param.wx:1.0 ;
+	let wy = (param.wy)?param.wy:1.0 ;
+	let wz = (param.wz)?param.wz:1.0 ;
+	let div = (param.div)?param.div:10 ;
+	let divx = (param.divx)?param.divx:div ;
+	let divy = (param.divx)?param.divy:div ;
+	let divz = (param.divx)?param.divz:div ;
+	let ninv = (param.ninv)?-1:1 ;
+	let p = [] ;
+	let n = [] ;
+	let t = [] ;
+	let s = [] ;
+	let PHI = Math.PI *2 ;
+		let m = { "r05":{"v":[[-0.52573111,-0.7236068,0.4472136],[-0.85065081,0.2763932,0.4472136],[-0,0.89442719,0.4472136],[0.85065081,0.2763932,0.4472136],[0.52573111,-0.7236068,0.4472136],[0,-0.89442719,-0.4472136],[-0.85065081,-0.2763932,-0.4472136],[-0.52573111,0.7236068,-0.4472136],[0.52573111,0.7236068,-0.4472136],[0.85065081,-0.2763932,-0.4472136],[0,0,1],[-0,0,-1]],"s":[[0,1,6],[0,6,5],[0,5,4],[0,4,10],[0,10,1],[1,2,7],[1,7,6],[1,10,2],[2,3,8],[2,8,7],[2,10,3],[3,4,9],[3,9,8],[3,10,4],[4,5,9],[5,6,11],[5,11,9],[6,7,11],[7,8,11],[8,9,11]]},
 		"r04":{"v":[[-0.35682209,-0.49112347,0.79465447],[0.35682209,-0.49112347,0.79465447],[0.57735027,-0.79465447,0.18759247],[0,-0.98224695,-0.18759247],[-0.57735027,-0.79465447,0.18759247],[-0.57735027,0.18759247,0.79465447],[0.57735027,0.18759247,0.79465447],[0.93417236,-0.303531,-0.18759247],[-0,-0.607062,-0.79465447],[-0.93417236,-0.303531,-0.18759247],[-0.93417236,0.303531,0.18759247],[0,0.607062,0.79465447],[0.93417236,0.303531,0.18759247],[0.57735027,-0.18759247,-0.79465447],[-0.57735027,-0.18759247,-0.79465447],[-0.57735027,0.79465447,-0.18759247],[0,0.98224695,0.18759247],[0.57735027,0.79465447,-0.18759247],[0.35682209,0.49112347,-0.79465447],[-0.35682209,0.49112347,-0.79465447]],"s":[[0,1,6,11,5],[0,5,10,9,4],[0,4,3,2,1],[1,2,7,12,6],[2,3,8,13,7],[3,4,9,14,8],[5,11,16,15,10],[6,12,17,16,11],[7,13,18,17,12],[8,14,19,18,13],[9,10,15,19,14],[15,16,17,18,19]]},
 		"r03":{"v":[[-0.57735027,-0.57735027,0.57735027],[-0.57735027,0.57735027,0.57735027],[0.57735027,0.57735027,0.57735027],[0.57735027,-0.57735027,0.57735027],[-0.57735027,-0.57735027,-0.57735027],[-0.57735027,0.57735027,-0.57735027],[0.57735027,0.57735027,-0.57735027],[0.57735027,-0.57735027,-0.57735027]],"s":[[0,1,5,4],[0,4,7,3],[0,3,2,1],[1,2,6,5],[2,3,7,6],[4,5,6,7]]},
 		"r02":{"v":[[-0.70710678,-0.70710678,0],[-0.70710678,0.70710678,0],[0.70710678,0.70710678,0],[0.70710678,-0.70710678,0],[0,0,-1],[0,0,1]],"s":[[0,1,4],[0,4,3],[0,3,5],[0,5,1],[1,2,4],[1,5,2],[2,3,4],[2,5,3]]},
@@ -376,22 +32,22 @@ WWModel.prototype.primitive  = function(type,param) {
 		} ;
 	switch(type) {
 	case "sphere":
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var y = Math.cos(Math.PI * v), r = Math.sin(Math.PI * v);
-			for(var j = 0 ; j <= div*2 ; ++j) {
-				var u = j / (0+div*2) ;
-				var x = (Math.cos(PHI * u) * r)
-				var z = (Math.sin(PHI * u) * r)
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let y = Math.cos(Math.PI * v), r = Math.sin(Math.PI * v);
+			for(let j = 0 ; j <= div*2 ; ++j) {
+				let u = j / (0+div*2) ;
+				let x = (Math.cos(PHI * u) * r)
+				let z = (Math.sin(PHI * u) * r)
 				p.push([x*wx,y*wy,z*wz])
 				n.push([x*ninv,y*ninv,z*ninv])
 				t.push([(ninv>0)?1-u:u,1-v])
 			}
 		}
-		var d2 = div*2+1 ;
-		for(var j = 0 ; j < div ; ++j) {
-			var base = j * d2;
-			for(var i = 0 ; i < div*2 ; ++i) {
+		let d2 = div*2+1 ;
+		for(let j = 0 ; j < div ; ++j) {
+			let base = j * d2;
+			for(let i = 0 ; i < div*2 ; ++i) {
 				if(ninv>0) s.push(
 					[base + i,	  base + i + 1, base + i     + d2],
 					[base + i + d2, base + i + 1, base + i + 1 + d2]);
@@ -468,12 +124,12 @@ WWModel.prototype.primitive  = function(type,param) {
 		}	
 		break ;
 	case "cylinder":
-		var divy = (param.divy)?param.divy:1
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+		let divy = (param.divy)?param.divy:1
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			let dy = wy*2/divy ;
-			for(var yi=0;yi<=divy;yi++) {
+			for(let yi=0;yi<=divy;yi++) {
 				p.push([x,yi*dy-wy,z])
 				n.push([x*ninv,0,z*ninv])
 				t.push([(ninv>0)?1-v:v,yi/divy])
@@ -482,7 +138,7 @@ WWModel.prototype.primitive  = function(type,param) {
 //				t.push([(ninv>0)?1-v:v,0])
 			}			
 		}
-		for(var j =0; j < div ;j++) {
+		for(let j =0; j < div ;j++) {
 			for(let yi=0;yi<divy;yi++) {
 				let j2 = j*(divy+1)+yi 
 				if(ninv<0)s.push([j2,j2+(divy+1),j2+(divy+1)+1,j2+1]) ;
@@ -494,11 +150,11 @@ WWModel.prototype.primitive  = function(type,param) {
 		}
 		break; 
 	case "ring":
-		var divy = (param.divy)?param.divy:1
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
-			for(var yi=0;yi<divy;yi++) {
+		divy = (param.divy)?param.divy:1
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+			for(let yi=0;yi<divy;yi++) {
 				p.push([x,wy,z])
 				n.push([x*ninv,0,z*ninv])
 				t.push([(ninv>0)?1-v:v,1])
@@ -507,7 +163,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				t.push([(ninv>0)?1-v:v,0])
 			}			
 		}
-		for(var j =0; j < div ;j++) {
+		for(let j =0; j < div ;j++) {
 			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
@@ -516,9 +172,9 @@ WWModel.prototype.primitive  = function(type,param) {
 		}
 		break; 
 	case "cone":
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			p.push([0,wy,0])
 			n.push([x*ninv,0,z*ninv])
 			t.push([(ninv>0)?1-v:v,1])
@@ -526,15 +182,15 @@ WWModel.prototype.primitive  = function(type,param) {
 			n.push([x*ninv,0,z*ninv,0])
 			t.push([(ninv>0)?1-v:v,0])			
 		}
-		for(var j =0; j < div ;j++) {
+		for(let j =0; j < div ;j++) {
 			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
 		break; 
 	case "disc":
-		for(var i = 0 ; i < div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
+		for(let i = 0 ; i < div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
 			p.push([x,0,z])
 			n.push([0,1,0])
 			t.push([(x/wx+1)/2,(z/wz+1)/2])	
@@ -542,10 +198,10 @@ WWModel.prototype.primitive  = function(type,param) {
 		p.push([0,0,0])
 		n.push([0,1,0])
 		t.push([0.5,0.5])
-		for(var j =0; j < div-1 ;j++) {
+		for(let j =0; j < div-1 ;j++) {
 			s.push([j,j+1,div]) ;
 		}
-		s.push([j,0,div])
+		s.push([div-1,0,div])
 		break; 
 	case "plane":
 		if(!param.wz)  {
@@ -611,52 +267,52 @@ WWModel.prototype.primitive  = function(type,param) {
 		break ;
 	case "mesh":
 		this.parametricModel( function(u,v) {
-			var r = {
+			let r = {
 				px:(u-0.5)*wx, py:0, pz:(v-0.5)*wz,
 				nx:0, ny:1, nz:0,
 				mu:u, mv:v }
 			return r ;
-		},{start:1.0,end:0,div:div},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:1.0,end:0,div:divx},{start:0,end:1,div:divz},{ninv:param.ninv}) ;
 		return this ;		
 		break ;
 	case "torus":
 		this.parametricModel( function(u,v) {
-			var R = 1.0 ;
-			var sr = (param.sr)?param.sr:0.5 ;
-			var du = u ;
-			var dv = -v ;
-			var cx = Math.sin(du*PHI) ;
-			var cz = Math.cos(du*PHI) ;
-			var vx = Math.sin(dv*PHI) ;
-			var vy = Math.cos(dv*PHI) ;
-			var tx = 1
-			var mx = sr*vx*cx ;
-			var mz = sr*vx*cz ;
-			var my = sr*vy ;
-			var ml = Math.hypot(mx,my,mz) ;
+			let R = 1.0 ;
+			let sr = (param.sr)?param.sr:0.5 ;
+			let du = u ;
+			let dv = -v ;
+			let cx = Math.sin(du*PHI) ;
+			let cz = Math.cos(du*PHI) ;
+			let vx = Math.sin(dv*PHI) ;
+			let vy = Math.cos(dv*PHI) ;
+			let tx = 1
+			let mx = sr*vx*cx ;
+			let mz = sr*vx*cz ;
+			let my = sr*vy ;
+			let ml = Math.hypot(mx,my,mz) ;
 	
-			var px = R*cx + tx*mx ;
-			var pz = R*cz + tx*mz ;
-			var py = tx*my ;
-			var r = {
+			let px = R*cx + tx*mx ;
+			let pz = R*cz + tx*mz ;
+			let py = tx*my ;
+			let r = {
 				px:px*wx, py:py*wy, pz:pz*wz,
 				nx:0, ny:0, nz:0,
 				mu:u, mv:v }
 			return r ;			
 			
-		},{start:0,end:1.0,div:div*2},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:0,end:1.0,div:divx*2},{start:0,end:1,div:divy},{ninv:param.ninv}) ;
 		return this ;
 	case "polyhedron":
 
 		if(!m[param.shape]) return null ;
-		var vt = m[param.shape].v ;
-		var si = m[param.shape].s ;
-		var vi = 0 ;
-		for(var i =0;i<si.length;i++) {
-			var nx=0,ny=0,nz=0 ;
-			var vs = [] ;
-			for(var h = si[i].length-1 ;h>=0;h--) {
-				var v = vt[si[i][h]] ;
+		let vt = m[param.shape].v ;
+		let si = m[param.shape].s ;
+		let vi = 0 ;
+		for(let i =0;i<si.length;i++) {
+			let nx=0,ny=0,nz=0 ;
+			let vs = [] ;
+			for(let h = si[i].length-1 ;h>=0;h--) {
+				let v = vt[si[i][h]] ;
 				p.push([v[0],v[2],v[1]]) ;
 				nx += v[0] ;
 				ny += v[2] ;
@@ -664,15 +320,15 @@ WWModel.prototype.primitive  = function(type,param) {
 				vs.push(vi) ;
 				vi++ ;
 			}
-			var vl = Math.hypot(nx,ny,nz) ;
-			for(var h = 0 ;h <si[i].length;h++) n.push([nx/vl,ny/vl,nz/vl]) ;
+			let vl = Math.hypot(nx,ny,nz) ;
+			for(let h = 0 ;h <si[i].length;h++) n.push([nx/vl,ny/vl,nz/vl]) ;
 			s.push(vs) ;
 		}
 		t = null ;
 		break ;
 	case "icosa":
-		var vt = m["r05"].v ;
-		var si = m["r05"].s ;
+		vt = m["r05"].v ;
+		si = m["r05"].s ;
 		for(let i=0;i<vt.length;i++) {
 			let vv = [vt[i][0],vt[i][2],vt[i][1]]
 			p.push(vv)
@@ -739,37 +395,37 @@ WWModel.prototype.primitive  = function(type,param) {
 	return this ;
 }
 // generate parametric model by function
-WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
-	var pos = [] ;
-	var norm = [] ;
-	var uv = [] ;
-	var indices = [] ;
-	var ninv = (opt && opt.ninv)?-1:1 ;
+ parametricModel(func,pu,pv,opt) {
+	let pos = [] ;
+	let norm = [] ;
+	let uv = [] ;
+	let indices = [] ;
+	let ninv = (opt && opt.ninv)?-1:1 ;
 
-	var du = (pu.end - pu.start)/pu.div ;
-	var dv = (pv.end - pv.start)/pv.div ;
-	for(var iu =0; iu <= pu.div ;iu++ ) {
-		for(var iv = 0 ;iv<= pv.div; iv++ ) {
-			var u = pu.start+du*iu ;
-			var v = pv.start+dv*iv ;
-			var p = func(u,v) ;
+	let du = (pu.end - pu.start)/pu.div ;
+	let dv = (pv.end - pv.start)/pv.div ;
+	for(let iu =0; iu <= pu.div ;iu++ ) {
+		for(let iv = 0 ;iv<= pv.div; iv++ ) {
+			let u = pu.start+du*iu ;
+			let v = pv.start+dv*iv ;
+			let p = func(u,v) ;
 			pos.push( [p.px,p.py,p.pz] ) ;
 			if(p.mu!=undefined) uv.push([p.mu,p.mv]) ;
 			// calc normal
 			if(p.nx==0&&p.ny==0&&p.nz==0) {
-				var dud = du/10 ; var dvd = dv/10 ;
-				var du0 = func(u-dud,v) ; var du1 = func(u+dud,v) ;
-				var nux = (du1.px - du0.px)/(dud*2) ;
-				var nuy = (du1.py - du0.py)/(dud*2) ;
-				var nuz = (du1.pz - du0.pz)/(dud*2) ;
-				var dv0 = func(u,v-dvd) ; var dv1 = func(u,v+dvd) ;
-				var nvx = (dv1.px - dv0.px)/(dvd*2) ;
-				var nvy = (dv1.py - dv0.py)/(dvd*2) ;
-				var nvz = (dv1.pz - dv0.pz)/(dvd*2) ;
-				var nx = nuy*nvz - nuz*nvy ;
-				var ny = nuz*nvx - nux*nvz ;
-				var nz = nux*nvy - nuy*nvx ;
-				var nl = Math.hypot(nx,ny,nz); 
+				let dud = du/10 ; let dvd = dv/10 ;
+				let du0 = func(u-dud,v) ; let du1 = func(u+dud,v) ;
+				let nux = (du1.px - du0.px)/(dud*2) ;
+				let nuy = (du1.py - du0.py)/(dud*2) ;
+				let nuz = (du1.pz - du0.pz)/(dud*2) ;
+				let dv0 = func(u,v-dvd) ; let dv1 = func(u,v+dvd) ;
+				let nvx = (dv1.px - dv0.px)/(dvd*2) ;
+				let nvy = (dv1.py - dv0.py)/(dvd*2) ;
+				let nvz = (dv1.pz - dv0.pz)/(dvd*2) ;
+				let nx = nuy*nvz - nuz*nvy ;
+				let ny = nuz*nvx - nux*nvz ;
+				let nz = nux*nvy - nuy*nvx ;
+				let nl = Math.hypot(nx,ny,nz); 
 				p.nx = nx/nl ;
 				p.ny = ny/nl ;
 				p.nz = nz/nl ;
@@ -777,10 +433,10 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 			norm.push([p.nx*ninv, p.ny*ninv,p.nz*ninv] ) ;
 		}
 	}
-	var d2 = pv.div+1 ;
-	for(var j = 0 ; j < pu.div ; ++j) {
-		var base = j * d2;
-		for(var i = 0 ; i < pv.div ; ++i) {
+	let d2 = pv.div+1 ;
+	for(let j = 0 ; j < pu.div ; ++j) {
+		let base = j * d2;
+		for(let i = 0 ; i < pv.div ; ++i) {
 			if(ninv>0) indices.push([base+i,base+i+d2,base+i+d2+1,base+i+1])	
 			else  indices.push([base+i+1,base+i+d2+1,base+i+d2,base+i])	
 		}	
@@ -793,12 +449,504 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 	return this ;
 }
 
+//convert vtx data to vbo array
+objModel(addvec,mode) {
+	let v = this.obj_v ;
+	let s = this.obj_i ;
+	let n = this.obj_n ;
+	let t = this.obj_t ;
+	let c = this.obj_c ;
+
+	let vbuf = [] ;
+	let ibuf = [] ;
+	let sf = [] ;
+	let sn = [] ;
+	let ii = 0 ;
+	if(!n) this.obj_n = [] ;
+
+	for(let i=0,l=s.length;i<l;i++) {
+		let p = s[i] ;
+		if(!n) {
+			//面法線算出
+			let pa = [] ;
+			for(let j=0;j<3;j++) {
+				pa[j] = v[p[j]] ;
+			}
+			let yx = pa[1][0]-pa[0][0];
+			let yy = pa[1][1]-pa[0][1];
+			let yz = pa[1][2]-pa[0][2];
+			let zx = pa[2][0]-pa[0][0];
+			let zy = pa[2][1]-pa[0][1];
+			let zz = pa[2][2]-pa[0][2];				
+			let xx =  yy * zz - yz * zy;
+			let xy = -yx * zz + yz * zx;
+			let xz =  yx * zy - yy * zx;
+			let vn = Math.hypot(xx,xy,xz) ;
+			xx /= vn ; xy /= vn ; xz /= vn ;
+			sf.push( [xx,xy,xz]) ;
+			//面リスト
+			for(let j=0,lj=p.length;j<lj;j++) {
+				if(!sn[p[j]]) sn[p[j]] = [] ;
+				sn[p[j]].push(i) ;
+			}
+		}
+		//3角分割
+		for(let j=1,lj=p.length-1;j<lj;j++) {
+			ibuf.push(p[0]) ;
+			ibuf.push(p[j]) ;
+			ibuf.push(p[j+1] ) ;
+		}
+		ii += p.length ;
+	}
+	console.log(" vert:"+v.length);
+	console.log(" poly:"+ibuf.length/3);
+	for(let i=0,l=v.length;i<l;i++) {
+		vbuf.push( parseFloat( v[i][0]) ) ;
+		vbuf.push( parseFloat( v[i][1]) ) ;
+		vbuf.push( parseFloat( v[i][2]) ) ;
+		let nx=0,ny=0,nz=0 ;		
+		if(n) {
+			nx = n[i][0] ;
+			ny = n[i][1] ;
+			nz = n[i][2] ;
+		} else {
+			//面法線の合成
+			for(let j=0;j<sn[i].length;j++) {
+				let ii = sn[i][j] ;
+				nx += sf[ii][0] ;
+				ny += sf[ii][1] ;
+				nz += sf[ii][2] ;
+			}
+		}
+		let vn = Math.hypot(nx,ny,nz) ;
+		if(vn==0) {
+		vbuf.push(0) ;
+		vbuf.push(0) ;
+		vbuf.push(0) ;			
+		} else {
+		vbuf.push(nx/vn) ;
+		vbuf.push(ny/vn) ;
+		vbuf.push(nz/vn) ;
+		}
+		if(!n) {
+			this.obj_n.push([nx/vn,ny/vn,nz/vn]); 
+		}
+		if(t) {
+			vbuf.push(parseFloat( t[i][0]) ) ;
+			vbuf.push(parseFloat( t[i][1]))  ;
+		}
+		if(c) {
+			vbuf.push(parseFloat( c[i][0])) ;
+			vbuf.push(parseFloat( c[i][1])) ;
+			vbuf.push(parseFloat( c[i][2])) ;
+		}
+		if(addvec) {
+			for(av=0;av<addvec.length;av++) {
+				vbuf = vbuf.concat(addvec[av].data[i]) ;
+			}
+		}
+	}
+
+//	console.log(vbuf) ;
+//	console.log(ibuf) ;
+	this.ibuf = ibuf ;
+	this.vbuf = vbuf ;
+	let ret = {mode:"tri",vtx_at:["position","norm"],vtx:vbuf,idx:ibuf} ;
+	if(t) ret.vtx_at.push("uv") ;
+	if(c) ret.vtx_at.push("color") ;
+	if(addvec) {
+		for(av=0;av<addvec.length;av++) ret.vtx_at.push(addvec[av].attr) ;
+	}
+	return ret ;
+}
+
+// generate normal vector lines
+ normLines(vm) {
+	let nv = [] ;
+	let v = this.obj_v
+	let n = this.obj_n ;
+	if(vm==undefined) vm = 0.1
+	for(let i=0,l=v.length;i<l;i++) {
+		nv.push(v[i][0]) ;
+		nv.push(v[i][1]) ;
+		nv.push(v[i][2]) ;
+		nv.push(v[i][0]+n[i][0]*vm) ;
+		nv.push(v[i][1]+n[i][1]*vm) ;
+		nv.push(v[i][2]+n[i][2]*vm) ;
+	}
+	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;
+}
+// generate wireframe lines
+ wireframe() {
+	let nv = [] ;
+	let v = this.obj_v ;
+	let s = this.obj_i ;
+	for(let k=0,l=s.length;k<l;k++) {
+		let ss = s[k]; 
+		let i
+		for(i=1;i<ss.length;i++) {
+			nv.push(v[ss[i-1]][0]) ;
+			nv.push(v[ss[i-1]][1]) ;
+			nv.push(v[ss[i-1]][2]) ;
+			nv.push(v[ss[i]][0]) ;
+			nv.push(v[ss[i]][1]) ;
+			nv.push(v[ss[i]][2]) ;
+		}
+		nv.push(v[ss[i-1]][0]) ;
+		nv.push(v[ss[i-1]][1]) ;
+		nv.push(v[ss[i-1]][2]) ;		
+		nv.push(v[ss[0]][0]) ;
+		nv.push(v[ss[0]][1]) ;
+		nv.push(v[ss[0]][2]) ;	
+	}
+	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;	
+}
+
+// mult 4x4 matrix to model
+ multMatrix4(m4) {
+	let inv = new CanvasMatrix4(m4).invert().transpose() ;
+	let buf = m4.getAsArray()
+	for(let i=0;i<this.obj_v.length;i++) {
+		let v = this.obj_v[i] ;
+		let vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
+		let vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
+		let vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
+		this.obj_v[i] = [vx,vy,vz] ;
+	}
+	buf = inv.getAsArray() 
+	for(let i=0;i<this.obj_n.length;i++) {
+		let v = this.obj_n[i] ;
+		let vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
+		let vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
+		let vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
+		this.obj_n[i] = [vx,vy,vz] ;
+	}
+}
+// merge model
+ mergeModels(models) {
+	let m = this ;
+	let ofs = 0 ;
+	for(let i=0;i<models.length;i++) {
+		m.obj_v = m.obj_v.concat(models[i].obj_v) 
+		m.obj_n = m.obj_n.concat(models[i].obj_n) 
+		m.obj_t = m.obj_t.concat(models[i].obj_t)
+		for(let j=0;j<models[i].obj_i.length;j++) {
+			let p = models[i].obj_i[j] ;
+			let pp = [] ;
+			for( n=0;n<p.length;n++) {
+				pp.push( p[n]+ofs ) ;
+			}
+			m.obj_i.push(pp) ;
+		}
+		ofs += models[i].obj_v.length ;
+	}
+	return m ;
+}
+// calc bounding box 
+boundbox() {
+	let sx = Number.MAX_VALUE
+	let sy = sx 
+	let sz = sx 
+	let ex = Number.MIN_VALUE 
+	let ey = ex 
+	let ez = ex 
+	
+	for(let i=0;i<this.obj_v.length;i++) {
+		let v = this.obj_v[i] ;	
+		if( v[0] < sx ) sx = v[0]
+		if( v[1] < sy ) sy = v[1] 
+		if( v[2] < sz ) sz = v[2] 
+		if( v[0] > ex ) ex = v[0] 
+		if( v[1] > ey ) ey = v[1] 
+		if( v[2] > ez ) ez = v[2] 
+	}
+	return [[sx,sy,sz],[ex,ey,ez]]
+}
+
+// load external file 
+loadAjax(src) {
+	return new Promise(function(resolve,reject) {
+		let req = new XMLHttpRequest();
+		req.open("get",src,true) ;
+		req.responseType = "text" ;
+		req.onload = function() {
+			if(this.status==200) {
+				resolve(this.response) ;
+			} else {
+				reject("Ajax error:"+this.statusText) ;					
+			}
+		}
+		req.onerror = function() {
+			reject("Ajax error:"+this.statusText)
+		}
+		req.send() ;
+	})
+}
+static loadLines(path,cb,lbufsize) {
+	if(!lbufsize) lbufsize = 10000
+	const decoder = new TextDecoder
+	return new Promise((resolve,reject)=>{
+		fetch( path , {
+			method:"GET"
+		}).then( async resp=>{
+			if(resp.ok) {
+				const reader = resp.body.getReader();
+				const buf = new Uint8Array(lbufsize)
+				let bi = 0 
+				while (true) {
+					const {done, value} = await reader.read();
+					if (done) {
+					  cb(decoder.decode(buf.slice(0,bi))) 
+					  resolve(resp)
+					  break;
+					}
+//					console.log(value.length)
+					for (const char of value) {
+						buf[bi++] = char 
+						if(char == 0x0a ) {
+							cb(decoder.decode(buf.slice(0,bi-1))) 
+							bi = 0 
+						}
+					}
+				}
+			} else {
+				reject(resp)
+			}
+		})
+	})
+}
+// load .obj file
+async loadObj(path,scale) {
+	if(!scale) scale=1.0 ;
+	return new Promise((resolve,reject)=> {
+		this.loadAjax(path).then((data)=> {
+//			console.log(data) ;
+			let l = data.split("\n") ;
+			let v = [];
+			let n = [] ;
+			let x = [] ;
+			let t = [] ;
+			let c = [] ;
+			let xi = {} ;
+			let xic = 0 ;
+
+			for(let i = 0,len=l.length;i<len;i++) {
+				if(l[i].match(/^#/)) continue ;
+				if(l[i].match(/^eof/)) break ;
+				let ll = l[i].split(/\s+/) ;
+				if(ll[0] == "v") {
+					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
+					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
+				}
+				if(ll[0] == "vt") {
+					t.push([ll[1],ll[2]]) ;
+				}
+				if(ll[0] == "vn") {
+					n.push([ll[1],ll[2],ll[3]]) ;
+				}
+				if(ll[0] == "f") {
+					let ix = [] ;
+					for(let ii=1;ii<ll.length;ii++) {
+						if(ll[ii]=="") continue ;
+						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
+						ix.push(xi[ll[ii]]) ;
+					}
+					x.push(ix) ;
+				}
+			}
+			this.obj_v = [] ;
+			if(c.length>0) this.obj_c = [] 
+			this.obj_i =x ;
+			if(n.length>0) this.obj_n = [] ;
+			if(t.length>0) this.obj_t = [] ;
+			if(x.length>0) {
+				for(let i in xi) {
+					let si = i.split("/") ;
+					let ind = xi[i] ;
+					this.obj_v[ind] = v[si[0]-1] ;
+					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
+					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
+					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
+				}
+			} else {
+				this.obj_v = v 
+				if(c.length>0) this.obj_c = c
+				if(n.length>0) this.obj_n = n
+			}
+			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
+			resolve(this) ;
+		}).catch(function(err) {
+			reject(err) ;
+		})
+	}) ;
+}
+static async loadObj2(path,opt) {
+
+	let scale = 1.0
+	let zup = false  
+	let nogroup = false 
+	let nomtl = false 
+	if(opt) {
+		if(opt.scale) scale=opt.scale
+		if(opt.zup) zup = opt.zup
+		if(opt.nogroup) nogroup = opt.nogroup
+		if(opt.nomtl) nomtl = opt.nomtl
+	}
+	return new Promise((resolve,reject)=> {
+		const v = [];
+		const n = [] ;
+		const xl = {} ;
+		const t = [] ;
+		const c = [] ;
+		const xi = {} ;
+		const rxi = []
+		let xic = 0 ;
+		let usemtl = "" 
+		let group = "" 
+		const pmtls = []
+		const mtlspath = [] 
+		WWModel.loadLines(path,async l=>{
+				if(l.match(/^#/)) return ;
+				if(l.match(/^eof/)) return ;
+				const ll = l.split(/\s+/) ;
+				const cmd = ll[0]
+				if(cmd == "v") {
+					if(zup) v.push([ll[1]*scale,ll[3]*scale,-ll[2]*scale]) ;
+					else v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
+					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
+				}
+				if(cmd == "vt") {
+					t.push([ll[1],ll[2]]) ;
+				}
+				if(cmd == "vn") {
+					if(zup) n.push([ll[1],ll[3],-ll[2]]) ;
+					else  n.push([ll[1],ll[2],ll[3]]) ;
+				}
+				if(cmd == "f") {
+					let ix = [] ;
+					for(let ii=1;ii<ll.length;ii++) {
+						if(ll[ii]=="") continue ;
+						if(!(ll[ii] in xi)) {
+							xi[ll[ii]] = xic++ ; 
+							rxi[xi[ll[ii]]] = ll[ii]
+						}
+						ix.push(xi[ll[ii]]) ;
+					}
+					if(!xl[group]) xl[group] = {} 
+					if(!xl[group][usemtl]) xl[group][usemtl] = []
+					xl[group][usemtl].push(ix) ;
+				}
+				if(cmd == "mtllib") {
+					let pp = path.split("/") 
+					pp[pp.length-1] = ll[1] 
+					pmtls.push( WWModel.loadMtl(pp.join("/")) )
+					mtlspath.push(pp)
+				}
+				if(cmd == "usemtl") {
+					if(!nomtl) usemtl = ll[1] 
+				}
+				if(cmd == "g") {
+					if(!nogroup) group = ll[1] 
+				}
+		}).then(r=>{
+			const groups = []
+			let objs
+			console.log(xl)
+			console.log(rxi)
+			for(let g in xl) {
+				objs = [] 
+				for( let m in xl[g]) {
+					let x = xl[g][m]
+					const obj = new WWModel() 
+					obj.obj_v = [] ;
+					if(c.length>0) obj.obj_c = [] 
+					if(n.length>0) obj.obj_n = [] ;
+					if(t.length>0) obj.obj_t = [] ;
+					obj.obj_i =x ;
+					if(x.length>0) {
+						for(let i in xi) {
+							let si = i.split("/") ;
+							let ind = xi[i] ;
+							obj.obj_v[ind] = v[si[0]-1] ;
+							if(c.length>0) obj.obj_c[ind] = c[si[0]-1]  
+							if(t.length>0) obj.obj_t[ind] = t[si[1]-1] ;
+							if(n.length>0) obj.obj_n[ind] = n[si[2]-1] ;
+						}
+					} else {
+						obj.obj_v = v 
+						if(c.length>0) obj.obj_c = c
+						if(n.length>0) obj.obj_n = n
+					}
+					objs.push({obj:obj,mtlname:m})
+					console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+obj.obj_v.length) ;
+				}
+				groups.push({objs:objs,group:g})
+			}
+			if(pmtls.length>0) {
+				Promise.all(pmtls).then(mtls=> {
+					let allmtls = {} 
+					for(let i in mtls) {
+						allmtls = Object.assign(allmtls,mtls[i]) 
+					}
+					resolve((nogroup)?{objs:objs,mtls:allmtls}:{groups:groups,mtls:allmtls})
+				})
+			} else resolve((nogroup)?{objs:objs}:{groups:groups})
+						
+		}).catch(err=> {
+			reject(err) ;
+		})
+	}) ;
+}
+static async loadMtl(path) {
+	const mtls = []
+	let mtlname = "" 
+	return new Promise((resolve,reject)=> {
+		WWModel.loadLines(path,l=>{
+			if(l.match(/^#/)) return 
+			if(l.match(/^eof/)) return 
+			const ll = l.split(/\s+/) 
+			const cmd = ll[0]
+			if(cmd=="newmtl") {
+				mtlname = ll[1] 
+				mtls[mtlname] = {}
+				return  
+			}
+			switch(cmd) {
+				case "Kd":
+				case "Ks":
+				case "Ka":
+				case "Tf":
+					mtls[mtlname][cmd] = [parseFloat(ll[1]),parseFloat(ll[2]),parseFloat(ll[3])]
+					break ;
+				case "Ni":
+				case "d":
+				case "Ns":
+					mtls[mtlname][cmd] = parseFloat(ll[1])
+					break ;
+				case "illum":
+					mtls[mtlname][cmd] = parseInt(ll[1])
+					break ;
+				case "map_Kd":
+				case "map_Ka":
+				case "map_Ks":
+					mtls[mtlname][cmd] = ll[1]
+					break;
+			}
+		}).then(r=>{
+			resolve(mtls) 
+		}).catch(err=> {
+			reject(err) ;
+		})			
+	})
+}
+
+
 // other utils 
-WWModel.HSV2RGB = function( H, S, V ,a) {
-	var ih;
-	var fl;
-	var m, n;
-	var rr,gg,bb ;
+static  HSV2RGB( H, S, V ,a) {
+	let ih;
+	let fl;
+	let m, n;
+	let rr,gg,bb ;
 	H = H * 6 ;
 	ih = Math.floor( H );
 	fl = H - ih;
@@ -817,17 +965,19 @@ WWModel.HSV2RGB = function( H, S, V ,a) {
 	}
 	return [rr,gg,bb,(a===undefined)?1.0:a] ;
 }
-WWModel.snormal = function(pa) {
-	var yx = pa[1][0]-pa[0][0];
-	var yy = pa[1][1]-pa[0][1];
-	var yz = pa[1][2]-pa[0][2];
-	var zx = pa[2][0]-pa[0][0];
-	var zy = pa[2][1]-pa[0][1];
-	var zz = pa[2][2]-pa[0][2];				
-	var xx =  yy * zz - yz * zy;
-	var xy = -yx * zz + yz * zx;
-	var xz =  yx * zy - yy * zx;
-	var vn = Math.hypot(xx,xy,xz) ;
+static  snormal(pa) {
+	let yx = pa[1][0]-pa[0][0];
+	let yy = pa[1][1]-pa[0][1];
+	let yz = pa[1][2]-pa[0][2];
+	let zx = pa[2][0]-pa[0][0];
+	let zy = pa[2][1]-pa[0][1];
+	let zz = pa[2][2]-pa[0][2];				
+	let xx =  yy * zz - yz * zy;
+	let xy = -yx * zz + yz * zx;
+	let xz =  yx * zy - yy * zx;
+	let vn = Math.hypot(xx,xy,xz) ;
 	xx /= vn ; xy /= vn ; xz /= vn ;
 	return [xx,xy,xz] ;
 }
+
+} //class WWModel

@@ -17,14 +17,14 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.10" ;
+	this.version = "0.9.11" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
 }
 WWG.prototype.init = function(canvas,opt) {
 	this.can = canvas ;
-	var gl 
+	let gl 
 	if(!((gl = canvas.getContext("experimental-webgl",opt)) || (gl = canvas.getContext("webgl",opt)))) { return false } ;
 	if(!window.Promise) return false ;
 	this.gl = gl 
@@ -61,7 +61,7 @@ WWG.prototype.init = function(canvas,opt) {
 }
 WWG.prototype.init2 = function(canvas,opt) {
 	this.can = canvas ;
-	var gl 
+	let gl 
 	if(!((gl = canvas.getContext("experimental-webgl2",opt)) || (gl = canvas.getContext("webgl2",opt)))) { return false } ;
 	if(!window.Promise) return false ;
 	console.log("init for webGL2") ;
@@ -75,6 +75,7 @@ WWG.prototype.init2 = function(canvas,opt) {
 	this.inst_draw = function(m,l,s,o,c){this.gl.drawElementsInstanced(m,l, s, o, c);}
 	this.inst_drawa = function(m,s,o,c) {this.gl.drawArrayInstanced(m, s, o, c);}
 	this.ext_anis = gl.getExtension("EXT_texture_filter_anisotropic");
+	if(this.ext_anis) this.ext_anis_max = gl.getParameter(this.ext_anis.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
 	this.ext_ftex = true ;
 	this.ext_mrt = (gl.getParameter(gl.MAX_DRAW_BUFFERS)>1) ;
 	if(this.ext_mrt) {
@@ -95,35 +96,35 @@ WWG.prototype.init2 = function(canvas,opt) {
 	return true ;
 }
 WWG.prototype.loadAjax = function(src,opt) {
-	return new Promise(function(resolve,reject) {
-		var req = new XMLHttpRequest();
+	return new Promise((resolve,reject)=> {
+		const req = new XMLHttpRequest();
 		req.open("get",src,true) ;
 		req.responseType = (opt && opt.type)?opt.type:"text" ;
-		req.onload = function() {
-			if(this.status==200) {
-				resolve(this.response) ;
+		req.onload = ()=> {
+			if(req.status==200) {
+				resolve(req.response) ;
 			} else {
-				reject("Ajax error:"+this.statusText) ;					
+				reject("Ajax error:"+req.statusText) ;					
 			}
 		}
-		req.onerror = function() {
-			reject("Ajax error:"+this.statusText)
+		req.onerror = ()=> {
+			reject("Ajax error:"+req.statusText)
 		}
 		req.send() ;
 	})
 }
 WWG.prototype.loadImageAjax = function(src) {
-	var self = this ;
-	return new Promise(function(resolve,reject){
-		self.loadAjax(src,{type:"blob"}).then(function(b){
-			var timg = new Image ;
+	return new Promise((resolve,reject)=>{
+		this.loadAjax(src,{type:"blob"}).then((b)=>{
+			const timg = new Image ;
 			const url = URL.createObjectURL(b);
-			timg.onload = function() {
+			timg.onload = ()=> {
 				URL.revokeObjectURL(url)
 				resolve(timg) ;
 			}
 			timg.src = url
-		}).catch(function(err){
+		}).catch((err)=>{
+			console.log(err)
 			resolve(null) ;
 		})
 	})
@@ -137,9 +138,9 @@ WWG.prototype.Render = function(wwg) {
 	this.wwg = wwg ;
 	this.gl = wwg.gl ;
 	this.env = {} ;
-	this.obuf = [] ;
+//	this.obuf = [] ;
 	this.modelCount = 0 ;
-	this.modelHash = {} ;
+//	this.modelHash = {} ;
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 	if(uni.pos==null) return 
@@ -224,6 +225,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			if(typeof value == 'string') value = this.getTexIndex(value)
 			this.gl.activeTexture(this.gl.TEXTURE0+uni.texunit);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[value]);
+			if(this.data.texture[value]==undefined) break ;
 			if(this.data.texture && this.data.texture[value].video) {
 				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.data.texture[value].video);	
 			}
@@ -233,19 +235,25 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 }
 
 WWG.prototype.Render.prototype.setShader = function(data) {
-	var tu = 0 ;
+	let tu = 0 ;
 	function parse_shader(src) {
-		var l = src.split("\n") ;
-		var uni = [] ;
-		var att = [] ;
+		const l = src.split("\n") ;
+		const uni = [] ;
+		const att = [] ;
+		const def = {}
 
 		for(i=0;i<l.length;i++) {
-			var ln = l[i] ;
+			let ln = l[i] ;
+			if( ln.match(/^\s*#define\s*([^\s]+)\s*([^\s]+)/)) {
+				def[RegExp.$1.trim()] = RegExp.$2.trim()
+			}
 			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
-				var u = {type:RegExp.$1,name:RegExp.$2} ;
+				let u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
-					u.dim = parseInt(RegExp.$3.substr(1)) ;
+					let k = RegExp.$3.substr(1,RegExp.$3.length-2).trim()
+					u.dim = parseInt(k) ;
+					if(isNaN(u.dim)) u.dim = def[k]
 				}
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
@@ -257,37 +265,36 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 		return {uni:uni,att:att} ;
 	}
 
-	var gl = this.gl ;
-	var self = this ;
-	return new Promise(function(resolve,reject) {
+	const gl = this.gl ;
+	return new Promise((resolve,reject)=> {
 		if(!data.vshader) { reject("no vshader") ;return false;}
 		if(!data.fshader) { reject("no fshader") ;return false;}
-		var vss ;
-		var fss ;
-		var pr = [] ;
+		let vss ;
+		let fss ;
+		let pr = [] ;
 		if(data.vshader.text ) vss = data.vshader.text ;
 		else if(data.vshader.src) {
-			pr.push( self.wwg.loadAjax(data.vshader.src).then(function(result) {
+			pr.push( this.wwg.loadAjax(data.vshader.src).then((result)=> {
 				vss = result ;
 				resolve() ;
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			}))
 		}
 		if(data.fshader.text ) fss = data.fshader.text ;
 		else if(data.fshader.src) {
-			pr.push( self.wwg.loadAjax(data.fshader.src).then(function(result) {
+			pr.push( this.wwg.loadAjax(data.fshader.src).then((result)=> {
 				fss = result ;
 				resolve() ;
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			}))
 		}
-		Promise.all(pr).then(function(res) {
+		Promise.all(pr).then((res)=> {
 //			console.log(vss) ;
 //			console.log(fss) ;
-			var ret = {} ;
-			var vshader = gl.createShader(gl.VERTEX_SHADER);
+			let ret = {} ;
+			let vshader = gl.createShader(gl.VERTEX_SHADER);
 			gl.shaderSource(vshader, vss);
 			gl.compileShader(vshader);
 			if(!gl.getShaderParameter(vshader, gl.COMPILE_STATUS)) {
@@ -295,7 +302,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.vshader = vshader ;
 		
-			var fshader = gl.createShader(gl.FRAGMENT_SHADER);
+			let fshader = gl.createShader(gl.FRAGMENT_SHADER);
 			gl.shaderSource(fshader, fss);
 			gl.compileShader(fshader);
 			if(!gl.getShaderParameter(fshader, gl.COMPILE_STATUS)) {
@@ -303,7 +310,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.fshader = fshader ;
 			
-			var program = gl.createProgram();
+			let program = gl.createProgram();
 			gl.attachShader(program, vshader);
 			gl.attachShader(program, fshader);
 			gl.linkProgram(program);
@@ -313,44 +320,44 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.program = program ;
 			gl.useProgram(program);
 		
-			var vr = parse_shader(vss) ;	
+			let vr = parse_shader(vss) ;	
 //			console.log(vr) ;
 			ret.vs_att = {} ;	
-			for(var i in vr.att) {
+			for(let i in vr.att) {
 				vr.att[i].pos = gl.getAttribLocation(program,vr.att[i].name) ;
 				ret.vs_att[vr.att[i].name] = vr.att[i] ;
 			}
 			ret.vs_uni = {} ;
-			for(var i in vr.uni) {
+			for(let i in vr.uni) {
 				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
 				vr.uni[i].cache = null 
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
-			var fr = parse_shader(fss) ;	
+			let fr = parse_shader(fss) ;	
 //			console.log(fr);	
 			ret.fs_uni = {} ;
-			for(var i in fr.uni) {
+			for(let i in fr.uni) {
 				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
 				fr.uni[i].cache = null 
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
-		}).catch(function(err){
+		}).catch((err)=>{
 			reject(err) ;
 		}) ;
 	})
 }
 WWG.prototype.Render.prototype.setUniValues = function(data) {
 	if(data.vs_uni) {
-		for(var i in data.vs_uni) {
+		for(let i in data.vs_uni) {
 			if(this.vs_uni[i]) {
 				this.setUnivec(this.vs_uni[i], data.vs_uni[i]) ;
 			}  ;
 		}
 	}
 	if(data.fs_uni) {
-		for(var i in data.fs_uni) {
+		for(let i in data.fs_uni) {
 			if(this.fs_uni[i]) {
 				this.setUnivec(this.fs_uni[i], data.fs_uni[i]) ;
 			}  ;
@@ -360,17 +367,20 @@ WWG.prototype.Render.prototype.setUniValues = function(data) {
 }
 WWG.prototype.Render.prototype.genTex = function(img,option) {
 	if(!option) option={flevel:0} ;
-	var gl = this.gl ;
-	var tex = gl.createTexture();
+	let gl = this.gl ;
+	const formatstr = {"rgb":gl.RGB,"gray":gl.LUMINANCE,"grayalpha":gl.LUMINANCE_ALPHA}
+	let format = (option.format && formatstr[option.format])?formatstr[option.format]:gl.RGBA
+
+	let tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
 	if(option.isarray) {
 		if(img instanceof Float32Array ) 
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,gl.RGBA, gl.FLOAT, img,0);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,format, gl.FLOAT, img,0);
 		else 
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,gl.RGBA, gl.UNSIGNED_BYTE, img);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,format, gl.UNSIGNED_BYTE, img);
 		 option.flevel = 0 
 		 option.nomipmap = true
-	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, img);
+	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, format, format,gl.UNSIGNED_BYTE, img);
 
 	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
@@ -406,29 +416,28 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 }
 WWG.prototype.Render.prototype.loadTex = function(tex) {
 //	console.log( tex);
-	var self = this ;
-	var gl = this.gl ;
+	let gl = this.gl ;
 
-	return new Promise(function(resolve,reject) {
+	return new Promise((resolve,reject)=> {
 		if(tex.src) {
 			if(tex.opt && tex.opt.cors) {
-				self.wwg.loadImageAjax(tex.src).then(function(img) {
-					resolve( self.genTex(img,tex.opt)) ;
+				this.wwg.loadImageAjax(tex.src).then((img)=>{
+					resolve( this.genTex(img,tex.opt)) ;
 				}).catch((err)=>reject(err));
 			} else {
-				var img = new Image() ;
-				img.onload = function() {
-					resolve( self.genTex(img,tex.opt) ) ;
+				let img = new Image() ;
+				img.onload = ()=> {
+					resolve( this.genTex(img,tex.opt) ) ;
 				}
-				img.onerror = function() {
+				img.onerror = ()=> {
 					reject("cannot load image") ;
 				}
 				img.src = tex.src ;
 			}
 		} else if(tex.img instanceof Image) {
-			resolve( self.genTex(tex.img,tex.opt) ) 
+			resolve( this.genTex(tex.img,tex.opt) ) 
 		} else if(tex.video ) {
-			resolve( self.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
+			resolve( this.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
 		} else if(tex.buffer) {
 			if(tex.mrt!=undefined) {
 				resolve( tex.buffer.fb.t[tex.mrt])
@@ -437,23 +446,26 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 		} else if(tex.texture) {
 			resolve( tex.texture) ;
 		} else if(tex.canvas) {
-			resolve( self.genTex(tex.canvas,tex.opt)) ;
+			resolve( this.genTex(tex.canvas,tex.opt)) ;
 		} else if(tex.array) {
 			tex.opt.isarray = true ;
-			resolve( self.genTex(tex.array,tex.opt)) ;
+			resolve( this.genTex(tex.array,tex.opt)) ;
 		} else {
 			reject("no image")
 		}
 	})
 }
 WWG.prototype.Render.prototype.getTexIndex = function(name) {
-	for(var i=0;i<this.data.texture.length;i++) {
+	if(!this.data.texture) return null 
+	let i 
+	for(i=0;i<this.data.texture.length;i++) {
 		if(this.data.texture[i].name==name) break;
 	}
-	return i
+	return (i==this.data.texture.length)?null:i
 }
 WWG.prototype.Render.prototype.addTex = function(texdata) {
 	return new Promise((resolve,reject)=>{
+		if(!this.data.texture) this.data.texture = []
 		this.data.texture.push(texdata)
 		this.loadTex(texdata).then((tex)=>{
 			this.texobj.push(tex) ;
@@ -463,33 +475,34 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 }
 WWG.prototype.Render.prototype.removeTex = function(tex) {
 	if(typeof tex == "string") tex = this.getTexIndex(tex) 
+	if(tex === null ) return 
 	this.data.texture[tex] = null
 	this.texobj[tex] = null 
 }
 
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
-	var gl = this.gl ;
+	let gl = this.gl ;
 	console.log("create framebuffer "+os.width+"x"+os.height) ;
-	var mrt = os.mrt ;
-	var ttype = gl.UNSIGNED_BYTE ;
-	var tfilter = gl.LINEAR ;
+	let mrt = os.mrt ;
+	let ttype = gl.UNSIGNED_BYTE ;
+	let tfilter = gl.LINEAR ;
 	if(this.wwg.ext_ftex && os.float ) {
 		ttype = gl.FLOAT ;
 		tfilter = gl.NEAREST ;
 		console.log("use float tex") ;
 	}
-	var fblist = [] ;
-	var frameBuffer = gl.createFramebuffer();
+	let fblist = [] ;
+	let frameBuffer = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
 	//depth
-	var renderBuffer = gl.createRenderbuffer();
+	let renderBuffer = gl.createRenderbuffer();
 	gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
 	gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, os.width, os.height);	
 	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderBuffer);
 	//texture
 	if(mrt) {
-		var fTexture = [] ;
-		for(var i=0;i<mrt;i++) {
+		let fTexture = [] ;
+		for(let i=0;i<mrt;i++) {
 			fTexture[i] = gl.createTexture();
 			gl.bindTexture(gl.TEXTURE_2D, fTexture[i]);
 			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, os.width, os.height, 0, gl.RGBA, ttype, null);
@@ -499,7 +512,7 @@ WWG.prototype.Render.prototype.frameBuffer = function(os) {
 			fblist.push(this.wwg.mrt_att + i)		
 		}
 	} else {
-		var fTexture = gl.createTexture()
+		let fTexture = gl.createTexture()
 		gl.bindTexture(gl.TEXTURE_2D, fTexture);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, os.width, os.height, 0, gl.RGBA, ttype, null);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, tfilter);
@@ -510,73 +523,72 @@ WWG.prototype.Render.prototype.frameBuffer = function(os) {
 	gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);	
 
-	var ret = {width:os.width,height:os.height,f:frameBuffer,d:renderBuffer,t:fTexture}
+	let ret = {ox:os.offsetX,oy:os.offsetY,width:os.width,height:os.height,f:frameBuffer,d:renderBuffer,t:fTexture}
 	if(mrt) ret.fblist = fblist ;
 	return ret ;
 }
 WWG.prototype.Render.prototype.setRender =function(data) {
-	var gl = this.gl ;
+	let gl = this.gl ;
 	this.env = data.env ;
 	this.data = data ;
-	var self = this ;
 
-	return new Promise(function(resolve,reject) {
+	return new Promise((resolve,reject)=> {
 		if(!gl) { reject("no init") ;return ;}
-		var pr = [] ;
-		self.setShader({fshader:data.fshader,vshader:data.vshader}).then(function(ret) {
+		let pr = [] ;
+		this.setShader({fshader:data.fshader,vshader:data.vshader}).then((ret)=> {
 			//set program
-			self.vshader = ret.vshader ;
-			self.fshader = ret.fshader ;
-			self.program = ret.program ;
-			self.vs_uni = ret.vs_uni ;
-			self.vs_att = ret.vs_att ;
-			self.fs_uni = ret.fs_uni ;
+			this.vshader = ret.vshader ;
+			this.fshader = ret.fshader ;
+			this.program = ret.program ;
+			this.vs_uni = ret.vs_uni ;
+			this.vs_att = ret.vs_att ;
+			this.fs_uni = ret.fs_uni ;
 			
 			// load textures
 			if(data.texture) {
-				for(var i=0;i<data.texture.length;i++) {
-					pr.push(self.loadTex( data.texture[i])) ;
+				for(let i=0;i<data.texture.length;i++) {
+					pr.push(this.loadTex( data.texture[i])) ;
 				}
 			}
 
-			Promise.all(pr).then(function(result) {
+			Promise.all(pr).then((result)=> {
 //				console.log(result) ;
-				self.texobj = result ;
+				this.texobj = result ;
 				// set initial values
-				if(!self.setUniValues(data)) {
+				if(!this.setUniValues(data)) {
 					reject("no uniform name") ;
 					return ;
 				}
 				
-				if(self.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
-				if(self.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
-				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
+				if(this.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+				if(this.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
+				if(!this.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
 		
 				//set model 
-				for(var i =0;i<data.model.length;i++) {
-					self.obuf[i] = self.setObj( data.model[i],true) ;
-					if(data.model[i].name) self.modelHash[data.model[i].name] = i ;
+				for(let i =0;i<data.model.length;i++) {
+					data.model[i].obuf = this.setObj( data.model[i],true) ;
+//					if(data.model[i].name) this.modelHash[data.model[i].name] = data.model[i] ;
 				}
-				self.modelCount = data.model.length ;
-//				console.log(self.obuf);
+				this.modelCount = data.model.length ;
+//				console.log(this.obuf);
 				
-				if(self.env.offscreen) {// renderbuffer 
-					if(self.env.offscreen.mrt) { //MRT
-						if(!self.wwg.ext_mrt) reject("MRT not support") ;
+				if(this.env.offscreen) {// renderbuffer 
+					if(this.env.offscreen.mrt) { //MRT
+						if(!this.wwg.ext_mrt) reject("MRT not support") ;
 					}
-					self.fb = self.frameBuffer(self.env.offscreen) ;	
+					this.fb = this.frameBuffer(this.env.offscreen) ;	
 				}
-				resolve(self) ;
+				resolve(this) ;
 				
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			})
-		}).catch(function(err) {reject(err);})
+		}).catch((err)=> {reject(err);})
 	});
 }
 
 WWG.prototype.Render.prototype.clear = function() {
-	var cc = this.env.clear_color ;
+	let cc = this.env.clear_color ;
 	this.gl.clearColor(cc[0],cc[1],cc[2],cc[3]);
 	this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 }
@@ -594,63 +606,64 @@ WWG.prototype.Render.prototype.i32Array = function(ar) {
 	else return new Uint32Array(ar) ;
 }
 WWG.prototype.Render.prototype.setObj = function(obj,flag) {
-	var gl = this.gl
-	var geo = obj.geo ;
-	var inst = obj.inst ;
+	let gl = this.gl
+	let geo = obj.geo ;
+	let inst = obj.inst ;
 	ret = {} ;
-	
+	let vao
 	if(this.wwg.ext_vao) {
-		var vao = this.wwg.vao_create() ;
+		vao = this.wwg.vao_create() ;
 		this.wwg.vao_bind(vao);
 		ret.vao = vao ;
 	}
 	
-	var vbo = gl.createBuffer() 
+	let vbo = gl.createBuffer() 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo) ;
 
-	var tl = 0 ;
-	var ats = [] ;
-	for(var i=0;i<geo.vtx_at.length;i++) {
+	let tl = 0 ;
+	let ats = [] ;
+	for(let i=0;i<geo.vtx_at.length;i++) {
 		ats.push( this.vs_att[geo.vtx_at[i]] ) ;
 		tl += this.wwg.vsize[this.vs_att[geo.vtx_at[i]].type] ;
 	}
 
 	ret.ats = ats ;
 	ret.tl = tl ;
-	var ofs = 0 ;
-	for(var i in this.vs_att ) {
-		gl.disableVertexAttribArray(this.vs_att[i].pos);
+	let ofs = 0 ;
+	for(let i in this.vs_att ) {
+		if(this.vs_att[i].pos>=0) gl.disableVertexAttribArray(this.vs_att[i].pos);
 	}
-	for(var i=0;i<ats.length;i++) {
-		var s = this.wwg.vsize[ats[i].type] ;
+	for(let i=0;i<ats.length;i++) {
+		let s = this.wwg.vsize[ats[i].type] ;
 		gl.enableVertexAttribArray(this.vs_att[ats[i].name].pos);
 		gl.vertexAttribPointer(this.vs_att[ats[i].name].pos, s, gl.FLOAT, false, tl*4, ofs);
 		ofs += s*4 ;	
 	} 	
 	ret.vbo = vbo ;
-
+	let ibo
 	if(geo.idx) {
-		var ibo = gl.createBuffer() ;
+		ibo = gl.createBuffer() ;
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
 		ret.ibo = ibo ;
 	}
+	let ibuf 
 	if(inst) {
-		var ibuf = gl.createBuffer() 
+		ibuf = gl.createBuffer() 
 		gl.bindBuffer(gl.ARRAY_BUFFER, ibuf) ;
-		var tl = 0 ;
-		var ats = [] ;
-		for(var i=0;i<inst.attr.length;i++) {
+		let tl = 0 ;
+		let ats = [] ;
+		for(let i=0;i<inst.attr.length;i++) {
 			ats.push( this.vs_att[inst.attr[i]] ) ;
 			tl += this.wwg.vsize[this.vs_att[inst.attr[i]].type] ;
 		}
 		tl = tl*4 ;
 		ret.iats = ats ;
 		ret.itl = tl ;
-		var ofs = 0 ;
-		for(var i=0;i<ats.length;i++) {
-			var divisor = (inst.divisor)?inst.divisor[i]:1 ;
-			var s = this.wwg.vsize[ats[i].type] ;
-			var pos = this.vs_att[ats[i].name].pos
+		let ofs = 0 ;
+		for(let i=0;i<ats.length;i++) {
+			let divisor = (inst.divisor)?inst.divisor[i]:1 ;
+			let s = this.wwg.vsize[ats[i].type] ;
+			let pos = this.vs_att[ats[i].name].pos
 			gl.enableVertexAttribArray(pos);
 			gl.vertexAttribPointer(pos, s, gl.FLOAT, false, tl, ofs);
 			ofs += s*4 ;
@@ -688,30 +701,48 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		
 	return ret ;
 }
+WWG.prototype.Render.prototype.getModels = function() {
+	return this.data.model.filter((m)=>(m!==null))	
+}
 WWG.prototype.Render.prototype.getModelIdx = function(name) {
-	var idx 
+	let idx = false 
 	if(typeof name != 'string') idx = parseInt(name) ;
-	else idx = this.modelHash[name] ;
+	else {
+		for(let i=0;i<this.data.model.length;i++) 	{
+			if(this.data.model[i]===null) continue 
+			if(name==this.data.model[i].name) {idx = i ;break }
+		}
+	}
 	return idx ;	
 }
 // add model
 WWG.prototype.Render.prototype.addModel = function(model) {
+	let idx = false
+	if(model.name) idx = this.getModelIdx(model.name)
+	if(idx!==false ) {
+		this.data.model[idx] = model ;
+		this.data.model[idx].obuf = this.setObj(model,true) ;
+		return 
+	}
 	this.data.model.push(model) ;
-	this.obuf.push(this.setObj(model,true)) ;
+	this.data.model[this.data.model.length-1].obuf = this.setObj(model,true) ;
 	this.modelCount++
-	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
+//	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
 }
 // remove model
 WWG.prototype.Render.prototype.removeModel = function(model) {
-	let mi = this.getModelIndex(mode) 
+	let mi = this.getModelIdx(model) 
+	if(mi===false) return false 
+//	delete this.modelHash[this.data.model[mi].name] 
+	this.data.model[mi].obuf = null 
 	this.data.model[mi] = null 
-	this.obuf[mi] = null 
 	this.modelCount--  
+	return true 
 }
 // update attribute buffer 
 WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
-	var idx = this.getModelIdx(name) ;
-	var obuf = this.obuf[idx] ;
+	let idx = this.getModelIdx(name) ;
+	let obuf = this.data.model[idx].obuf ;
 	switch(mode) {
 		case "vbo":	
 			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.vbo) ;
@@ -726,29 +757,38 @@ WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
 }
 WWG.prototype.Render.prototype.updateModelInstance = function(name,buf,count) {
-	var idx = this.getModelIdx(name) ;
-	var obuf = this.obuf[idx] ;
+	let idx = this.getModelIdx(name) ;
+	let obuf = this.data.model[idx].obuf ;
 	this.data.model[idx].inst.count = count ;
 	this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.inst) ; 
 //		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.f32Array(buf))	
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
 }
 WWG.prototype.Render.prototype.getModelData =function(name) {
-	var idx = this.getModelIdx(name) ;
+	let idx = this.getModelIdx(name) ;
 	return this.data.model[idx] ;
 }
 // update texture 
 WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 	if(typeof idx == 'string') idx = this.getTexIndex(idx)
-	let tdat = this.data.texture[idx]
+	var tdat = this.data.texture[idx]
 	this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[idx]);
+
 	if(tdat.array) {
 		if(!opt) 
-			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
-				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);	
+			if(tdat.array instanceof Float32Array ) 
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);
+			else
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);	
 		else 
-			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+			if(tdat.array instanceof Float32Array ) 
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
 				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.FLOAT, tex,opt.ofs);
+			else
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex,opt.ofs);
 	} else {
 		if(!opt) {
 			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
@@ -759,17 +799,17 @@ WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy , this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
 		}
 	}
-	if(this.data.texture[idx].opt && !this.data.texture[idx].opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
+	if(tdat.opt && !tdat.opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
 }
 //update uniform values
 WWG.prototype.Render.prototype.pushUniValues = function(u) {
 	if(u.vs_uni) {
-		for(var i in u.vs_uni) {
+		for(let i in u.vs_uni) {
 			this.update_uni.vs_uni[i] = u.vs_uni[i] ;
 		}
 	}
 	if(u.fs_uni) {
-		for(var i in u.fs_uni) {
+		for(let i in u.fs_uni) {
 			this.update_uni.fs_uni[i] = u.fs_uni[i] ;
 		}
 	}
@@ -787,20 +827,22 @@ WWG.prototype.Render.prototype.updateUniValues = function(u) {
 WWG.prototype.Render.prototype.draw = function(update,cls) {
 //console.log("draw");
 
-	var gl = this.gl ;
+	let gl = this.gl ;
 	gl.useProgram(this.program);
 	if(this.env.offscreen) {// renderbuffer 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb.f);
 		if(this.env.offscreen.mrt) this.wwg.mrt_draw(this.fb.fblist);
-		gl.viewport(0,0,this.fb.width,this.fb.height) ;
+		gl.viewport(fb.offsetX,fb.offsetY,this.fb.width,this.fb.height) ;
 	}
 	if(!cls) this.clear() ;
-	for(var b=0;b<this.obuf.length;b++) {
-		if(this.obuf[b]==null) continue ;
-		var cmodel = this.data.model[b] ;
+	let models = this.data.model
+	for(let b=0;b<models.length;b++) {
+		if(models[b]===null) continue 
+		let cmodel = models[b] ;
 		if(cmodel.hide) continue ;
-		var geo = cmodel.geo ;
+		if(cmodel.obuf==null) continue ;
 
+		let geo = cmodel.geo ;
 		this.updateUniValues(0) ;
 		this.pushUniValues(this.data) ;
 		this.pushUniValues(cmodel);
@@ -810,37 +852,37 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			for(let i=0;i<update.length;i++) {
 				this.pushUniValues(update[i]) ;
 				if(update[i].model) {
-					var model =update[i].model[b] ;
+					let model =update[i].model[b] ;
 					if(model) this.pushUniValues(model) ;
 				}
 			}
 		}
 		this.updateUniValues(1)
 
-		var obuf = this.obuf[b] ;
-		var ofs = (geo.ofs>0)?geo.ofs:0 ;
+		let obuf = cmodel.obuf ;
+		let ofs = (geo.ofs>0)?geo.ofs:0 ;
 		if(this.wwg.ext_vao)  this.wwg.vao_bind(obuf.vao);
 		else {
 			gl.bindBuffer(gl.ARRAY_BUFFER, obuf.vbo) ;
-			var aofs = 0 ;
-			for(var i in this.vs_att ) {
+			let aofs = 0 ;
+			for(let i in this.vs_att ) {
 				gl.disableVertexAttribArray(this.vs_att[i].pos);
 			}
-			for(var i=0;i<obuf.ats.length;i++) {
-				var s = this.wwg.vsize[obuf.ats[i].type] ;
+			for(let i=0;i<obuf.ats.length;i++) {
+				let s = this.wwg.vsize[obuf.ats[i].type] ;
 				gl.enableVertexAttribArray(this.vs_att[obuf.ats[i].name].pos);
 				gl.vertexAttribPointer(this.vs_att[obuf.ats[i].name].pos, s, gl.FLOAT, false, obuf.tl*4, aofs);
 				aofs += s*4 ;	
 			}
-			if(this.obuf[b].ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.obuf[b].ibo) ;
-			if(this.obuf[b].inst) {
-				var inst = cmodel.inst ;
-				gl.bindBuffer(gl.ARRAY_BUFFER, this.obuf[b].inst) ;
-				var aofs = 0 ;
-				for(var i=0;i<obuf.iats.length;i++) {
-					var divisor = (inst.divisor)?inst.divisor[i]:1 ;
-					var s = this.wwg.vsize[obuf.iats[i].type] ;
-					var pos = this.vs_att[obuf.iats[i].name].pos
+			if(obuf.ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obuf.ibo) ;
+			if(obuf.inst) {
+				let inst = cmodel.inst ;
+				gl.bindBuffer(gl.ARRAY_BUFFER, obuf.inst) ;
+				let aofs = 0 ;
+				for(let i=0;i<obuf.iats.length;i++) {
+					let divisor = (inst.divisor)?inst.divisor[i]:1 ;
+					let s = this.wwg.vsize[obuf.iats[i].type] ;
+					let pos = this.vs_att[obuf.iats[i].name].pos
 					gl.enableVertexAttribArray(pos);
 					gl.vertexAttribPointer(pos, s, gl.FLOAT, false, obuf.itl, aofs);
 					aofs += s*4 ;
@@ -850,7 +892,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.preFunction) {
 			
-			cmodel.preFunction(gl,cmodel,this.obuf[b]) ;
+			cmodel.preFunction(gl,cmodel,obuf) ;
 		}
 		if(cmodel.blend!==undefined) {
 			gl.enable(gl.BLEND) ;
@@ -859,7 +901,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(cmodel.cull!==undefined) {
 			if(cmodel.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 		}
-		var gmode = this.wwg.dmodes[geo.mode]
+		let gmode = this.wwg.dmodes[geo.mode]
 		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
 				return false ;
@@ -892,374 +934,30 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 	}
 	return true ;
 }//Model library for WWG
-// Version 0.9 
+// Version 1.0 
 // 2016-2017 wakufactory.jp 
 // license: MIT 
 
-var WWModel = function(){
-	
-}
-WWModel.prototype.loadAjax = function(src) {
-	return new Promise(function(resolve,reject) {
-		var req = new XMLHttpRequest();
-		req.open("get",src,true) ;
-		req.responseType = "text" ;
-		req.onload = function() {
-			if(this.status==200) {
-				resolve(this.response) ;
-			} else {
-				reject("Ajax error:"+this.statusText) ;					
-			}
-		}
-		req.onerror = function() {
-			reject("Ajax error:"+this.statusText)
-		}
-		req.send() ;
-	})
-}
-WWModel.loadLines = function(path,cb,lbufsize) {
-	if(!lbufsize) lbufsize = 10000
-	const decoder = new TextDecoder
-	return new Promise((resolve,reject)=>{
-		fetch( path , {
-			method:"GET"
-		}).then( async resp=>{
-			if(resp.ok) {
-				const reader = resp.body.getReader();
-				const buf = new Uint8Array(lbufsize)
-				let bi = 0 
-				while (true) {
-					const {done, value} = await reader.read();
-					if (done) {
-					  cb(decoder.decode(buf.slice(0,bi))) 
-					  resolve(resp)
-					  break;
-					}
-//					console.log(value.length)
-					for (const char of value) {
-						buf[bi++] = char 
-						if(char == 0x0a ) {
-							cb(decoder.decode(buf.slice(0,bi-1))) 
-							bi = 0 
-						}
-					}
-				}
-			} else {
-				reject(resp)
-			}
-		})
-	})
-}
-// load .obj file
-WWModel.prototype.loadObj = async function(path,scale) {
-	var self = this ;
-	if(!scale) scale=1.0 ;
-	return new Promise(function(resolve,reject) {
-		self.loadAjax(path).then(function(data) {
-//			console.log(data) ;
-			var l = data.split("\n") ;
-			var v = [];
-			var n = [] ;
-			var x = [] ;
-			var t = [] ;
-			var c = [] ;
-			var xi = {} ;
-			var xic = 0 ;
+// export default 
+class WWModel {
 
-			for(var i = 0;i<l.length;i++) {
-				if(l[i].match(/^#/)) continue ;
-				if(l[i].match(/^eof/)) break ;
-				var ll = l[i].split(/\s+/) ;
-				if(ll[0] == "v") {
-					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
-					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
-				}
-				if(ll[0] == "vt") {
-					t.push([ll[1],ll[2]]) ;
-				}
-				if(ll[0] == "vn") {
-					n.push([ll[1],ll[2],ll[3]]) ;
-				}
-				if(ll[0] == "f") {
-					var ix = [] ;
-					for(var ii=1;ii<ll.length;ii++) {
-						if(ll[ii]=="") continue ;
-						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
-						ix.push(xi[ll[ii]]) ;
-					}
-					x.push(ix) ;
-				}
-			}
-			self.obj_v = [] ;
-			if(c.length>0) self.obj_c = [] 
-			self.obj_i =x ;
-			if(n.length>0) self.obj_n = [] ;
-			if(t.length>0) self.obj_t = [] ;
-			if(x.length>0) {
-				for(var i in xi) {
-					var si = i.split("/") ;
-					var ind = xi[i] ;
-					self.obj_v[ind] = v[si[0]-1] ;
-					if(c.length>0) self.obj_c[ind] = c[si[0]-1]  
-					if(t.length>0) self.obj_t[ind] = t[si[1]-1] ;
-					if(n.length>0) self.obj_n[ind] = n[si[2]-1] ;
-				}
-			} else {
-				self.obj_v = v 
-				if(c.length>0) self.obj_c = c
-				if(n.length>0) self.obj_n = n
-			}
-			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+self.obj_v.length) ;
-			resolve(self) ;
-		}).catch(function(err) {
-			reject(err) ;
-		})
-	}) ;
-}
-WWModel.prototype.loadObj2 = async function(path,scale) {
-	if(!scale) scale=1.0 ;
-	return new Promise((resolve,reject)=> {
-		var v = [];
-		var n = [] ;
-		var x = [] ;
-		var t = [] ;
-		var c = [] ;
-		var xi = {} ;
-		var xic = 0 ;
-		WWModel.loadLines(path,l=>{
-				if(l.match(/^#/)) return ;
-				if(l.match(/^eof/)) return ;
-				var ll = l.split(/\s+/) ;
-				if(ll[0] == "v") {
-					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
-					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
-				}
-				if(ll[0] == "vt") {
-					t.push([ll[1],ll[2]]) ;
-				}
-				if(ll[0] == "vn") {
-					n.push([ll[1],ll[2],ll[3]]) ;
-				}
-				if(ll[0] == "f") {
-					var ix = [] ;
-					for(var ii=1;ii<ll.length;ii++) {
-						if(ll[ii]=="") continue ;
-						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
-						ix.push(xi[ll[ii]]) ;
-					}
-					x.push(ix) ;
-				}
-		}).then(r=>{
-			this.obj_v = [] ;
-			if(c.length>0) this.obj_c = [] 
-			this.obj_i =x ;
-			if(n.length>0) this.obj_n = [] ;
-			if(t.length>0) this.obj_t = [] ;
-			if(x.length>0) {
-				for(var i in xi) {
-					var si = i.split("/") ;
-					var ind = xi[i] ;
-					this.obj_v[ind] = v[si[0]-1] ;
-					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
-					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
-					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
-				}
-			} else {
-				this.obj_v = v 
-				if(c.length>0) this.obj_c = c
-				if(n.length>0) this.obj_n = n
-			}
-			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
-			resolve(this) ;				
-		}).catch(err=> {
-			reject(err) ;
-		})
-	}) ;
-}
-//convert vtx data to vbo array
-WWModel.prototype.objModel  = function(addvec,mode) {
-	var v = this.obj_v ;
-	var s = this.obj_i ;
-	var n = this.obj_n ;
-	var t = this.obj_t ;
-
-	var vbuf = [] ;
-	var ibuf = [] ;
-	var sf = [] ;
-	var sn = [] ;
-	var ii = 0 ;
-	if(!n) this.obj_n = [] ;
-
-	for(var i=0;i<s.length;i++) {
-		var p = s[i] ;
-		if(!n) {
-			//面法線算出
-			var pa = [] ;
-			for(var j=0;j<3;j++) {
-				pa[j] = v[p[j]] ;
-			}
-			var yx = pa[1][0]-pa[0][0];
-			var yy = pa[1][1]-pa[0][1];
-			var yz = pa[1][2]-pa[0][2];
-			var zx = pa[2][0]-pa[0][0];
-			var zy = pa[2][1]-pa[0][1];
-			var zz = pa[2][2]-pa[0][2];				
-			var xx =  yy * zz - yz * zy;
-			var xy = -yx * zz + yz * zx;
-			var xz =  yx * zy - yy * zx;
-			var vn = Math.hypot(xx,xy,xz) ;
-			xx /= vn ; xy /= vn ; xz /= vn ;
-			sf.push( [xx,xy,xz]) ;
-			//面リスト
-			for(var j=0;j<p.length;j++) {
-				if(!sn[p[j]]) sn[p[j]] = [] ;
-				sn[p[j]].push(i) ;
-			}
-		}
-		//3角分割
-		for(var j=1;j<p.length-1;j++) {
-			ibuf.push(p[0]) ;
-			ibuf.push(p[j]) ;
-			ibuf.push(p[j+1] ) ;
-		}
-		ii += p.length ;
-	}
-	console.log(" vert:"+v.length);
-	console.log(" poly:"+ibuf.length/3);
-	for(var i=0;i<v.length;i++) {
-		vbuf.push( v[i][0] ) ;
-		vbuf.push( v[i][1] ) ;
-		vbuf.push( v[i][2] ) ;
-		var nx=0,ny=0,nz=0 ;		
-		if(n) {
-			nx = n[i][0] ;
-			ny = n[i][1] ;
-			nz = n[i][2] ;
-		} else {
-			//面法線の合成
-			for(var j=0;j<sn[i].length;j++) {
-				var ii = sn[i][j] ;
-				nx += sf[ii][0] ;
-				ny += sf[ii][1] ;
-				nz += sf[ii][2] ;
-			}
-		}
-		var vn = Math.hypot(nx,ny,nz) ;
-		vbuf.push(nx/vn) ;
-		vbuf.push(ny/vn) ;
-		vbuf.push(nz/vn) ;
-		if(!n) {
-			this.obj_n.push([nx/vn,ny/vn,nz/vn]); 
-		}
-		if(t) {
-			vbuf.push(t[i][0]) ;
-			vbuf.push(t[i][1]) ;
-		}
-		if(addvec) {
-			for(av=0;av<addvec.length;av++) {
-				vbuf = vbuf.concat(addvec[av].data[i]) ;
-			}
-		}
-	}
-
-//	console.log(vbuf) ;
-//	console.log(ibuf) ;
-	this.ibuf = ibuf ;
-	this.vbuf = vbuf ;
-	var ret = {mode:"tri",vtx_at:["position","norm"],vtx:vbuf,idx:ibuf} ;
-	if(t) ret.vtx_at.push("uv") ;
-	if(addvec) {
-		for(av=0;av<addvec.length;av++) ret.vtx_at.push(addvec[av].attr) ;
-	}
-	return ret ;
-}
-
-// generate normal vector lines
-WWModel.prototype.normLines = function(vm) {
-	var nv = [] ;
-	var v = this.obj_v
-	var n = this.obj_n ;
-	if(vm==undefined) vm = 0.1
-	for(var i=0;i<v.length;i++) {
-		nv.push(v[i][0]) ;
-		nv.push(v[i][1]) ;
-		nv.push(v[i][2]) ;
-		nv.push(v[i][0]+n[i][0]*vm) ;
-		nv.push(v[i][1]+n[i][1]*vm) ;
-		nv.push(v[i][2]+n[i][2]*vm) ;
-	}
-	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;
-}
-// generate wireframe lines
-WWModel.prototype.wireframe = function() {
-	var nv = [] ;
-	var v = this.obj_v ;
-	var s = this.obj_i ;
-	for(var k=0;k<s.length;k++) {
-		var ss = s[k]; 
-		for(var i=1;i<ss.length;i++) {
-			nv.push(v[ss[i-1]][0]) ;
-			nv.push(v[ss[i-1]][1]) ;
-			nv.push(v[ss[i-1]][2]) ;
-			nv.push(v[ss[i]][0]) ;
-			nv.push(v[ss[i]][1]) ;
-			nv.push(v[ss[i]][2]) ;
-		}
-		nv.push(v[ss[i-1]][0]) ;
-		nv.push(v[ss[i-1]][1]) ;
-		nv.push(v[ss[i-1]][2]) ;		
-		nv.push(v[ss[0]][0]) ;
-		nv.push(v[ss[0]][1]) ;
-		nv.push(v[ss[0]][2]) ;	
-	}
-	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;	
-}
-
-// mult 4x4 matrix
-WWModel.prototype.multMatrix4 = function(m4) {
-	var inv = new CanvasMatrix4(m4).invert().transpose() ;
-	var buf = m4.getAsArray()
-	for(var i=0;i<this.obj_v.length;i++) {
-		var v = this.obj_v[i] ;
-		var vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
-		var vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
-		var vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
-		this.obj_v[i] = [vx,vy,vz] ;
-	}
-}
-WWModel.prototype.mergeModels = function(models) {
-	var m = this ;
-	var ofs = 0 ;
-	for(var i=0;i<models.length;i++) {
-		m.obj_v = m.obj_v.concat(models[i].obj_v) 
-		m.obj_n = m.obj_n.concat(models[i].obj_n) 
-		m.obj_t = m.obj_t.concat(models[i].obj_t)
-		for(var j=0;j<models[i].obj_i.length;j++) {
-			var p = models[i].obj_i[j] ;
-			var pp = [] ;
-			for( n=0;n<p.length;n++) {
-				pp.push( p[n]+ofs ) ;
-			}
-			m.obj_i.push(pp) ;
-		}
-		ofs += models[i].obj_v.length ;
-	}
-	return m ;
-}
 // generate primitive
-WWModel.prototype.primitive  = function(type,param) {
+ primitive(type,param) {
 	if(!param) param = {} ;
-	var wx = (param.wx)?param.wx:1.0 ;
-	var wy = (param.wy)?param.wy:1.0 ;
-	var wz = (param.wz)?param.wz:1.0 ;
-	var div = (param.div)?param.div:10 ;
-	var ninv = (param.ninv)?-1:1 ;
-	var p = [] ;
-	var n = [] ;
-	var t = [] ;
-	var s = [] ;
-	var PHI = Math.PI *2 ;
-		var m = { "r05":{"v":[[-0.52573111,-0.7236068,0.4472136],[-0.85065081,0.2763932,0.4472136],[-0,0.89442719,0.4472136],[0.85065081,0.2763932,0.4472136],[0.52573111,-0.7236068,0.4472136],[0,-0.89442719,-0.4472136],[-0.85065081,-0.2763932,-0.4472136],[-0.52573111,0.7236068,-0.4472136],[0.52573111,0.7236068,-0.4472136],[0.85065081,-0.2763932,-0.4472136],[0,0,1],[-0,0,-1]],"s":[[0,1,6],[0,6,5],[0,5,4],[0,4,10],[0,10,1],[1,2,7],[1,7,6],[1,10,2],[2,3,8],[2,8,7],[2,10,3],[3,4,9],[3,9,8],[3,10,4],[4,5,9],[5,6,11],[5,11,9],[6,7,11],[7,8,11],[8,9,11]]},
+	let wx = (param.wx)?param.wx:1.0 ;
+	let wy = (param.wy)?param.wy:1.0 ;
+	let wz = (param.wz)?param.wz:1.0 ;
+	let div = (param.div)?param.div:10 ;
+	let divx = (param.divx)?param.divx:div ;
+	let divy = (param.divx)?param.divy:div ;
+	let divz = (param.divx)?param.divz:div ;
+	let ninv = (param.ninv)?-1:1 ;
+	let p = [] ;
+	let n = [] ;
+	let t = [] ;
+	let s = [] ;
+	let PHI = Math.PI *2 ;
+		let m = { "r05":{"v":[[-0.52573111,-0.7236068,0.4472136],[-0.85065081,0.2763932,0.4472136],[-0,0.89442719,0.4472136],[0.85065081,0.2763932,0.4472136],[0.52573111,-0.7236068,0.4472136],[0,-0.89442719,-0.4472136],[-0.85065081,-0.2763932,-0.4472136],[-0.52573111,0.7236068,-0.4472136],[0.52573111,0.7236068,-0.4472136],[0.85065081,-0.2763932,-0.4472136],[0,0,1],[-0,0,-1]],"s":[[0,1,6],[0,6,5],[0,5,4],[0,4,10],[0,10,1],[1,2,7],[1,7,6],[1,10,2],[2,3,8],[2,8,7],[2,10,3],[3,4,9],[3,9,8],[3,10,4],[4,5,9],[5,6,11],[5,11,9],[6,7,11],[7,8,11],[8,9,11]]},
 		"r04":{"v":[[-0.35682209,-0.49112347,0.79465447],[0.35682209,-0.49112347,0.79465447],[0.57735027,-0.79465447,0.18759247],[0,-0.98224695,-0.18759247],[-0.57735027,-0.79465447,0.18759247],[-0.57735027,0.18759247,0.79465447],[0.57735027,0.18759247,0.79465447],[0.93417236,-0.303531,-0.18759247],[-0,-0.607062,-0.79465447],[-0.93417236,-0.303531,-0.18759247],[-0.93417236,0.303531,0.18759247],[0,0.607062,0.79465447],[0.93417236,0.303531,0.18759247],[0.57735027,-0.18759247,-0.79465447],[-0.57735027,-0.18759247,-0.79465447],[-0.57735027,0.79465447,-0.18759247],[0,0.98224695,0.18759247],[0.57735027,0.79465447,-0.18759247],[0.35682209,0.49112347,-0.79465447],[-0.35682209,0.49112347,-0.79465447]],"s":[[0,1,6,11,5],[0,5,10,9,4],[0,4,3,2,1],[1,2,7,12,6],[2,3,8,13,7],[3,4,9,14,8],[5,11,16,15,10],[6,12,17,16,11],[7,13,18,17,12],[8,14,19,18,13],[9,10,15,19,14],[15,16,17,18,19]]},
 		"r03":{"v":[[-0.57735027,-0.57735027,0.57735027],[-0.57735027,0.57735027,0.57735027],[0.57735027,0.57735027,0.57735027],[0.57735027,-0.57735027,0.57735027],[-0.57735027,-0.57735027,-0.57735027],[-0.57735027,0.57735027,-0.57735027],[0.57735027,0.57735027,-0.57735027],[0.57735027,-0.57735027,-0.57735027]],"s":[[0,1,5,4],[0,4,7,3],[0,3,2,1],[1,2,6,5],[2,3,7,6],[4,5,6,7]]},
 		"r02":{"v":[[-0.70710678,-0.70710678,0],[-0.70710678,0.70710678,0],[0.70710678,0.70710678,0],[0.70710678,-0.70710678,0],[0,0,-1],[0,0,1]],"s":[[0,1,4],[0,4,3],[0,3,5],[0,5,1],[1,2,4],[1,5,2],[2,3,4],[2,5,3]]},
@@ -1269,22 +967,22 @@ WWModel.prototype.primitive  = function(type,param) {
 		} ;
 	switch(type) {
 	case "sphere":
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var y = Math.cos(Math.PI * v), r = Math.sin(Math.PI * v);
-			for(var j = 0 ; j <= div*2 ; ++j) {
-				var u = j / (0+div*2) ;
-				var x = (Math.cos(PHI * u) * r)
-				var z = (Math.sin(PHI * u) * r)
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let y = Math.cos(Math.PI * v), r = Math.sin(Math.PI * v);
+			for(let j = 0 ; j <= div*2 ; ++j) {
+				let u = j / (0+div*2) ;
+				let x = (Math.cos(PHI * u) * r)
+				let z = (Math.sin(PHI * u) * r)
 				p.push([x*wx,y*wy,z*wz])
 				n.push([x*ninv,y*ninv,z*ninv])
 				t.push([(ninv>0)?1-u:u,1-v])
 			}
 		}
-		var d2 = div*2+1 ;
-		for(var j = 0 ; j < div ; ++j) {
-			var base = j * d2;
-			for(var i = 0 ; i < div*2 ; ++i) {
+		let d2 = div*2+1 ;
+		for(let j = 0 ; j < div ; ++j) {
+			let base = j * d2;
+			for(let i = 0 ; i < div*2 ; ++i) {
 				if(ninv>0) s.push(
 					[base + i,	  base + i + 1, base + i     + d2],
 					[base + i + d2, base + i + 1, base + i + 1 + d2]);
@@ -1361,12 +1059,12 @@ WWModel.prototype.primitive  = function(type,param) {
 		}	
 		break ;
 	case "cylinder":
-		var divy = (param.divy)?param.divy:1
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+		let divy = (param.divy)?param.divy:1
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			let dy = wy*2/divy ;
-			for(var yi=0;yi<=divy;yi++) {
+			for(let yi=0;yi<=divy;yi++) {
 				p.push([x,yi*dy-wy,z])
 				n.push([x*ninv,0,z*ninv])
 				t.push([(ninv>0)?1-v:v,yi/divy])
@@ -1375,7 +1073,7 @@ WWModel.prototype.primitive  = function(type,param) {
 //				t.push([(ninv>0)?1-v:v,0])
 			}			
 		}
-		for(var j =0; j < div ;j++) {
+		for(let j =0; j < div ;j++) {
 			for(let yi=0;yi<divy;yi++) {
 				let j2 = j*(divy+1)+yi 
 				if(ninv<0)s.push([j2,j2+(divy+1),j2+(divy+1)+1,j2+1]) ;
@@ -1387,11 +1085,11 @@ WWModel.prototype.primitive  = function(type,param) {
 		}
 		break; 
 	case "ring":
-		var divy = (param.divy)?param.divy:1
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
-			for(var yi=0;yi<divy;yi++) {
+		divy = (param.divy)?param.divy:1
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+			for(let yi=0;yi<divy;yi++) {
 				p.push([x,wy,z])
 				n.push([x*ninv,0,z*ninv])
 				t.push([(ninv>0)?1-v:v,1])
@@ -1400,7 +1098,7 @@ WWModel.prototype.primitive  = function(type,param) {
 				t.push([(ninv>0)?1-v:v,0])
 			}			
 		}
-		for(var j =0; j < div ;j++) {
+		for(let j =0; j < div ;j++) {
 			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
@@ -1409,9 +1107,9 @@ WWModel.prototype.primitive  = function(type,param) {
 		}
 		break; 
 	case "cone":
-		for(var i = 0 ; i <= div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
+		for(let i = 0 ; i <= div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
 			p.push([0,wy,0])
 			n.push([x*ninv,0,z*ninv])
 			t.push([(ninv>0)?1-v:v,1])
@@ -1419,15 +1117,15 @@ WWModel.prototype.primitive  = function(type,param) {
 			n.push([x*ninv,0,z*ninv,0])
 			t.push([(ninv>0)?1-v:v,0])			
 		}
-		for(var j =0; j < div ;j++) {
+		for(let j =0; j < div ;j++) {
 			if(ninv>0)s.push([j*2,j*2+2,j*2+3,j*2+1]) ;
 			else s.push([j*2,j*2+1,j*2+3,j*2+2]) ;
 		}
 		break; 
 	case "disc":
-		for(var i = 0 ; i < div ; ++i) {
-			var v = i / (0.0+div);
-			var z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
+		for(let i = 0 ; i < div ; ++i) {
+			let v = i / (0.0+div);
+			let z = Math.cos(PHI * v)*wz, x = Math.sin(PHI * v)*wx;
 			p.push([x,0,z])
 			n.push([0,1,0])
 			t.push([(x/wx+1)/2,(z/wz+1)/2])	
@@ -1435,10 +1133,10 @@ WWModel.prototype.primitive  = function(type,param) {
 		p.push([0,0,0])
 		n.push([0,1,0])
 		t.push([0.5,0.5])
-		for(var j =0; j < div-1 ;j++) {
+		for(let j =0; j < div-1 ;j++) {
 			s.push([j,j+1,div]) ;
 		}
-		s.push([j,0,div])
+		s.push([div-1,0,div])
 		break; 
 	case "plane":
 		if(!param.wz)  {
@@ -1504,52 +1202,52 @@ WWModel.prototype.primitive  = function(type,param) {
 		break ;
 	case "mesh":
 		this.parametricModel( function(u,v) {
-			var r = {
+			let r = {
 				px:(u-0.5)*wx, py:0, pz:(v-0.5)*wz,
 				nx:0, ny:1, nz:0,
 				mu:u, mv:v }
 			return r ;
-		},{start:1.0,end:0,div:div},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:1.0,end:0,div:divx},{start:0,end:1,div:divz},{ninv:param.ninv}) ;
 		return this ;		
 		break ;
 	case "torus":
 		this.parametricModel( function(u,v) {
-			var R = 1.0 ;
-			var sr = (param.sr)?param.sr:0.5 ;
-			var du = u ;
-			var dv = -v ;
-			var cx = Math.sin(du*PHI) ;
-			var cz = Math.cos(du*PHI) ;
-			var vx = Math.sin(dv*PHI) ;
-			var vy = Math.cos(dv*PHI) ;
-			var tx = 1
-			var mx = sr*vx*cx ;
-			var mz = sr*vx*cz ;
-			var my = sr*vy ;
-			var ml = Math.hypot(mx,my,mz) ;
+			let R = 1.0 ;
+			let sr = (param.sr)?param.sr:0.5 ;
+			let du = u ;
+			let dv = -v ;
+			let cx = Math.sin(du*PHI) ;
+			let cz = Math.cos(du*PHI) ;
+			let vx = Math.sin(dv*PHI) ;
+			let vy = Math.cos(dv*PHI) ;
+			let tx = 1
+			let mx = sr*vx*cx ;
+			let mz = sr*vx*cz ;
+			let my = sr*vy ;
+			let ml = Math.hypot(mx,my,mz) ;
 	
-			var px = R*cx + tx*mx ;
-			var pz = R*cz + tx*mz ;
-			var py = tx*my ;
-			var r = {
+			let px = R*cx + tx*mx ;
+			let pz = R*cz + tx*mz ;
+			let py = tx*my ;
+			let r = {
 				px:px*wx, py:py*wy, pz:pz*wz,
 				nx:0, ny:0, nz:0,
 				mu:u, mv:v }
 			return r ;			
 			
-		},{start:0,end:1.0,div:div*2},{start:0,end:1,div:div},{ninv:param.ninv}) ;
+		},{start:0,end:1.0,div:divx*2},{start:0,end:1,div:divy},{ninv:param.ninv}) ;
 		return this ;
 	case "polyhedron":
 
 		if(!m[param.shape]) return null ;
-		var vt = m[param.shape].v ;
-		var si = m[param.shape].s ;
-		var vi = 0 ;
-		for(var i =0;i<si.length;i++) {
-			var nx=0,ny=0,nz=0 ;
-			var vs = [] ;
-			for(var h = si[i].length-1 ;h>=0;h--) {
-				var v = vt[si[i][h]] ;
+		let vt = m[param.shape].v ;
+		let si = m[param.shape].s ;
+		let vi = 0 ;
+		for(let i =0;i<si.length;i++) {
+			let nx=0,ny=0,nz=0 ;
+			let vs = [] ;
+			for(let h = si[i].length-1 ;h>=0;h--) {
+				let v = vt[si[i][h]] ;
 				p.push([v[0],v[2],v[1]]) ;
 				nx += v[0] ;
 				ny += v[2] ;
@@ -1557,15 +1255,15 @@ WWModel.prototype.primitive  = function(type,param) {
 				vs.push(vi) ;
 				vi++ ;
 			}
-			var vl = Math.hypot(nx,ny,nz) ;
-			for(var h = 0 ;h <si[i].length;h++) n.push([nx/vl,ny/vl,nz/vl]) ;
+			let vl = Math.hypot(nx,ny,nz) ;
+			for(let h = 0 ;h <si[i].length;h++) n.push([nx/vl,ny/vl,nz/vl]) ;
 			s.push(vs) ;
 		}
 		t = null ;
 		break ;
 	case "icosa":
-		var vt = m["r05"].v ;
-		var si = m["r05"].s ;
+		vt = m["r05"].v ;
+		si = m["r05"].s ;
 		for(let i=0;i<vt.length;i++) {
 			let vv = [vt[i][0],vt[i][2],vt[i][1]]
 			p.push(vv)
@@ -1632,37 +1330,37 @@ WWModel.prototype.primitive  = function(type,param) {
 	return this ;
 }
 // generate parametric model by function
-WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
-	var pos = [] ;
-	var norm = [] ;
-	var uv = [] ;
-	var indices = [] ;
-	var ninv = (opt && opt.ninv)?-1:1 ;
+ parametricModel(func,pu,pv,opt) {
+	let pos = [] ;
+	let norm = [] ;
+	let uv = [] ;
+	let indices = [] ;
+	let ninv = (opt && opt.ninv)?-1:1 ;
 
-	var du = (pu.end - pu.start)/pu.div ;
-	var dv = (pv.end - pv.start)/pv.div ;
-	for(var iu =0; iu <= pu.div ;iu++ ) {
-		for(var iv = 0 ;iv<= pv.div; iv++ ) {
-			var u = pu.start+du*iu ;
-			var v = pv.start+dv*iv ;
-			var p = func(u,v) ;
+	let du = (pu.end - pu.start)/pu.div ;
+	let dv = (pv.end - pv.start)/pv.div ;
+	for(let iu =0; iu <= pu.div ;iu++ ) {
+		for(let iv = 0 ;iv<= pv.div; iv++ ) {
+			let u = pu.start+du*iu ;
+			let v = pv.start+dv*iv ;
+			let p = func(u,v) ;
 			pos.push( [p.px,p.py,p.pz] ) ;
 			if(p.mu!=undefined) uv.push([p.mu,p.mv]) ;
 			// calc normal
 			if(p.nx==0&&p.ny==0&&p.nz==0) {
-				var dud = du/10 ; var dvd = dv/10 ;
-				var du0 = func(u-dud,v) ; var du1 = func(u+dud,v) ;
-				var nux = (du1.px - du0.px)/(dud*2) ;
-				var nuy = (du1.py - du0.py)/(dud*2) ;
-				var nuz = (du1.pz - du0.pz)/(dud*2) ;
-				var dv0 = func(u,v-dvd) ; var dv1 = func(u,v+dvd) ;
-				var nvx = (dv1.px - dv0.px)/(dvd*2) ;
-				var nvy = (dv1.py - dv0.py)/(dvd*2) ;
-				var nvz = (dv1.pz - dv0.pz)/(dvd*2) ;
-				var nx = nuy*nvz - nuz*nvy ;
-				var ny = nuz*nvx - nux*nvz ;
-				var nz = nux*nvy - nuy*nvx ;
-				var nl = Math.hypot(nx,ny,nz); 
+				let dud = du/10 ; let dvd = dv/10 ;
+				let du0 = func(u-dud,v) ; let du1 = func(u+dud,v) ;
+				let nux = (du1.px - du0.px)/(dud*2) ;
+				let nuy = (du1.py - du0.py)/(dud*2) ;
+				let nuz = (du1.pz - du0.pz)/(dud*2) ;
+				let dv0 = func(u,v-dvd) ; let dv1 = func(u,v+dvd) ;
+				let nvx = (dv1.px - dv0.px)/(dvd*2) ;
+				let nvy = (dv1.py - dv0.py)/(dvd*2) ;
+				let nvz = (dv1.pz - dv0.pz)/(dvd*2) ;
+				let nx = nuy*nvz - nuz*nvy ;
+				let ny = nuz*nvx - nux*nvz ;
+				let nz = nux*nvy - nuy*nvx ;
+				let nl = Math.hypot(nx,ny,nz); 
 				p.nx = nx/nl ;
 				p.ny = ny/nl ;
 				p.nz = nz/nl ;
@@ -1670,10 +1368,10 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 			norm.push([p.nx*ninv, p.ny*ninv,p.nz*ninv] ) ;
 		}
 	}
-	var d2 = pv.div+1 ;
-	for(var j = 0 ; j < pu.div ; ++j) {
-		var base = j * d2;
-		for(var i = 0 ; i < pv.div ; ++i) {
+	let d2 = pv.div+1 ;
+	for(let j = 0 ; j < pu.div ; ++j) {
+		let base = j * d2;
+		for(let i = 0 ; i < pv.div ; ++i) {
 			if(ninv>0) indices.push([base+i,base+i+d2,base+i+d2+1,base+i+1])	
 			else  indices.push([base+i+1,base+i+d2+1,base+i+d2,base+i])	
 		}	
@@ -1686,12 +1384,504 @@ WWModel.prototype.parametricModel =function(func,pu,pv,opt) {
 	return this ;
 }
 
+//convert vtx data to vbo array
+objModel(addvec,mode) {
+	let v = this.obj_v ;
+	let s = this.obj_i ;
+	let n = this.obj_n ;
+	let t = this.obj_t ;
+	let c = this.obj_c ;
+
+	let vbuf = [] ;
+	let ibuf = [] ;
+	let sf = [] ;
+	let sn = [] ;
+	let ii = 0 ;
+	if(!n) this.obj_n = [] ;
+
+	for(let i=0,l=s.length;i<l;i++) {
+		let p = s[i] ;
+		if(!n) {
+			//面法線算出
+			let pa = [] ;
+			for(let j=0;j<3;j++) {
+				pa[j] = v[p[j]] ;
+			}
+			let yx = pa[1][0]-pa[0][0];
+			let yy = pa[1][1]-pa[0][1];
+			let yz = pa[1][2]-pa[0][2];
+			let zx = pa[2][0]-pa[0][0];
+			let zy = pa[2][1]-pa[0][1];
+			let zz = pa[2][2]-pa[0][2];				
+			let xx =  yy * zz - yz * zy;
+			let xy = -yx * zz + yz * zx;
+			let xz =  yx * zy - yy * zx;
+			let vn = Math.hypot(xx,xy,xz) ;
+			xx /= vn ; xy /= vn ; xz /= vn ;
+			sf.push( [xx,xy,xz]) ;
+			//面リスト
+			for(let j=0,lj=p.length;j<lj;j++) {
+				if(!sn[p[j]]) sn[p[j]] = [] ;
+				sn[p[j]].push(i) ;
+			}
+		}
+		//3角分割
+		for(let j=1,lj=p.length-1;j<lj;j++) {
+			ibuf.push(p[0]) ;
+			ibuf.push(p[j]) ;
+			ibuf.push(p[j+1] ) ;
+		}
+		ii += p.length ;
+	}
+	console.log(" vert:"+v.length);
+	console.log(" poly:"+ibuf.length/3);
+	for(let i=0,l=v.length;i<l;i++) {
+		vbuf.push( parseFloat( v[i][0]) ) ;
+		vbuf.push( parseFloat( v[i][1]) ) ;
+		vbuf.push( parseFloat( v[i][2]) ) ;
+		let nx=0,ny=0,nz=0 ;		
+		if(n) {
+			nx = n[i][0] ;
+			ny = n[i][1] ;
+			nz = n[i][2] ;
+		} else {
+			//面法線の合成
+			for(let j=0;j<sn[i].length;j++) {
+				let ii = sn[i][j] ;
+				nx += sf[ii][0] ;
+				ny += sf[ii][1] ;
+				nz += sf[ii][2] ;
+			}
+		}
+		let vn = Math.hypot(nx,ny,nz) ;
+		if(vn==0) {
+		vbuf.push(0) ;
+		vbuf.push(0) ;
+		vbuf.push(0) ;			
+		} else {
+		vbuf.push(nx/vn) ;
+		vbuf.push(ny/vn) ;
+		vbuf.push(nz/vn) ;
+		}
+		if(!n) {
+			this.obj_n.push([nx/vn,ny/vn,nz/vn]); 
+		}
+		if(t) {
+			vbuf.push(parseFloat( t[i][0]) ) ;
+			vbuf.push(parseFloat( t[i][1]))  ;
+		}
+		if(c) {
+			vbuf.push(parseFloat( c[i][0])) ;
+			vbuf.push(parseFloat( c[i][1])) ;
+			vbuf.push(parseFloat( c[i][2])) ;
+		}
+		if(addvec) {
+			for(av=0;av<addvec.length;av++) {
+				vbuf = vbuf.concat(addvec[av].data[i]) ;
+			}
+		}
+	}
+
+//	console.log(vbuf) ;
+//	console.log(ibuf) ;
+	this.ibuf = ibuf ;
+	this.vbuf = vbuf ;
+	let ret = {mode:"tri",vtx_at:["position","norm"],vtx:vbuf,idx:ibuf} ;
+	if(t) ret.vtx_at.push("uv") ;
+	if(c) ret.vtx_at.push("color") ;
+	if(addvec) {
+		for(av=0;av<addvec.length;av++) ret.vtx_at.push(addvec[av].attr) ;
+	}
+	return ret ;
+}
+
+// generate normal vector lines
+ normLines(vm) {
+	let nv = [] ;
+	let v = this.obj_v
+	let n = this.obj_n ;
+	if(vm==undefined) vm = 0.1
+	for(let i=0,l=v.length;i<l;i++) {
+		nv.push(v[i][0]) ;
+		nv.push(v[i][1]) ;
+		nv.push(v[i][2]) ;
+		nv.push(v[i][0]+n[i][0]*vm) ;
+		nv.push(v[i][1]+n[i][1]*vm) ;
+		nv.push(v[i][2]+n[i][2]*vm) ;
+	}
+	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;
+}
+// generate wireframe lines
+ wireframe() {
+	let nv = [] ;
+	let v = this.obj_v ;
+	let s = this.obj_i ;
+	for(let k=0,l=s.length;k<l;k++) {
+		let ss = s[k]; 
+		let i
+		for(i=1;i<ss.length;i++) {
+			nv.push(v[ss[i-1]][0]) ;
+			nv.push(v[ss[i-1]][1]) ;
+			nv.push(v[ss[i-1]][2]) ;
+			nv.push(v[ss[i]][0]) ;
+			nv.push(v[ss[i]][1]) ;
+			nv.push(v[ss[i]][2]) ;
+		}
+		nv.push(v[ss[i-1]][0]) ;
+		nv.push(v[ss[i-1]][1]) ;
+		nv.push(v[ss[i-1]][2]) ;		
+		nv.push(v[ss[0]][0]) ;
+		nv.push(v[ss[0]][1]) ;
+		nv.push(v[ss[0]][2]) ;	
+	}
+	return  {mode:"lines",vtx_at:["position"],vtx:nv} ;	
+}
+
+// mult 4x4 matrix to model
+ multMatrix4(m4) {
+	let inv = new CanvasMatrix4(m4).invert().transpose() ;
+	let buf = m4.getAsArray()
+	for(let i=0;i<this.obj_v.length;i++) {
+		let v = this.obj_v[i] ;
+		let vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
+		let vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
+		let vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
+		this.obj_v[i] = [vx,vy,vz] ;
+	}
+	buf = inv.getAsArray() 
+	for(let i=0;i<this.obj_n.length;i++) {
+		let v = this.obj_n[i] ;
+		let vx = buf[0] * v[0] + buf[4] * v[1] + buf[8] * v[2] + buf[12] ;
+		let vy = buf[1] * v[0] + buf[5] * v[1] + buf[9] * v[2] + buf[13] ;
+		let vz = buf[2] * v[0] + buf[6] * v[1] + buf[10] * v[2] + buf[14] ;
+		this.obj_n[i] = [vx,vy,vz] ;
+	}
+}
+// merge model
+ mergeModels(models) {
+	let m = this ;
+	let ofs = 0 ;
+	for(let i=0;i<models.length;i++) {
+		m.obj_v = m.obj_v.concat(models[i].obj_v) 
+		m.obj_n = m.obj_n.concat(models[i].obj_n) 
+		m.obj_t = m.obj_t.concat(models[i].obj_t)
+		for(let j=0;j<models[i].obj_i.length;j++) {
+			let p = models[i].obj_i[j] ;
+			let pp = [] ;
+			for( n=0;n<p.length;n++) {
+				pp.push( p[n]+ofs ) ;
+			}
+			m.obj_i.push(pp) ;
+		}
+		ofs += models[i].obj_v.length ;
+	}
+	return m ;
+}
+// calc bounding box 
+boundbox() {
+	let sx = Number.MAX_VALUE
+	let sy = sx 
+	let sz = sx 
+	let ex = Number.MIN_VALUE 
+	let ey = ex 
+	let ez = ex 
+	
+	for(let i=0;i<this.obj_v.length;i++) {
+		let v = this.obj_v[i] ;	
+		if( v[0] < sx ) sx = v[0]
+		if( v[1] < sy ) sy = v[1] 
+		if( v[2] < sz ) sz = v[2] 
+		if( v[0] > ex ) ex = v[0] 
+		if( v[1] > ey ) ey = v[1] 
+		if( v[2] > ez ) ez = v[2] 
+	}
+	return [[sx,sy,sz],[ex,ey,ez]]
+}
+
+// load external file 
+loadAjax(src) {
+	return new Promise(function(resolve,reject) {
+		let req = new XMLHttpRequest();
+		req.open("get",src,true) ;
+		req.responseType = "text" ;
+		req.onload = function() {
+			if(this.status==200) {
+				resolve(this.response) ;
+			} else {
+				reject("Ajax error:"+this.statusText) ;					
+			}
+		}
+		req.onerror = function() {
+			reject("Ajax error:"+this.statusText)
+		}
+		req.send() ;
+	})
+}
+static loadLines(path,cb,lbufsize) {
+	if(!lbufsize) lbufsize = 10000
+	const decoder = new TextDecoder
+	return new Promise((resolve,reject)=>{
+		fetch( path , {
+			method:"GET"
+		}).then( async resp=>{
+			if(resp.ok) {
+				const reader = resp.body.getReader();
+				const buf = new Uint8Array(lbufsize)
+				let bi = 0 
+				while (true) {
+					const {done, value} = await reader.read();
+					if (done) {
+					  cb(decoder.decode(buf.slice(0,bi))) 
+					  resolve(resp)
+					  break;
+					}
+//					console.log(value.length)
+					for (const char of value) {
+						buf[bi++] = char 
+						if(char == 0x0a ) {
+							cb(decoder.decode(buf.slice(0,bi-1))) 
+							bi = 0 
+						}
+					}
+				}
+			} else {
+				reject(resp)
+			}
+		})
+	})
+}
+// load .obj file
+async loadObj(path,scale) {
+	if(!scale) scale=1.0 ;
+	return new Promise((resolve,reject)=> {
+		this.loadAjax(path).then((data)=> {
+//			console.log(data) ;
+			let l = data.split("\n") ;
+			let v = [];
+			let n = [] ;
+			let x = [] ;
+			let t = [] ;
+			let c = [] ;
+			let xi = {} ;
+			let xic = 0 ;
+
+			for(let i = 0,len=l.length;i<len;i++) {
+				if(l[i].match(/^#/)) continue ;
+				if(l[i].match(/^eof/)) break ;
+				let ll = l[i].split(/\s+/) ;
+				if(ll[0] == "v") {
+					v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
+					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
+				}
+				if(ll[0] == "vt") {
+					t.push([ll[1],ll[2]]) ;
+				}
+				if(ll[0] == "vn") {
+					n.push([ll[1],ll[2],ll[3]]) ;
+				}
+				if(ll[0] == "f") {
+					let ix = [] ;
+					for(let ii=1;ii<ll.length;ii++) {
+						if(ll[ii]=="") continue ;
+						if(!(ll[ii] in xi)) xi[ll[ii]] = xic++ ; 
+						ix.push(xi[ll[ii]]) ;
+					}
+					x.push(ix) ;
+				}
+			}
+			this.obj_v = [] ;
+			if(c.length>0) this.obj_c = [] 
+			this.obj_i =x ;
+			if(n.length>0) this.obj_n = [] ;
+			if(t.length>0) this.obj_t = [] ;
+			if(x.length>0) {
+				for(let i in xi) {
+					let si = i.split("/") ;
+					let ind = xi[i] ;
+					this.obj_v[ind] = v[si[0]-1] ;
+					if(c.length>0) this.obj_c[ind] = c[si[0]-1]  
+					if(t.length>0) this.obj_t[ind] = t[si[1]-1] ;
+					if(n.length>0) this.obj_n[ind] = n[si[2]-1] ;
+				}
+			} else {
+				this.obj_v = v 
+				if(c.length>0) this.obj_c = c
+				if(n.length>0) this.obj_n = n
+			}
+			console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+this.obj_v.length) ;
+			resolve(this) ;
+		}).catch(function(err) {
+			reject(err) ;
+		})
+	}) ;
+}
+static async loadObj2(path,opt) {
+
+	let scale = 1.0
+	let zup = false  
+	let nogroup = false 
+	let nomtl = false 
+	if(opt) {
+		if(opt.scale) scale=opt.scale
+		if(opt.zup) zup = opt.zup
+		if(opt.nogroup) nogroup = opt.nogroup
+		if(opt.nomtl) nomtl = opt.nomtl
+	}
+	return new Promise((resolve,reject)=> {
+		const v = [];
+		const n = [] ;
+		const xl = {} ;
+		const t = [] ;
+		const c = [] ;
+		const xi = {} ;
+		const rxi = []
+		let xic = 0 ;
+		let usemtl = "" 
+		let group = "" 
+		const pmtls = []
+		const mtlspath = [] 
+		WWModel.loadLines(path,async l=>{
+				if(l.match(/^#/)) return ;
+				if(l.match(/^eof/)) return ;
+				const ll = l.split(/\s+/) ;
+				const cmd = ll[0]
+				if(cmd == "v") {
+					if(zup) v.push([ll[1]*scale,ll[3]*scale,-ll[2]*scale]) ;
+					else v.push([ll[1]*scale,ll[2]*scale,ll[3]*scale]) ;
+					if(ll.length==7) c.push([ll[4],ll[5],ll[6]])
+				}
+				if(cmd == "vt") {
+					t.push([ll[1],ll[2]]) ;
+				}
+				if(cmd == "vn") {
+					if(zup) n.push([ll[1],ll[3],-ll[2]]) ;
+					else  n.push([ll[1],ll[2],ll[3]]) ;
+				}
+				if(cmd == "f") {
+					let ix = [] ;
+					for(let ii=1;ii<ll.length;ii++) {
+						if(ll[ii]=="") continue ;
+						if(!(ll[ii] in xi)) {
+							xi[ll[ii]] = xic++ ; 
+							rxi[xi[ll[ii]]] = ll[ii]
+						}
+						ix.push(xi[ll[ii]]) ;
+					}
+					if(!xl[group]) xl[group] = {} 
+					if(!xl[group][usemtl]) xl[group][usemtl] = []
+					xl[group][usemtl].push(ix) ;
+				}
+				if(cmd == "mtllib") {
+					let pp = path.split("/") 
+					pp[pp.length-1] = ll[1] 
+					pmtls.push( WWModel.loadMtl(pp.join("/")) )
+					mtlspath.push(pp)
+				}
+				if(cmd == "usemtl") {
+					if(!nomtl) usemtl = ll[1] 
+				}
+				if(cmd == "g") {
+					if(!nogroup) group = ll[1] 
+				}
+		}).then(r=>{
+			const groups = []
+			let objs
+			console.log(xl)
+			console.log(rxi)
+			for(let g in xl) {
+				objs = [] 
+				for( let m in xl[g]) {
+					let x = xl[g][m]
+					const obj = new WWModel() 
+					obj.obj_v = [] ;
+					if(c.length>0) obj.obj_c = [] 
+					if(n.length>0) obj.obj_n = [] ;
+					if(t.length>0) obj.obj_t = [] ;
+					obj.obj_i =x ;
+					if(x.length>0) {
+						for(let i in xi) {
+							let si = i.split("/") ;
+							let ind = xi[i] ;
+							obj.obj_v[ind] = v[si[0]-1] ;
+							if(c.length>0) obj.obj_c[ind] = c[si[0]-1]  
+							if(t.length>0) obj.obj_t[ind] = t[si[1]-1] ;
+							if(n.length>0) obj.obj_n[ind] = n[si[2]-1] ;
+						}
+					} else {
+						obj.obj_v = v 
+						if(c.length>0) obj.obj_c = c
+						if(n.length>0) obj.obj_n = n
+					}
+					objs.push({obj:obj,mtlname:m})
+					console.log("loadobj "+path+" vtx:"+v.length+" norm:"+n.length+" tex:"+t.length+" idx:"+x.length+" vbuf:"+obj.obj_v.length) ;
+				}
+				groups.push({objs:objs,group:g})
+			}
+			if(pmtls.length>0) {
+				Promise.all(pmtls).then(mtls=> {
+					let allmtls = {} 
+					for(let i in mtls) {
+						allmtls = Object.assign(allmtls,mtls[i]) 
+					}
+					resolve((nogroup)?{objs:objs,mtls:allmtls}:{groups:groups,mtls:allmtls})
+				})
+			} else resolve((nogroup)?{objs:objs}:{groups:groups})
+						
+		}).catch(err=> {
+			reject(err) ;
+		})
+	}) ;
+}
+static async loadMtl(path) {
+	const mtls = []
+	let mtlname = "" 
+	return new Promise((resolve,reject)=> {
+		WWModel.loadLines(path,l=>{
+			if(l.match(/^#/)) return 
+			if(l.match(/^eof/)) return 
+			const ll = l.split(/\s+/) 
+			const cmd = ll[0]
+			if(cmd=="newmtl") {
+				mtlname = ll[1] 
+				mtls[mtlname] = {}
+				return  
+			}
+			switch(cmd) {
+				case "Kd":
+				case "Ks":
+				case "Ka":
+				case "Tf":
+					mtls[mtlname][cmd] = [parseFloat(ll[1]),parseFloat(ll[2]),parseFloat(ll[3])]
+					break ;
+				case "Ni":
+				case "d":
+				case "Ns":
+					mtls[mtlname][cmd] = parseFloat(ll[1])
+					break ;
+				case "illum":
+					mtls[mtlname][cmd] = parseInt(ll[1])
+					break ;
+				case "map_Kd":
+				case "map_Ka":
+				case "map_Ks":
+					mtls[mtlname][cmd] = ll[1]
+					break;
+			}
+		}).then(r=>{
+			resolve(mtls) 
+		}).catch(err=> {
+			reject(err) ;
+		})			
+	})
+}
+
+
 // other utils 
-WWModel.HSV2RGB = function( H, S, V ,a) {
-	var ih;
-	var fl;
-	var m, n;
-	var rr,gg,bb ;
+static  HSV2RGB( H, S, V ,a) {
+	let ih;
+	let fl;
+	let m, n;
+	let rr,gg,bb ;
 	H = H * 6 ;
 	ih = Math.floor( H );
 	fl = H - ih;
@@ -1710,20 +1900,23 @@ WWModel.HSV2RGB = function( H, S, V ,a) {
 	}
 	return [rr,gg,bb,(a===undefined)?1.0:a] ;
 }
-WWModel.snormal = function(pa) {
-	var yx = pa[1][0]-pa[0][0];
-	var yy = pa[1][1]-pa[0][1];
-	var yz = pa[1][2]-pa[0][2];
-	var zx = pa[2][0]-pa[0][0];
-	var zy = pa[2][1]-pa[0][1];
-	var zz = pa[2][2]-pa[0][2];				
-	var xx =  yy * zz - yz * zy;
-	var xy = -yx * zz + yz * zx;
-	var xz =  yx * zy - yy * zx;
-	var vn = Math.hypot(xx,xy,xz) ;
+static  snormal(pa) {
+	let yx = pa[1][0]-pa[0][0];
+	let yy = pa[1][1]-pa[0][1];
+	let yz = pa[1][2]-pa[0][2];
+	let zx = pa[2][0]-pa[0][0];
+	let zy = pa[2][1]-pa[0][1];
+	let zz = pa[2][2]-pa[0][2];				
+	let xx =  yy * zz - yz * zy;
+	let xy = -yx * zz + yz * zx;
+	let xz =  yx * zy - yy * zx;
+	let vn = Math.hypot(xx,xy,xz) ;
 	xx /= vn ; xy /= vn ; xz /= vn ;
 	return [xx,xy,xz] ;
-}/*
+}
+
+} //class WWModel
+/*
  * Copyright (C) 2009 Apple Inc. All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2545,13 +2738,132 @@ CanvasMatrix4.qMult = function(q1,q2) {
 }
 	
 
-//mouse and touch event handler
+class Vector extends Array {
+	constructor(...args) {
+		let v = args 
+		if(Array.isArray(args[0])) v = args[0]
+		super(...v)
+		this._setxyz()
+	}
+	_setxyz() {
+		this.x = this[0]
+		if(this[1]!==undefined) this.y = this[1]
+		if(this[2]!==undefined) this.z = this[2] 
+		if(this[3]!==undefined) this.w = this[3]	
+	}
+	set x(v) {this._x = v,this[0] = v}
+	set y(v) {this._y = v,this[1] = v}
+	set z(v) {this._z = v,this[2] = v}
+	set w(v) {this._w = v,this[3] = v}
+	set r(v) {this._x = v,this[0] = v}
+	set g(v) {this._y = v,this[1] = v}
+	set b(v) {this._z = v,this[2] = v}
+	set a(v) {this._w = v,this[3] = v}
+	get x() { return this._x}
+	get y() { return this._y}
+	get z() { return this._z}
+	get w() { return this._w}
+	get r() { return this._x}
+	get g() { return this._y}
+	get b() { return this._z}
+	get a() { return this._w}
+//retrun new vector
+	get xy() { return new Vector(this[0],this[1])}
+	get yx() { return new Vector(this[1],this[0])}
+	get xz() { return new Vector(this[0],this[2])}
+	get zx() { return new Vector(this[2],this[0])}
+	get yz() { return new Vector(this[1],this[2])}
+	get zy() { return new Vector(this[2],this[1])}
+	get xyz() { return new Vector(this[0],this[1],this[2])}
+	get xzy() { return new Vector(this[0],this[2],this[1])}
+	get yxz() { return new Vector(this[1],this[0],this[2])}
+	get yzx() { return new Vector(this[1],this[2],this[0])}
+	get zxy() { return new Vector(this[2],this[0],this[1])}
+	get zyx() { return new Vector(this[2],this[1],this[0])}
+	get rgb() { return new Vector(this[0],this[1],this[2])}
+
+	cross(vec) {
+		if(this.length!=3 || vec.length!=3 ) throw -1 
+		let r = [
+			this[1]*vec[2] - this[2] * vec[1],
+			this[2]*vec[0] - this[0] * vec[2],
+			this[0]*vec[1] - this[1] * vec[0] 
+			]
+		return new Vector(r) 
+	}
+	mix(vec ,ratio ) {
+		return new Vector(this.map((v,i)=>v*(1-ratio)+vec[i]*ratio)) 
+	}
+
+	invert() {
+		return new Vector(this.map(v=>-v)) 
+	}
+	add(tgt) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		if(this.length!=tgt.length) throw -1
+		return new Vector(this.map((v,i)=>v+tgt[i])) 
+	}
+	sub(tgt) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		if(this.length!=tgt.length) throw -1
+		return new Vector(this.map((v,i)=>v-tgt[i])) 
+	}
+	mult(tgt ) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		return new Vector(this.map((v,i)=>v*tgt[i])) 	
+	}
+	normalize() {
+		let l = this.hypot() 
+		return new Vector(this.map((v,i)=>(l!=0)?v/l:0)) 
+	}
+	floor() {
+		return new Vector(this.map((v,i)=>Math.floor(v))) 	
+	}
+	ceil() {
+		return new Vector(this.map((v,i)=>Math.ceil(v))) 		
+	}
+	fract() {
+		return new Vector(this.map((v,i)=>v-Math.floor(v))) 		
+	}
+	min(tgt ) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		return new Vector(this.map((v,i)=>(v<tgt[i])?v:tgt[i])) 			
+	}
+	max(tgt ) {
+		if(!Array.isArray(tgt)) tgt = new Array(this.length).fill(tgt)
+		return new Vector(this.map((v,i)=>(v>tgt[i])?v:tgt[i])) 			
+	}
+	clamp(min,max) {
+		return new Vector(this.map((v,i)=>(v<min)?min:(v>max)?max:v)) 			
+	}
+	step(th) {
+		return new Vector(this.map((v,i)=>(v<th)?0:1)) 			
+	}
+	mod(a) {
+		return new Vector(this.map((v,i)=>v % a)) 		
+	}
+//return float
+	dot(vec) {
+		return this.reduce((a,v,i)=>a+=v*vec[i],0)
+	}
+	distance(vec) {
+		let v = new Vector(...this)
+		return v.sub(vec).hypot()
+	}
+	hypot() {
+		return Math.hypot(...this)
+	}
+// return bool
+	equal(vec) {
+		return this.reduce((a,v,i)=>a && v===vec[i],true)
+	}
+}//mouse and touch event handler
 Pointer = function(t,cb) {
 	var self = this ;
 	var touch,gesture,EV_S,EV_E,EV_M ;
 	function pos(ev) {
 		var x,y ;
-		if(touch && ev.touches.length>0) {
+		if(touch && ev.touches && ev.touches.length>0) {
 			x = ev.touches[0].pageX - ev.target.offsetLeft ;
 			y = ev.touches[0].pageY - ev.target.offsetTop ;
 		} else {
@@ -2668,93 +2980,152 @@ Pointer = function(t,cb) {
 			cb.gyro({rx:rx,ry:ry,rz:rz,orientation:or}) ;
 		})
 	}
+
 }
+/**
+ *	gamepad object 
+ *	@constructor 
+ */
 GPad = function() {
 	this.idx = 0 
 	this.conn = false 
+	this.gpadcount = 0 
+	if(!navigator.getGamepads) return false ;
+	gamepads = navigator.getGamepads();
+	this.gpadcount = gamepads.length
+	return this.gpadcount > 0  
 }
 
-GPad.prototype.init = function(idx) {
+GPad.prototype.init = function(idx,cb) {
 	if(idx==undefined) idx = 0 
 	this.idx = idx 
 	if(!navigator.getGamepads) return false ;
+	let ret = true 
 	gamepads = navigator.getGamepads();
 //	console.log(gamepads)
 	if(gamepads[this.idx]) {
-		console.log("gpad connected "+0) ;
+		console.log("gpad init "+this.idx) ;
 		this.axes =gamepads[this.idx].axes 
-		this.conn = true ;
+		this.conn = false ;
 		this.egp = null ;
+	} else {
+		this.conn = false 
+		ret = false 
 	}
 	addEventListener("gamepadconnected", (e)=> {
+		if(e.gamepad.index != this.idx ) return 
 		console.log("gpad reconnected "+e.gamepad.index) ;
 //		console.log(e.gamepad) ;
 		this.axes = e.gamepad.axes 
 		this.conn = true; 
+		this.get()
+		if(cb) cb(this,true) 
 	})	
 	addEventListener("gamepaddisconnected", (e)=> {
+		if(e.gamepad.index != this.idx ) return 
 		console.log("gpad disconnected "+e.gamepad.index) ;
 		this.conn = false ;
+		if(cb) cb(this,false) 
 	})
 	this.lastGp = {
 		buttons:[
-			{pressed:false},
-			{pressed:false},
-			{pressed:false},
-			{pressed:false},
-			{pressed:false},
-			{pressed:false}
+			{pressed:false,touched:false},
+			{pressed:false,touched:false},
+			{pressed:false,touched:false},
+			{pressed:false,touched:false},
+			{pressed:false,touched:false},
+			{pressed:false,touched:false}
 		],
 		axes:[0,0]
 	}
 	this.egp = {
 		buttons:[
-			{pressed:false},
-			{pressed:false}
+			{pressed:false,touched:false},
+			{pressed:false,touched:false}
 		],
 		axes:[0,0]
 	}
-	return true ;
+	return ret ;
 }
 GPad.prototype.get = function(pad) {
 	var gp 
-	if(!this.conn) {
+	if(POXPDevice && POXPDevice.WebXR) {
+		this.emu = false 
+		if(POXPDevice.isPresenting && POXPDevice.session.inputSources) {
+		const is = POXPDevice.session.inputSources
+		for (let i=0;i<=is.length-1;i++) {
+			if (is[i].gamepad && is[i].gamepad.mapping=="xr-standard") {
+				is[i].gamepad.hand = is[i].handedness
+				if (is[i].handedness=="left" && this.idx==1) {gp=is[i].gamepad }
+				if (is[i].handedness=="right" && this.idx==0) {gp=is[i].gamepad }
+
+				if(gp) {
+					let pose = POXPDevice.vrFrame.getPose(is[i].gripSpace,POXPDevice.referenceSpace)
+					if(pose) {
+						gp.pose = {}
+						if(pose.transform.orientation) gp.pose.orientation = [pose.transform.orientation.x,pose.transform.orientation.y,pose.transform.orientation.z,pose.transform.orientation.w]
+						if(pose.transform.position) gp.pose.position =  [pose.transform.position.x,pose.transform.position.y,pose.transform.position.z]
+//					console.log(pose)
+					}
+					this.conn = true 
+					break 
+				} else this.conn = false 					
+			}	
+		}
+		} else this.conn = false 
+	} 
+	if(!gp) {
 		if(this.egp==null) return null ;	
+		this.conn = true 
 		gp = this.egp
-	} else {
-		var gamepads = navigator.getGamepads();
-//		console.log(gamepads)
-		var gp = gamepads[this.idx];
-		if(!gp || gp.buttons.length==0) return null ;
-	}
-	
+		this.emu = true 
+	} 
 	var lgp = this.lastGp 
+	gp.conn = this.conn 
+	gp.emu = this.emu 
 	gp.bf = false 
 	gp.pf = false 
+	gp.tf = false 
 	gp.dbtn = [] 
 	gp.dpad = []
+	gp.dtouch = [] 
 
 //	if(lgp) console.log(lgp.buttons[1].pressed +" "+ gp.buttons[1].pressed)
 	for(var i=0;i<gp.buttons.length;i++) {
 		gp.dbtn[i] = 0 
-		if(lgp) {
+		gp.dtouch[i] = 0 
+		if(lgp && lgp.buttons[i]) {
 			if(!lgp.buttons[i].pressed && gp.buttons[i].pressed) {gp.dbtn[i] = 1; gp.bf=true} 
 			if(lgp.buttons[i].pressed && !gp.buttons[i].pressed) {gp.dbtn[i] = -1;gp.bf=true}
+			if(!lgp.buttons[i].touched && gp.buttons[i].touched) {gp.dtouch[i] = 1; gp.tf=true} 
+			if(lgp.buttons[i].touched && !gp.buttons[i].touched) {gp.dtouch[i] = -1;gp.tf=true}
 		}
-		lgp.buttons[i] = {pressed:gp.buttons[i].pressed}
+		lgp.buttons[i] = {pressed:gp.buttons[i].pressed,
+											touched:gp.buttons[i].touched}
 	}
-
-	for(var i=0;i<gp.axes.length;i++) {
+	const th = 0.5 
+	const eps = 0.001 
+	let axes = [gp.axes[0],gp.axes[1],gp.axes[2],gp.axes[3]]
+	if(gp.axes[2]!==undefined && gp.axes[3]!==undefined) {
+		 axes[0] = gp.axes[2]
+		 axes[1] = gp.axes[3]
+		 gp.stick = true ;
+	} else gp.stick = false ;
+	
+	gp.eaxes = axes 
+	for(var i=0;i<axes.length;i++) {
+		if(Math.abs(axes[i]) < eps ) gp.axes[i] = 0 
 		gp.dpad[i] = 0 
 		if(lgp) {
-			if(lgp.axes[i]==0 && gp.axes[i]!=0) {gp.dpad[i] = (gp.axes[i]>0)?1:-1;gp.pf=true}
-			if(lgp.axes[i]!=0 && gp.axes[i]==0) {gp.dpad[i] = (lgp.axes[i]>0)?1:-1;gp.pf=true}
+			if(Math.abs(lgp.axes[i])<th && Math.abs(axes[i])>=th) {gp.dpad[i] = 1;gp.pf=true}
+			if(Math.abs(lgp.axes[i])>=th && Math.abs(axes[i])<th) {gp.dpad[i] = -1;gp.pf=true}
 		}
-		lgp.axes[i] = gp.axes[i]
+		lgp.axes[i] = axes[i]
 	}
 	this.gp = gp 
-	if(this.ev && (gp.bf || gp.pf)){
-		this.ev(gp,gp.dbtn,gp.dpad) 
+
+	if(this.ev && (gp.bf || gp.pf || gp.tf)){
+		this.ev(gp) 
 	}
 //	console.log(gp)
 	return gp ;	
@@ -2765,8 +3136,8 @@ GPad.prototype.set = function(gp) {//for emulation
 GPad.prototype.clear = function(gp) {//for emulation
 	if(gp==undefined ) gp = {
 		buttons:[
-			{pressed:false},
-			{pressed:false}
+			{pressed:false,touched:false},
+			{pressed:false,touched:false}
 		],
 		axes:[0,0]
 	}
@@ -3226,6 +3597,7 @@ WBind.set = function(data,root) {
 // property str,src ,rect,x,y,width,height 
 // styles radius,color,border,background,lineWidth,font,lineHeight,align,offsetx,offsety
 //
+//export {json2canvas}
 class json2canvas {
 
 constructor(can) {
@@ -3240,7 +3612,7 @@ constructor(can) {
 		font:"20px sans-serif",
 		borderColor:"black",
 		textColor:"black",
-		backgroundColor:"white"
+//		backgroundColor:"white"
 	}
 	this.class = {}
 	this.km = /[。、\.\-,)\]｝、〕〉》」』】〙〗〟’”｠»ゝゞーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇷ゚ㇺㇻㇼㇽㇾㇿ々〻‐゠–〜～?!‼⁇⁈⁉・:;\/]/
@@ -3520,28 +3892,28 @@ static loadFont(name,path) {
 "use strict" ;
 const Mat4 = CanvasMatrix4 // alias
 const RAD = Math.PI/180 ;
-const PoxPlayer  = function(can,opt) {
-	this.version = "1.2.0" 
+class PoxPlayer {
+
+constructor(can,opt) {
+	this.version = "2.2.0" 
 	if(!Promise) {
-		alert("This browser is not supported!!") ;
-		return null ;		
+		throw "This browser is not supported!!"	
 	}
 	if(!opt) opt = {} 
 	this.can = (can instanceof HTMLElement)?can:document.querySelector(can)  ;
 
 	// wwg initialize
 	const wwg = new WWG() ;
+	const initopt = {preserveDrawingBuffer: opt.capture,antialias:true, xrCompatible: true }
 	const useWebGL2 = !opt.noWebGL2
-	if(!(useWebGL2 && wwg.init2(this.can,{preserveDrawingBuffer: opt.capture})) && !wwg.init(this.can,{preserveDrawingBuffer: opt.capture})) {
-		alert("wgl not supported") ;
-		return null ;
+	if(!(useWebGL2 && wwg.init2(this.can,initopt)) && !wwg.init(this.can,initopt)) {
+		throw "wgl not supported!"
 	}
 	if(opt.needWebGL2 && wwg.version!=2) {
-		alert("needs wgl2")
-		return null 
+		throw "needs wgl2"
 	}
 	this.wwg = wwg ;
-	if(window.WAS!=undefined) this.synth = new WAS.synth() 
+//	if(window.WAS!=undefined) this.synth = new WAS.synth() 
 	
 	const Param = WBind.create() ;
 	this.param = Param ;
@@ -3552,8 +3924,32 @@ const PoxPlayer  = function(can,opt) {
 	Param.bindInput("camselect",(opt.ui && opt.ui.camselect)?opt.ui.camselect:"#camselect") ;
 	
 	this.pixRatio = 1 
-	this.pox = {} ;
+	this.pox = {can:this.can,wwg:this.wwg,synth:this.synth,poxp:this}
+	this.eventListener = {}
 
+	if(window.GPad) {
+		this.pox.gPad = new GPad()
+		this.pox.gPad.name = "1"
+		this.pox.gPad2 = new GPad()
+		this.pox.gPad2.name = "2"
+		if(!this.pox.gPad.init(0,(pad,f)=>{
+			if(f) {
+				this.pox.log("set 1"+pad.gp.hand)
+			}
+		}))
+		if(!this.pox.gPad2.init(1,(pad,f)=>{
+			if(f) {
+				this.pox.log("set 2"+pad.gp.hand)
+			}
+		}))
+//		console.log(this.pox.gPad)
+		this.pox.gPad.ev = (pad)=> {
+			ret = this.callEvent("gpad",pad) ;
+		}
+		this.pox.gPad2.ev = (pad,b,p)=> {
+			ret = this.callEvent("gpad",pad) ;
+		}
+	}
 	// canvas initialize
 	this.resize() ;
 	window.addEventListener("resize",()=>{this.resize()}) ;
@@ -3563,73 +3959,62 @@ const PoxPlayer  = function(can,opt) {
 	const e = document.createElement("input") ;
 	e.setAttribute("type","checkbox") ;
 	e.style.position = "absolute" ; e.style.zIndex = -100 ;
-	e.style.top = 0
-	e.style.width = 10 ; e.style.height =10 ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
+	e.style.top = 0 ;e.style.left = "-20px"
+	e.style.width = "10px" ; e.style.height ="10px" ; e.style.padding = 0 ; e.style.border = "none" ; e.style.opacity = 0 ;
 	this.can.parentNode.appendChild(e) ;
 	this.keyElelment = e ;
 	this.keyElelment.focus() ;
 
 	this.setEvent() ;
 	// VR init 
-	if(navigator.getVRDisplays) {
-		navigator.getVRDisplays().then((displays)=> {
-			this.vrDisplay = displays[displays.length - 1]
-			console.log(this.vrDisplay)
-			window.addEventListener('vrdisplaypresentchange', ()=>{
-				console.log("vr presenting= "+this.vrDisplay.isPresenting)
-				if(this.vrDisplay.isPresenting) {
-					this.callEvent("vrchange",1)
-				} else {
-					this.resize() ;
-					this.callEvent("vrchange",0)
-				}
-			}, false);
-			window.addEventListener('vrdisplayactivate', ()=>{
-				console.log("vr active")
-			}, false);
-			window.addEventListener('vrdisplaydeactivate', ()=>{
-				console.log("vr deactive")
-			}, false);
-		})
-	}
+	POXPDevice.checkVR(this).then(f=>{
+		if(f) console.log((POXPDevice.vrDisplay)?"WebVR":"WebXR"+" supported")
+		this.vrReady = f 
+	})
 	//create default camera
-
 	this.cam0 = this.createCamera()
 	this.cam0.setCam({camFar:10000})
 	this.cam1 = this.createCamera() ;
 	this.ccam = this.cam1 
-	console.log(this)
 }
-PoxPlayer.prototype.enterVR = function() {
+addEvent(ev,cb) {
+	let el = null
+	switch(ev) {
+		case "frame":
+			el = {cb:cb,active:true}
+			this.eventListener.frame.push(el)
+			break 
+		case "gpad":
+			el = {cb:cb,active:true}
+			this.eventListener.gpad.push(el)
+			break 
+		case "vrchange":
+			el = {cb:cb,active:true}
+			this.eventListener.vrchange.push(el)
+			break 
+	}
+	return el
+}
+removeEvent (ev) {
+	this.eventListener.frame = this.eventListener.frame.filter((e)=>(e!==ev))
+	this.eventListener.gpad = this.eventListener.gpad.filter((e)=>(e!==ev))
+	this.eventListener.vrchange = this.eventListener.vrchange.filter((e)=>(e!==ev))
+}
+clearEvent() {
+	this.eventListener.frame = []
+	this.eventListener.gpad = []
+	this.eventListener.vrchange = []
+}
+enterVR() {
 	let ret = true
-	if(this.vrDisplay) {
+	if(POXPDevice.VRReady) {
 		console.log("enter VR")
-		const p = { source: this.can,attributes:{} }
-		if(this.pox.setting.highRefreshRate!==undefined) p.attributes.highRefreshRate = this.pox.setting.highRefreshRate
-		if(this.pox.setting.foveationLevel!==undefined) p.attributes.foveationLevel = this.pox.setting.foveationLevel
-		this.vrDisplay.requestPresent([p]).then( () =>{
-			console.log("present ok")
-			const leftEye = this.vrDisplay.getEyeParameters("left");
-			const rightEye = this.vrDisplay.getEyeParameters("right");
-			this.can.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
-			this.can.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
-			if(this.vrDisplay.displayName=="Oculus Go") {
-				this.can.width = 2560
-				this.can.height = 1280
-			}
-			this.can.width= this.can.width * this.pixRatio 
-			this.can.height= this.can.height * this.pixRatio 
-			this.pox.log(this.vrDisplay.displayName)
-			this.pox.log("vr canvas:"+this.can.width+" x "+this.can.height);
-		}).catch((err)=> {
-			console.log(err)
-		})
+		POXPDevice.presentVR(this)
 	} else if(document.body.webkitRequestFullscreen) {
 		console.log("fullscreen")
 		const base = this.can.parentNode
 		this.ssize = {width:base.offsetWidth,height:base.offsetHeight}
 		document.addEventListener("webkitfullscreenchange",(ev)=>{
-			console.log("fs "+document.webkitFullscreenElement)
 			if( document.webkitFullscreenElement) {
 				base.style.width = window.innerWidth + "px"
 				base.style.height = window.innerHeight + "px"				
@@ -3642,7 +4027,12 @@ PoxPlayer.prototype.enterVR = function() {
 	} else ret = false 
 	return ret 
 }
-PoxPlayer.prototype.setEvent = function() {
+exitVR() {
+	if(POXPDevice.VRReady) {
+		POXPDevice.closeVR(this)
+	}
+}
+setEvent() {
 	// mouse and key intaraction
 	let dragging = false ;
 	const Param = this.param ;
@@ -3697,7 +4087,7 @@ PoxPlayer.prototype.setEvent = function() {
 			return false ;
 		},
 		gyro:(ev)=> {
-			if(!this.ccam || Param.pause || this.vrDisplay ) return true;
+			if(!this.ccam || Param.pause || POXPDevice.VRReady ) return true;
 			if(dragging) return true ;
 			let ret = true ;
 			ret = this.callEvent("gyro",ev) ;
@@ -3749,15 +4139,15 @@ PoxPlayer.prototype.setEvent = function() {
 	})
 
 }
-PoxPlayer.prototype.resize = function() {
+resize() {
 //	console.log("wresize:"+document.body.offsetWidth+" x "+document.body.offsetHeight);
 	if(this.can.offsetWidth < 300 || 
-		(this.vrDisplay && this.vrDisplay.isPresenting)) return 
-	this.can.width= this.can.offsetWidth*this.pixRatio  ;
-	this.can.height = this.can.offsetHeight*this.pixRatio  ;
+		(POXPDevice.isPresenting)) return 
+	this.can.width= this.can.offsetWidth*this.pixRatio*window.devicePixelRatio  ;
+	this.can.height = this.can.offsetHeight*this.pixRatio*window.devicePixelRatio  ;
 	console.log("canvas:"+this.can.width+" x "+this.can.height);		
 }
-PoxPlayer.prototype.load = async function(d) {
+async load(d) {
 	return new Promise((resolve,reject) => {
 		if(typeof d == "string") {
 			const req = new XMLHttpRequest();
@@ -3779,7 +4169,7 @@ PoxPlayer.prototype.load = async function(d) {
 	})
 }
 
-PoxPlayer.prototype.loadImage = function(path) {
+loadImage(path) {
 	if(path.match(/^https?:/)) {
 		return this.wwg.loadImageAjax(path)
 	}else {
@@ -3795,42 +4185,19 @@ PoxPlayer.prototype.loadImage = function(path) {
 		})
 	}
 }
-//for compati
-	function V3add() {
-		let x=0,y=0,z=0 ;
-		for(let i=0;i<arguments.length;i++) {
-			x += arguments[i][0] ;y += arguments[i][1] ;z += arguments[i][2] ;
-		}
-		return [x,y,z] ;
-	}
-	function V3len(v) {
-		return Math.hypot(v[0],v[1],v[2]) ;
-	}
-	function V3norm(v,s) {
-		const l = V3len(v) ;
-		if(s===undefined) s = 1 ;
-		return (l==0)?[0,0,0]:[v[0]*s/l,v[1]*s/l,v[2]*s/l] ;
-	}
-	function V3mult(v,s) {
-		return [v[0]*s,v[1]*s,v[2]*s] ;
-	}
-	function V3dot(v1,v2) {
-		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
-	}
 	
-PoxPlayer.prototype.set = async function(d,param={},uidom) { 
+async set(d,param={},uidom) { 
 	const VS = d.vs ;
 	const FS = d.fs ;
-	this.pox  = {src:d,can:this.can,wwg:this.wwg,synth:this.synth,param:param,poxp:this} ;
-	if(window.GPad) {
-		this.pox.gPad = new GPad()
-		this.pox.gPad.ev = (pad,b,p)=> {
-			ret = this.callEvent("gpad",pad,{btrig:b,ptrig:p}) ;
-		}
-	}
-	const POX = this.pox ;
+	this.pox.src = d 
+	this.pox.param = param 
+	const POX = this.pox
+
 	POX.loadImage = this.loadImage 
 	POX.loadAjax = this.wwg.loadAjax
+	POX.addEvent = (e,f) => this.addEvent(e,f)
+	POX.exitVR = this.exitVR 
+	
 	POX.V3add = function() {
 		let x=0,y=0,z=0 ;
 		for(let i=0;i<arguments.length;i++) {
@@ -3852,6 +4219,9 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	POX.V3dot = function(v1,v2) {
 		return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2] ;
 	}
+	POX.Vdistance = function(v1,v2) {
+			return Math.hypot(...v1.map((v,i)=>v-v2[i]))
+	}
 	POX.setScene = async (scene)=> {
 		return new Promise((resolve,reject) => {
 			this.setScene(scene).then( () => {
@@ -3864,12 +4234,16 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 	POX.log = (msg)=> {
 		if(this.errCb) this.errCb(msg) ;
 	}
+	POX.addModel = (model)=>{ if(this.render) return this.render.addModel(model) }
+	POX.removeModel = (model)=>{ if(this.render) return this.render.removeModel(model) }
+	POX.getModelData = (model)=>{ if(this.render) return this.render.getModelData(model) }
 //	this.parseJS(d.m).then((m)=> {
-	const m = await this.parseJS(d.m) ;
+	if(typeof d.m  == "string") {
+		const m = await this.parseJS(d.m) ;
 		try {
 			POX.eval = new Function("POX",'"use strict";'+m)
 		}catch(err) {
-//			console.log(err)
+			console.log(err)
 			this.emsg = ("parse error "+err.stack);
 //			throw new Error('reject!!')
 			return(null);
@@ -3883,25 +4257,35 @@ PoxPlayer.prototype.set = async function(d,param={},uidom) {
 //			throw new Error('reject!!2')
 			return(null);
 		}
-		if(POX.setting.needWGL2 && this.wwg.version!=2) {
-			this.emsg = "needs WebGL 2.0"
-			return(null)
+	} else if(d.m.constructor === Function) {
+		try {
+			d.m(POX)
+		}catch(err) {
+//			console.log(err.stack)
+			this.emsg = ("eval error "+err.stack);
+//			throw new Error('reject!!2')
+			return(null);
 		}
+	}
+	if(POX.setting.needWGL2 && this.wwg.version!=2) {
+		this.emsg = "needs WebGL 2.0"
+		return(null)
+	}
 
-		if(uidom) this.setParam(uidom)
-		if(POX.init) {
-			try {
-				await POX.init()
-			}catch(err) {
+	if(uidom) this.setParam(uidom)
+	if(POX.init) {
+		try {
+			await POX.init()
+		}catch(err) {
 //				console.log(err)
-				this.emsg = ("init error "+err.stack);
+			this.emsg = ("init error "+err.stack);
 //				throw new Error('reject!!2')
-				return null
-			}
+			return null
 		}
-		return(POX) ;
+	}
+	return(POX) ;
 }
-PoxPlayer.prototype.parseJS = function(src) {
+parseJS(src) {
 
 	return new Promise((resolve,reject) => {
 		const s = src.split("\n") ;
@@ -3923,31 +4307,52 @@ PoxPlayer.prototype.parseJS = function(src) {
 		})
 	})
 }
-PoxPlayer.prototype.setPacked = function(param={}) { 
-	
-}
-PoxPlayer.prototype.stop = function() {
+stop() {
 	window.cancelAnimationFrame(this.loop) ; 
 	if(this.pox.unload) this.pox.unload() ;
 }
-PoxPlayer.prototype.cls = function() {
+cls() {
 	if(this.render) this.render.clear() ;
 }
-PoxPlayer.prototype.setError = function(err) {
+setError(err) {
 	this.errCb = err ;
 }
-PoxPlayer.prototype.callEvent = function(kind,ev,opt) {
-	if(!this.pox.event) return true
+callEvent(kind,ev,opt) {
 	if(typeof ev == "object") ev.rtime = this.rtime
 	let ret = true 
-	try {
-		ret = this.pox.event(kind,ev,opt)
-	} catch(err) {
-		this.errCb(err.stack)
+	if(this.pox.event) {
+		try {
+			ret = this.pox.event(kind,ev,opt)
+		} catch(err) {
+			this.errCb(err.stack)
+		}
+	}
+	if(kind=="vrchange") {
+		this.ccam.vrchange(ev)
+		for(let i=0;i<this.eventListener.vrchange.length;i++) {	//attached event
+			const f = this.eventListener.vrchange[i]
+			if(f.active) {
+				f.cb({vrmode:ev})
+			}
+		}
+	}
+	if(kind=="gpad") {
+		if(ev.dbtn[5]==-1) POXPDevice.closeVR()
+		for(let i=0;i<this.eventListener.gpad.length;i++) {	//attached event
+			const f = this.eventListener.gpad[i]
+			if(f.active) {
+				let p = {gpad:ev}
+				if(ev.hand=="left") p.leftPad = ev
+				if(ev.hand=="right") p.rightPad = ev
+				if(this.pox.setting.primaryPad == ev.hand) p.primaryPad = ev
+				else p.secondaryPad = ev 
+				f.cb(p)
+			}
+		}		
 	}
 	return ret 
 }
-PoxPlayer.prototype.setParam = function(dom) {
+setParam(dom) {
 	const param = this.pox.setting.param ;
 	if(param===undefined) return ;
 	this.uparam = WBind.create()
@@ -4008,7 +4413,7 @@ PoxPlayer.prototype.setParam = function(dom) {
 }
 
 
-PoxPlayer.prototype.setScene = function(sc) {
+setScene(sc) {
 //	console.log(sc) ;
 
 	const wwg = this.wwg ;
@@ -4019,8 +4424,8 @@ PoxPlayer.prototype.setScene = function(sc) {
 	const Param = this.param ;
 	const sset = pox.setting || {} ;
 	if(!sset.scale) sset.scale = 1.0 ;
+	if(!sset.primaryPad) sset.primaryPad = "right";
 	
-
 	sc.vshader = {text:pox.src.vs} ;
 	sc.fshader = {text:pox.src.fs} ;
 	pox.scene = sc ;
@@ -4031,7 +4436,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 	pox.render = r ;
 
 	let ccam = this.ccam
-	pox.cam = this.cam1.cam ;
+	
 	this.isVR = false 
 	const self = this 
 	const bm = new CanvasMatrix4()
@@ -4045,17 +4450,18 @@ PoxPlayer.prototype.setScene = function(sc) {
 	r.setRender(sc).then(()=> {	
 		if(this.errCb) this.errCb("scene set ok") ;
 		if(this.renderStart) this.renderStart() ;
-		if(pox.gPad) pox.gPad.init(0) ;	
+
 		if(pox.setting && pox.setting.pixRatio) { 
-			this.pixRatio = window.devicePixelRatio * pox.setting.pixRatio ;
+			this.pixRatio = pox.setting.pixRatio ;
 		} else {
-			this.pixRatio = window.devicePixelRatio ;
+			this.pixRatio = 1 ;
 		}
 		this.resize();
 		
 		if(pox.setting.cam) this.cam1.setCam(pox.setting.cam)
 //		if(ccam.cam.camMode=="walk") this.keyElelment.focus() ;
 		this.keyElelment.value = "" ;
+		this.clearEvent()
 		
 		resolve()
 		//draw loop
@@ -4067,16 +4473,10 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let ft = st ;
 		let fc = 0 ;
 		let gpad 
-		const loopf = () => {
+		const loopf = (timestamp,frame) => {
 //			console.log("************loop")
-			if(this.vrDisplay && this.vrDisplay.isPresenting) {
-				this.loop = this.vrDisplay.requestAnimationFrame(loopf)
-				this.isVR = true 
+			POXPDevice.animationFrame(this,loopf,frame)
 
-			} else {
-				this.loop = window.requestAnimationFrame(loopf) ;
-				this.isVR = false ;
-			}
 			const ct = new Date().getTime() ;
 			this.ctime = ct 
 			if(Param.pause) {
@@ -4095,16 +4495,46 @@ PoxPlayer.prototype.setScene = function(sc) {
 			}
 			this.ccam = (Param.camselect)?this.cam0:this.cam1
 			ccam = this.ccam 
+			pox.cam = ccam.cam ;
 
 			if(Param.autorot) ccam.setCam({camRY:(rt/100)%360}) ;
-			if(pox.gPad &&(gpad = pox.gPad.get())) {	
-//				ret = callEvent("gpad",gp,GPad.lastGp) 
-				if(ccam.cam.gPad ) ccam.setPad( gpad )
+			let rp=null,lp=null,pp=null,sp=null
+			if(pox.gPad) {
+				let p1 = pox.gPad.get()
+				let p2 = pox.gPad2.get() 
+				if(this.isVR) {
+					if(!p1.emu && p1.hand == "right") rp = p1 ;
+					if(!p1.emu && p1.hand == "left") lp = p1 ;
+					if(!p2.emu && p2.hand == "right") rp = p2 ;
+					if(!p2.emu && p2.hand == "left") lp = p2 
+				} else {
+					if(p1.hand == "right" ) rp = p1
+					if(p2.hand == "right" ) rp = p2				
+					if(p1.hand == "left" ) lp = p1
+					if(p2.hand == "left" ) lp = p2
+				}
+				if(sset.primaryPad=="left") pp = lp,sp = rp
+				else pp=rp,sp=lp
+				if(!pp || !pp.conn) pp = sp, sp = null 
+//				console.log(pp)
+//				console.log(sp)
+				if(ccam.cam.gPad) ccam.setPad(pp,sp)
 			}
 			ccam.update()	// camera update
-			update(r,pox,this.cam1.cam,rt) ; // scene update 
+			let camm = ccam.getMtx(sset.scale,(Param.isStereo || self.isVR)?1:0) ;
+			
+			for(let i=0;i<this.eventListener.frame.length;i++) {	//attached event
+				const f = this.eventListener.frame[i]
+				if(f.active) {
+					f.cb({render:r,pox:pox,ccam:ccam,cam:ccam.cam,rtime:rt,
+						rightPad:rp,leftPad:lp,primaryPad:pp,secondaryPad:sp})
+				}
+			}
+			let upd = {}
+			if(pox.update)  upd = pox.update(r,ccam.cam,rt,-1)
 			Param.updateTimer() ;
-			if(this.vrDisplay && this.vrDisplay.isPresenting) this.vrDisplay.submitFrame()
+			update(r,pox,camm,rt,upd) ; // scene update 
+			POXPDevice.submitFrame(this)
 			this.ltime = ct 
 			this.rtime = rt 
 		}
@@ -4116,15 +4546,31 @@ PoxPlayer.prototype.setScene = function(sc) {
 	})
 	}) // promise
 	
+	function getParentMtx(render,parent) {
+		let p = render.getModelData(parent) 
+		if(!p) return new Mat4() 
+		let mm = new Mat4(p.bm)
+		if(!mm) mm = new Mat4() 
+		if(p.mm) mm.multRight(p.mm)
+		if(p.parent!==undefined) {
+			mm.multRight( getParentMtx(render,p.parent)) 
+		} 
+		return mm 
+	}
 	// calc model matrix
 	function modelMtx2(render,camm) {
 
 		// calc each mvp matrix and invert matrix
-		const mod = [[],[]] ;		
-		for(let i=0;i<render.modelCount;i++) {
-			let d = render.getModelData(i) ;
+		const mod = [[],[]] ;	
+		const models = render.data.model 	
+		for(let i=0;i<models.length;i++) {
+			let d = models[i] ;
+			if(!d) continue 
 			bm.load(d.bm)
 			if(d.mm) bm.multRight(d.mm) ;
+			if(d.parent!==undefined) {
+				bm.multRight( getParentMtx(render,d.parent ))
+			}
 			if(render.data.group) {
 				let g = render.data.group ;
 				for(let gi = 0 ;gi < g.length;gi++) {
@@ -4173,6 +4619,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		let up = [{model:mod[0],fs_uni:{},vs_uni:{}},
 			{model:mod[1],fs_uni:{},vs_uni:{}}]
 
+		up[0].fs_uni.stereo = 1 ;
 		up[0].fs_uni.resolution = [can.width,can.height]
 		up[0].fs_uni.camMatirx = camm[0].camV.getAsWebGLFloatArray()
 		up[0].fs_uni.eyevec = [camm[0].camX,camm[0].camY,camm[0].camZ]
@@ -4180,6 +4627,7 @@ PoxPlayer.prototype.setScene = function(sc) {
 		up[0].vs_uni.camMatirx = up[0].fs_uni.camMatirx
 		up[0].vs_uni.eyevec = up[0].fs_uni.eyevec 
 	
+		up[1].fs_uni.stereo = 2  ;
 		up[1].fs_uni.resolution = up[0].fs_uni.resolution
 		up[1].fs_uni.camMatirx = camm[1].camV.getAsWebGLFloatArray()
 		up[1].fs_uni.eyevec = [camm[1].camX,camm[1].camY,camm[1].camZ]
@@ -4190,24 +4638,39 @@ PoxPlayer.prototype.setScene = function(sc) {
 	}
 	// update scene
 
-	function update(render,pox,cam,time) {
+	function update(render,pox,camm,time,update) {
 		// draw call 
-		let camm,update = {} ;
+
+		render.data.model.sort((a,b)=>{
+			if(a===null) return -1
+			if(b===null) return 1
+			let al = a.layer, bl = b.layer 
+			if(al===undefined) al = 0 
+			if(bl===undefined) bl = 0 
+			return al- bl  
+		}) 
+
 		if(Param.isStereo || self.isVR) {
-			if(!Param.pause) update = pox.update(render,cam,time,-1)
-			camm = ccam.getMtx(sset.scale,1) ;
+			let vp = POXPDevice.getViewport(can)
+			if(POXPDevice.WebXR && POXPDevice.isPresenting) {
+//				console.log("fbs")
+				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER, 
+					POXPDevice.webGLLayer.framebuffer)
+			}
 			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
 			update.fs_uni.time = time/1000 ;
 			update.vs_uni.time = time/1000 ;			
-			render.gl.viewport(0,0,can.width/2,can.height) ;			
+			render.gl.viewport(vp.leftViewport.x,vp.leftViewport.y, vp.leftViewport.width,vp.leftViewport.height) ;
 			render.draw([update,mtx2[0]],false) ;
-			render.gl.viewport(can.width/2,0,can.width/2,can.height) ;
+			render.gl.viewport(vp.rightViewport.x,vp.rightViewport.y, vp.rightViewport.width,vp.rightViewport.height) ;
 			render.draw([update,mtx2[1]],true) ;
+			if(POXPDevice.WebXR && POXPDevice.isPresenting) {
+//				console.log("fbe")
+				render.gl.bindFramebuffer(render.gl.FRAMEBUFFER,null)
+			}
 		} else {
-			if(!Param.pause) update = pox.update(render,cam,time,0)
-			camm = ccam.getMtx(sset.scale,0) ;
 			let mtx2 = modelMtx2(render,camm) ;
 			if(update.vs_uni===undefined) update.vs_uni = {} ;
 			if(update.fs_uni===undefined) update.fs_uni = {} ;
@@ -4219,11 +4682,213 @@ PoxPlayer.prototype.setScene = function(sc) {
 		}
 	}
 }
-// poxplayercamera object
+
+} //class PoxPlayer
+
+const POXPDevice = {
+	VRReady:false,
+	isPresenting:false,
+	WebXR:false ,
+	checkVR:function(poxp) {
+		return new Promise( (resolve,reject)=>{
+			// for WebXR
+			if(navigator.xr) {
+				navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+					POXPDevice.VRReady = supported 
+					POXPDevice.WebXR = supported 
+					resolve(supported)       	
+				}).catch((err)=>{
+					console.log(err)
+					resolve(false)
+				});
+			} else
+			// for WebVR
+			if(navigator.getVRDisplays) {
+				if(window.VRFrameData!=undefined) POXPDevice.vrFrame = new VRFrameData()
+				navigator.getVRDisplays().then((displays)=> {
+					console.log("VR init with WebVR")
+					POXPDevice.vrDisplay = displays[displays.length - 1]
+					console.log(POXPDevice.vrDisplay)
+					POXPDevice.VRReady = true 
+//					poxp.vrDisplay = POXPDevice.vrDisplay
+					window.addEventListener('vrdisplaypresentchange', ()=>{
+						console.log("vr presenting= "+POXPDevice.vrDisplay.isPresenting)
+						if(POXPDevice.vrDisplay.isPresenting) {
+							poxp.callEvent("vrchange",1)
+							POXPDevice.isPresenting = true 
+						} else {
+							poxp.resize() ;
+							poxp.callEvent("vrchange",0)
+							POXPDevice.isPresenting = false 
+						}
+					}, false);
+					window.addEventListener('vrdisplayactivate', ()=>{
+						console.log("vr active")
+					}, false);
+					window.addEventListener('vrdisplaydeactivate', ()=>{
+						console.log("vr deactive")
+					}, false);
+					resolve(true)
+				}).catch((err)=> {
+					reject(err)
+				})
+			} else {
+				resolve(false)
+			}
+		})
+	},
+	presentVR:function(poxp) {
+		return new Promise( (resolve,reject)=>{
+			// for WebXR
+			if(POXPDevice.WebXR) {
+				navigator.xr.requestSession("immersive-vr").then(function(xrSession) {
+					POXPDevice.session=xrSession
+					POXPDevice.isPresenting = true
+					console.log("vr start")
+					xrSession.updateRenderState({baseLayer: new XRWebGLLayer(xrSession,poxp.wwg.gl,{framebufferScaleFactor:poxp.pixRatio})});
+					xrSession.requestReferenceSpace("local").then((xrReferenceSpace) => {
+						POXPDevice.referenceSpace=xrReferenceSpace;
+						POXPDevice.session.requestAnimationFrame(POXPDevice.loopf);
+						poxp.callEvent("vrchange",1)
+					});
+					xrSession.addEventListener("end", (ev)=>{
+							POXPDevice.session=null
+							POXPDevice.isPresenting = false
+							console.log("VR end")
+//							poxp.loop = window.requestAnimationFrame(POXPDevice.loopf) ;
+							poxp.callEvent("vrchange",0)
+					})
+				});
+			} else 
+			// for WebVR
+			if(POXPDevice.vrDisplay) {
+				const p = { source: poxp.can,attributes:{} }
+				if(poxp.pox.setting.highRefreshRate!==undefined) p.attributes.highRefreshRate = poxp.pox.setting.highRefreshRate
+				if(poxp.pox.setting.foveationLevel!==undefined) p.attributes.foveationLevel = poxp.pox.setting.foveationLevel
+				POXPDevice.vrDisplay.requestPresent([p]).then( () =>{
+					console.log("present ok")
+					const leftEye = POXPDevice.vrDisplay.getEyeParameters("left");
+					const rightEye = POXPDevice.vrDisplay.getEyeParameters("right");
+					poxp.can.width = Math.max(leftEye.renderWidth, rightEye.renderWidth) * 2;
+					poxp.can.height = Math.max(leftEye.renderHeight, rightEye.renderHeight);
+					if(POXPDevice.vrDisplay.displayName=="Oculus Go") {
+						poxp.can.width = 2560
+						poxp.can.height = 1280
+					}
+					poxp.can.width= poxp.can.width * poxp.pixRatio 
+					poxp.can.height= poxp.can.height * poxp.pixRatio 
+					poxp.pox.log(POXPDevice.vrDisplay.displayName)
+					poxp.pox.log("vr canvas:"+poxp.can.width+" x "+poxp.can.height);
+				}).catch((err)=> {
+					console.log(err)
+				})
+			}
+		})
+	},
+	closeVR:function(poxp) {
+		// for WebXR
+		if(POXPDevice.WebXR) {
+			console.log("vr closing")
+			POXPDevice.isPresenting = false
+			POXPDevice.session.end()
+		}
+		// for WebVR
+		if(POXPDevice.vrDisplay) {
+			POXPDevice.vrDisplay.exitPresent().then( () =>{
+				console.log("VR end")
+			})
+		}
+	},
+	animationFrame:function(poxp,loopf,vrframe) {
+		POXPDevice.loopf = loopf 
+		if(POXPDevice.isPresenting ) {
+			if(!vrframe) return 
+			// for WebXR
+			if(POXPDevice.WebXR) {
+				POXPDevice.session.requestAnimationFrame(loopf);
+				POXPDevice.vrFrame = vrframe 
+				poxp.isVR = true 
+//				console.log("vrframe")
+			// for WebVR
+			} else if(POXPDevice.vrDisplay && POXPDevice.vrDisplay.isPresenting) {
+				poxp.loop = POXPDevice.vrDisplay.requestAnimationFrame(loopf)
+				poxp.isVR = true 
+			}
+		} else {
+//			console.log("no vrframe")
+			poxp.loop = window.requestAnimationFrame(loopf) ;
+			poxp.isVR = false ;
+		}
+	},
+	submitFrame:function(poxp) {
+		// for WebXR
+		if(POXPDevice.WebXR) {
+		}
+		// for WebVR
+		if(POXPDevice.vrDisplay) {
+			if(POXPDevice.vrDisplay.isPresenting) POXPDevice.vrDisplay.submitFrame()
+		}
+	},
+	getFrameData:function(poxp) {
+		// for WebXR
+		if(POXPDevice.WebXR && POXPDevice.vrFrame) {
+//			console.log("getframe")
+			let pose=POXPDevice.vrFrame.getViewerPose(POXPDevice.referenceSpace);
+//			console.log(pose)
+			pose.orientation = [pose.transform.orientation.x,pose.transform.orientation.y,pose.transform.orientation.z,pose.transform.orientation.w]
+			pose.position = [pose.transform.position.x,pose.transform.position.y,pose.transform.position.z]
+			let frame = {pose:pose}
+			let webGLLayer=POXPDevice.session.renderState.baseLayer;
+//			console.log(webGLLayer)
+			POXPDevice.webGLLayer = webGLLayer
+			for (let i=0;i<=pose.views.length-1;i++)
+			{
+				var viewport=webGLLayer.getViewport(pose.views[i]);
+				if(i==1) {
+					frame.rightViewMatrix = pose.views[i].transform.inverse.matrix
+					frame.rightProjectionMatrix = pose.views[i].projectionMatrix
+					frame.rightViewport = viewport 
+				} else {
+					frame.leftViewMatrix = pose.views[i].transform.inverse.matrix
+					frame.leftProjectionMatrix = pose.views[i].projectionMatrix	
+					frame.leftViewport = viewport 			
+				}
+			}
+			POXPDevice.viewport = {leftViewport:frame.leftViewport,rightViewport:frame.rightViewport}
+//			console.log(frame)
+			return frame 
+		}
+		// for WebVR
+		if(POXPDevice.vrDisplay) {
+			POXPDevice.vrDisplay.getFrameData(POXPDevice.vrFrame)
+			return POXPDevice.vrFrame
+		}
+	},
+	getViewport:function(can) {
+		if(POXPDevice.WebXR && POXPDevice.isPresenting)
+			return POXPDevice.viewport
+		else 
+			return {leftViewport:{x:0,y:0,width:can.width/2,height:can.height},
+							rightViewport:{x:can.width/2,y:0,width:can.width/2,height:can.height}}
+	},
+	setDepth:function(camDepth) {
+		// for WebXR
+		if(!POXPDevice.isPresenting) return
+		if(POXPDevice.WebXR) {
+			POXPDevice.session.updateRenderState({depthNear:camDepth.camNear, depthFar:camDepth.camFar})
+		}
+		// for WebVR
+		if(POXPDevice.vrDisplay) {
+			POXPDevice.vrDisplay.depthNear = camDepth.camNear 
+			POXPDevice.vrDisplay.depthFar = camDepth.camFar 
+		}
+	}
+}// poxplayercamera object
 PoxPlayer.prototype.createCamera = function(cam) {
 	return new this.Camera(this,cam) ;
 }
-PoxPlayer.prototype.Camera = function(poxp,cam) {
+PoxPlayer.prototype.Camera = class Camera {
+constructor(poxp,cam) {
 	this.poxp = poxp ;
 	//camera initial
 	this.cam = {
@@ -4247,16 +4912,17 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 		camGyro:true, // use gyro
 		gPad:true, //use gpad
 		sbase:0.06, 	//streobase 
-		moveSpeed:0.05,
+		moveSpeed:1.3,		// m/sec
 		rotAngle:30,
 		moveY:false,
 		padMoveUD:true,
 		padRot:true,
-		cv:[0,0,0]	//head direction
+		headVec:[0,0,0]	//head direction
 	} ;
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
+
 	this.cama = false ; // on animation
 	this.rotX = 0 ;
 	this.rotY = 0 ;
@@ -4271,16 +4937,30 @@ PoxPlayer.prototype.Camera = function(poxp,cam) {
 	this.camV =  [new CanvasMatrix4(),new CanvasMatrix4()]
 	this.vrv =  [new CanvasMatrix4(),new CanvasMatrix4()]
 	this.vrp =  [new CanvasMatrix4(),new CanvasMatrix4()]
+	this.tempM =  new CanvasMatrix4()
+	this.pvy = false 
+	this.pvx = false 
+//	if(window.VRFrameData!=undefined) this.vrFrame = new VRFrameData()
 }
-PoxPlayer.prototype.Camera.prototype.setCam = function(cam) {
+setCam(cam) {
 	for(let i in cam) {
 		this.cam[i] = cam[i] ;
 	}
 	this.cama = false 
 }
-PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
+getCam() {
+	let bpos = [this.cam.camCX,this.cam.camCY,this.cam.camCZ]
+	return {origin:bpos,position:this.cam.campos,head:this.cam.headVec.slice(),hpos:this.cam.position}
+}
+vrchange(f) {
+	if(f) {
+		this.cam.camRX = 0
+		this.cam.camRZ = 0
+	}
+}
+event(ev,m) {
 	const mag = 300*this.poxp.pixRatio /this.poxp.can.width;
-	const scale = this.poxp.pox.setting.scale ;
+	const scale = (this.poxp.pox.setting && this.poxp.pox.setting.scale)? this.poxp.pox.setting.scale :1 ;
 
 //	console.log("cam "+ev+" key:"+m.key)
 	switch(ev) {
@@ -4330,7 +5010,7 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 			break ;
 		case "keydown":
 			const z = this.cam.camd ;
-			const keymag= 0.2 ;
+			const keymag= this.cam.moveSpeed ;
 			let md = "" ;
 			this.keydown = true ;
 			if(m.altKey) {
@@ -4362,7 +5042,6 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 						break ;
 				
 					case "w":
-					case " ":
 						md = "f" ; break ;
 					case "s":
 						md = "b" ;break ;
@@ -4428,8 +5107,8 @@ PoxPlayer.prototype.Camera.prototype.event = function(ev,m) {
 			break ;	
 		}
 }
-PoxPlayer.prototype.Camera.prototype.update = function(time) {
-	const ft = (this.poxp.ctime - this.poxp.ltime)*6/100
+update(time) {
+	const ft = (this.poxp.ctime - this.poxp.ltime)/1000
 //console.log(ft)
 	if(this.cam.camMode!="fix") {
 		this.cam.camRX += this.vrx ;
@@ -4458,49 +5137,41 @@ PoxPlayer.prototype.Camera.prototype.update = function(time) {
 		}
 	}
 }
-PoxPlayer.prototype.Camera.prototype.setPad = function(gpad) {
-	let gp = gpad
-	if(gp.bf || gp.pf ) {
-		let cx =0,cy =0,cz=1
-		if(this.cam.orientation ) {
-			let x = this.cam.orientation[0] ;
-			let y = this.cam.orientation[1] ;
-			let z = this.cam.orientation[2] ;
-			let w = this.cam.orientation[3] ;
-			cx = -2*(-x*z-y*w) 
-			cy = -2*(-y*z+x*w)
-			cz = -(x*x+y*y-z*z-w*w)
-			let l = Math.hypot(cx,cy,cz)
-			cx /= l ,cy /=l, cz /= l 
-		}
-		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
-		this.cam.cv = cmat.multVec4(cx,cy,cz,0)
-	}
+setPad(gpad,gpad2) {
+	let gp = gpad?gpad:gpad2
+	if(!gp) return 
 	if(this.cam.camMode=="walk") {
+		let axes = [gp.axes[0],gp.axes[1]]
+		if(gp.axes[2]!=undefined && gp.axes[2]!=0) axes[0] = gp.axes[2]
+		if(gp.axes[3]!=undefined && gp.axes[3]!=0) axes[1] = gp.axes[3]
 		if(this.cam.padMoveUD && gp.buttons[1] && gp.buttons[1].pressed) {
-			this.vcy = -gp.axes[1]*this.cam.moveSpeed
-		} else {
+			this.vcy = -axes[1]*this.cam.moveSpeed
+			this.pvy = true ;
+			return
+		} else if(this.pvy) {
 			this.vcy = 0 
-			let m = gp.buttons[0].pressed
-			let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
-
-			if(Math.abs(gp.axes[0])<Math.abs(gp.axes[1])) {
-				this.vcx = this.cam.cv[0] * gp.axes[1]*mv
-				if(this.cam.moveY) this.vcy = this.cam.cv[1] * gp.axes[1]*mv
-				this.vcz = this.cam.cv[2] * gp.axes[1]*mv
-			} else if(!m && Math.abs(gp.axes[0])>0) {
-//				this.cam.vcx = -Math.sin((this.cam.camRY-90)*RAD) *gp.axes[0]*mv
-//				this.cam.vcz = Math.cos((this.cam.camRY-90)*RAD) *gp.axes[0]*mv			
-			} else {
+			this.pvy = false
+		}
+		let m = gp.buttons[2] && gp.buttons[2].pressed
+		let mv = (m)?this.cam.moveSpeed*5:this.cam.moveSpeed
+		if(Math.abs(axes[0])<Math.abs(axes[1]) && Math.abs(axes[1])>0 ) {
+				this.vcx = -this.cam.headVec[0] * axes[1]*mv
+				if(this.cam.moveY) this.vcy = -this.cam.headVec[1] * axes[1]*mv
+				this.vcz = -this.cam.headVec[2] * axes[1]*mv
+				this.pvx = true
+				return 
+		} else if(this.pvx) {		
 				this.vcx = 0 
+				this.vcy = 0
 				this.vcz = 0 
-				if(this.cam.padRot && gp.dbtn[0]==1 && m) 
-					this.cam.camRY += ((gp.axes[0]>0)?1:-1) * this.cam.rotAngle
-			}
+				this.pvx = false 
+		}
+		if(this.cam.padRot && gp.dpad[0]>0) {
+			this.cam.camRY += ((axes[0]>0)?1:-1) * this.cam.rotAngle
 		}
 	}
 }
-PoxPlayer.prototype.Camera.prototype.moveTo = function(x,y,z,opt) {
+moveTo(x,y,z,opt) {
 	if(this.cama) return 
 	let cx = (x!==null)?x:this.cam.camCX
 	let cy = (y!==null)?y:this.cam.camCY
@@ -4528,10 +5199,10 @@ PoxPlayer.prototype.Camera.prototype.moveTo = function(x,y,z,opt) {
 		this.cama = false 
 	}
 }
-PoxPlayer.prototype.Camera.prototype.moveCancel = function() {
+moveCancel() {
 	this.cama = false 
 }
-PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
+getMtx(scale,sf) {
 	const cam = this.cam ;
 	const can = this.poxp.render.wwg.can ;
 
@@ -4550,12 +5221,17 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			cx = cam.camVX ;
 			cy = cam.camVY ;
 			cz = cam.camVZ ;
+			this.cam.headVec = [cx,cy,cz,0]
 		}
 		else if(cam.camMode=="vr" || cam.camMode=="walk") {
 			// self camera mode 
 			cx = cam.camCX + Math.sin(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)
 			cy = cam.camCY + -Math.sin(cam.camRX*RAD)*1 ; 
 			cz = cam.camCZ + -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)	
+			let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0).rotate(-this.cam.camRZ,0,0,1)
+			upx = Math.sin(cam.camRZ*RAD)
+			upy = Math.cos(cam.camRZ*RAD)
+			this.cam.headVec = cmat.multVec4(0,0,-1,0)
 		} else  {
 		// bird camera mode 
 			camd=  cam.camd*scale ;
@@ -4566,7 +5242,10 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			if(camd<0) {
 				cx = cam.camCX*2 ;cy = cam.camCY*2 ;cz = cam.camCZ*2 ;
 			}
+			let l = Math.hypot(cam.camCX,cam.camCY,cam.camCZ)
+			this.cam.headVec = [-cam.camCX/l,-cam.camCY/l,-cam.camCZ/l,0] 
 		}
+		this.cam.campos = [cam.camCX,cam.camCY,cam.camCZ]
 
 		this.camVP[0].makeIdentity()
 		this.camVP[1].makeIdentity()
@@ -4574,6 +5253,7 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 		this.camP[1].makeIdentity()
 		this.camV[0].makeIdentity()
 		this.camV[1].makeIdentity()
+			
 		if(sf) {		// for stereo
 			const dx = -cam.sbase * scale ;	// stereo base
 			ex[0] =  upy * (cam.camCZ-cz) - upz * (cam.camCY-cy);
@@ -4598,32 +5278,57 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 			this.camVP[0].load(this.camV[0]).multRight(this.camP[0])
 		}
 	}
-
 	if(this.poxp.isVR) {
-		vrFrame = new VRFrameData()
-		this.poxp.vrDisplay.depthNear = cam.camNear 
-		this.poxp.vrDisplay.depthFar = cam.camFar 
+		
+		POXPDevice.setDepth({camNear:cam.camNear,camFar:cam.camFar})
 
-		this.poxp.vrDisplay.getFrameData(vrFrame)
+		vrFrame = POXPDevice.getFrameData()
+//		console.log(vrFrame)
+		if(!vrFrame) return 
 		this.cam.orientation = vrFrame.pose.orientation
 		this.cam.position = vrFrame.pose.position
+		if(!this.cam.position) this.cam.position = [0,0,0]
 		this.vrv[1].load(vrFrame.rightViewMatrix)
 		this.vrv[0].load(vrFrame.leftViewMatrix)
 		this.vrp[1].load(vrFrame.rightProjectionMatrix)
 		this.vrp[0].load(vrFrame.leftProjectionMatrix)
  
-		this.camV[0].makeIdentity()
+		this.tempM.makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
-			.rotate(cam.camRY,0,1,0)
+//			.translate(-this.cam.position[0],0,-this.cam.position[2])
 			.rotate(cam.camRX,1,0,0)
+			.rotate(cam.camRY,0,1,0)
 			.rotate(cam.camRZ,0,0,1)
-		this.camV[1].load(this.camV[0])
-		this.camV[0].multRight( this.vrv[0] )
+//			.translate(this.cam.position[0],0,this.cam.position[2])
+
+		this.camV[0].load(this.vrv[0])
+		if(this.leftCorrMtx) this.camV[0].multRight(this.leftCorrMtx)
+		this.camV[0].multLeft( this.tempM )
 		this.camVP[0].load(this.camV[0]).multRight(this.vrp[0]) 
 		this.camP[0].load(this.vrp[0])
-		this.camV[1].multRight( this.vrv[1] )
+		
+		this.camV[1].load(this.vrv[1])
+		if(this.rightCorrMtx) this.camV[1].multRight(this.rightCorrMtx)
+		this.camV[1].multLeft( this.tempM )
 		this.camVP[1].load(this.camV[1]).multRight(this.vrp[1]) 
 		this.camP[1].load(this.vrp[1])
+		
+		let cx =0,cy =0,cz=1
+		if(this.cam.orientation ) {
+			let x = this.cam.orientation[0] ;
+			let y = this.cam.orientation[1] ;
+			let z = this.cam.orientation[2] ;
+			let w = this.cam.orientation[3] ;
+			cx = 2*(-x*z-y*w) 
+			cy = 2*(-y*z+x*w)
+			cz = (x*x+y*y-z*z-w*w)
+			let l = Math.hypot(cx,cy,cz)
+			cx /= l ,cy /=l, cz /= l 
+		}
+		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.cam.headVec = cmat.multVec4(cx,cy,cz,0)
+		cmat.translate(cam.camCX,cam.camCY,cam.camCZ)
+		this.cam.campos = cmat.multVec4(this.cam.position[0],this.cam.position[1],this.cam.position[2],1)
 
 		let ivr = new Mat4().load(this.camV[1]).invert() ;
 		let ivl = new Mat4().load(this.camV[0]).invert() ;
@@ -4640,11 +5345,13 @@ PoxPlayer.prototype.Camera.prototype.getMtx = function(scale,sf) {
 	{camX:cam.camCX+ex[1],camY:cam.camCY+ey[1],camZ:cam.camCZ+ez[1],
 		camV:this.camV[1],camVP:this.camVP[1],camP:this.camP[1],vrFrame:vrFrame}] ;
 }
-
+} // class Camera
 //utils
 //console panel
+
 class Cpanel {
 constructor(render,opt) {
+	this.hide = false 
 	if(!opt) opt = {}
 	if(opt.width===undefined) opt.width = 100 
 	if(opt.height===undefined) opt.height = 50 
@@ -4653,40 +5360,50 @@ constructor(render,opt) {
 	if(opt.lines===undefined) opt.lines = 5
 	if(opt.lheight===undefined) opt.lheight = 10
 	if(opt.ry===undefined) opt.ry = 40 
-	if(opt.pos===undefined) opt.pos = [-0.3,0.3,-0.8]
+	if(opt.pos===undefined) opt.pos = [-0.2,0.2,-0.8]
 	if(opt.camFix===undefined) opt.camFix = true 
-	
+
 	this.pcanvas = document.createElement('canvas') ;
 	this.pcanvas.width = opt.width ;
 	this.pcanvas.height = opt.height ;	
 	this.j2c = new json2canvas(this.pcanvas)
 	this.j2c.default.font = opt.font
 	this.j2c.default.textColor = opt.color
+	this.clearColor = opt.clearColor 
+	this.ctx = this.j2c.ctx
+
 	this.dd = []
 	let y = opt.lheight 
 	for(let i=0;i<opt.lines;i++,y+=opt.lheight) 
 		this.dd.push({shape:"text",str:"",x:0,y:y,width:opt.width})
-	this.j2c.draw(this.dd)	
+	this.j2c.draw(this.dd)
+
+	this.id = new Date().getTime()+Math.floor(Math.random()*1000)
 		
-	const ptex = {name:"cpanel",canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
+	const ptex = {name:"cpanel"+this.id,canvas:this.pcanvas,opt:{flevel:1,repeat:2,nomipmap:true}}
 	render.addTex(ptex) 
-	render.addModel(
+	this.model = 
 		{geo:new WWModel().primitive("plane",{wx:opt.width/1000,wy:opt.height/1000
 		}).objModel(),
-			camFix:opt.camFix,
+			camFix:opt.camFix,layer:opt.layer,
 			bm:new CanvasMatrix4().rotate(opt.ry,0,1,0).translate(opt.pos),
 			blend:"alpha",
 			vs_uni:{uvMatrix:[1,0,0, 0,1,0, 0,0,0]},
-			fs_uni:{tex1:"cpanel",colmode:2,shmode:1}
+			fs_uni:{tex1:"cpanel"+this.id,colmode:2,shmode:1}
 		}
-	)
+	render.addModel(this.model)
+}
+show(flag) {
+	this.hide = !flag 
+	this.model.hide = this.hide 
 }
 update(render,text) {
-	this.j2c.clear()
+	if(this.hide) return 
+	this.j2c.clear(this.clearColor)
 	for(let i=0;i<text.length;i++) 
 		if(text[i]!==null) this.dd[i].str = text[i]
 	this.j2c.draw(this.dd)
-	render.updateTex("cpanel",this.pcanvas)	
+	render.updateTex("cpanel"+this.id,this.pcanvas)	
 }
 }
 

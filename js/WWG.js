@@ -17,14 +17,14 @@
 //   loadTex(tex)
 
 function WWG() {
-	this.version = "0.9.10" ;
+	this.version = "0.9.11" ;
 	this.can = null ;
 	this.gl = null ;
 	this.vsize = {"float":1,"vec2":2,"vec3":3,"vec4":4,"mat2":4,"mat3":9,"mat4":16} ;
 }
 WWG.prototype.init = function(canvas,opt) {
 	this.can = canvas ;
-	var gl 
+	let gl 
 	if(!((gl = canvas.getContext("experimental-webgl",opt)) || (gl = canvas.getContext("webgl",opt)))) { return false } ;
 	if(!window.Promise) return false ;
 	this.gl = gl 
@@ -61,7 +61,7 @@ WWG.prototype.init = function(canvas,opt) {
 }
 WWG.prototype.init2 = function(canvas,opt) {
 	this.can = canvas ;
-	var gl 
+	let gl 
 	if(!((gl = canvas.getContext("experimental-webgl2",opt)) || (gl = canvas.getContext("webgl2",opt)))) { return false } ;
 	if(!window.Promise) return false ;
 	console.log("init for webGL2") ;
@@ -75,6 +75,7 @@ WWG.prototype.init2 = function(canvas,opt) {
 	this.inst_draw = function(m,l,s,o,c){this.gl.drawElementsInstanced(m,l, s, o, c);}
 	this.inst_drawa = function(m,s,o,c) {this.gl.drawArrayInstanced(m, s, o, c);}
 	this.ext_anis = gl.getExtension("EXT_texture_filter_anisotropic");
+	if(this.ext_anis) this.ext_anis_max = gl.getParameter(this.ext_anis.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
 	this.ext_ftex = true ;
 	this.ext_mrt = (gl.getParameter(gl.MAX_DRAW_BUFFERS)>1) ;
 	if(this.ext_mrt) {
@@ -95,35 +96,35 @@ WWG.prototype.init2 = function(canvas,opt) {
 	return true ;
 }
 WWG.prototype.loadAjax = function(src,opt) {
-	return new Promise(function(resolve,reject) {
-		var req = new XMLHttpRequest();
+	return new Promise((resolve,reject)=> {
+		const req = new XMLHttpRequest();
 		req.open("get",src,true) ;
 		req.responseType = (opt && opt.type)?opt.type:"text" ;
-		req.onload = function() {
-			if(this.status==200) {
-				resolve(this.response) ;
+		req.onload = ()=> {
+			if(req.status==200) {
+				resolve(req.response) ;
 			} else {
-				reject("Ajax error:"+this.statusText) ;					
+				reject("Ajax error:"+req.statusText) ;					
 			}
 		}
-		req.onerror = function() {
-			reject("Ajax error:"+this.statusText)
+		req.onerror = ()=> {
+			reject("Ajax error:"+req.statusText)
 		}
 		req.send() ;
 	})
 }
 WWG.prototype.loadImageAjax = function(src) {
-	var self = this ;
-	return new Promise(function(resolve,reject){
-		self.loadAjax(src,{type:"blob"}).then(function(b){
-			var timg = new Image ;
+	return new Promise((resolve,reject)=>{
+		this.loadAjax(src,{type:"blob"}).then((b)=>{
+			const timg = new Image ;
 			const url = URL.createObjectURL(b);
-			timg.onload = function() {
+			timg.onload = ()=> {
 				URL.revokeObjectURL(url)
 				resolve(timg) ;
 			}
 			timg.src = url
-		}).catch(function(err){
+		}).catch((err)=>{
+			console.log(err)
 			resolve(null) ;
 		})
 	})
@@ -137,9 +138,9 @@ WWG.prototype.Render = function(wwg) {
 	this.wwg = wwg ;
 	this.gl = wwg.gl ;
 	this.env = {} ;
-	this.obuf = [] ;
+//	this.obuf = [] ;
 	this.modelCount = 0 ;
-	this.modelHash = {} ;
+//	this.modelHash = {} ;
 }
 WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 	if(uni.pos==null) return 
@@ -224,6 +225,7 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 			if(typeof value == 'string') value = this.getTexIndex(value)
 			this.gl.activeTexture(this.gl.TEXTURE0+uni.texunit);
 			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[value]);
+			if(this.data.texture[value]==undefined) break ;
 			if(this.data.texture && this.data.texture[value].video) {
 				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.data.texture[value].video);	
 			}
@@ -233,19 +235,25 @@ WWG.prototype.Render.prototype.setUnivec = function(uni,value) {
 }
 
 WWG.prototype.Render.prototype.setShader = function(data) {
-	var tu = 0 ;
+	let tu = 0 ;
 	function parse_shader(src) {
-		var l = src.split("\n") ;
-		var uni = [] ;
-		var att = [] ;
+		const l = src.split("\n") ;
+		const uni = [] ;
+		const att = [] ;
+		const def = {}
 
 		for(i=0;i<l.length;i++) {
-			var ln = l[i] ;
+			let ln = l[i] ;
+			if( ln.match(/^\s*#define\s*([^\s]+)\s*([^\s]+)/)) {
+				def[RegExp.$1.trim()] = RegExp.$2.trim()
+			}
 			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
-				var u = {type:RegExp.$1,name:RegExp.$2} ;
+				let u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
-					u.dim = parseInt(RegExp.$3.substr(1)) ;
+					let k = RegExp.$3.substr(1,RegExp.$3.length-2).trim()
+					u.dim = parseInt(k) ;
+					if(isNaN(u.dim)) u.dim = def[k]
 				}
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
@@ -257,37 +265,36 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 		return {uni:uni,att:att} ;
 	}
 
-	var gl = this.gl ;
-	var self = this ;
-	return new Promise(function(resolve,reject) {
+	const gl = this.gl ;
+	return new Promise((resolve,reject)=> {
 		if(!data.vshader) { reject("no vshader") ;return false;}
 		if(!data.fshader) { reject("no fshader") ;return false;}
-		var vss ;
-		var fss ;
-		var pr = [] ;
+		let vss ;
+		let fss ;
+		let pr = [] ;
 		if(data.vshader.text ) vss = data.vshader.text ;
 		else if(data.vshader.src) {
-			pr.push( self.wwg.loadAjax(data.vshader.src).then(function(result) {
+			pr.push( this.wwg.loadAjax(data.vshader.src).then((result)=> {
 				vss = result ;
 				resolve() ;
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			}))
 		}
 		if(data.fshader.text ) fss = data.fshader.text ;
 		else if(data.fshader.src) {
-			pr.push( self.wwg.loadAjax(data.fshader.src).then(function(result) {
+			pr.push( this.wwg.loadAjax(data.fshader.src).then((result)=> {
 				fss = result ;
 				resolve() ;
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			}))
 		}
-		Promise.all(pr).then(function(res) {
+		Promise.all(pr).then((res)=> {
 //			console.log(vss) ;
 //			console.log(fss) ;
-			var ret = {} ;
-			var vshader = gl.createShader(gl.VERTEX_SHADER);
+			let ret = {} ;
+			let vshader = gl.createShader(gl.VERTEX_SHADER);
 			gl.shaderSource(vshader, vss);
 			gl.compileShader(vshader);
 			if(!gl.getShaderParameter(vshader, gl.COMPILE_STATUS)) {
@@ -295,7 +302,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.vshader = vshader ;
 		
-			var fshader = gl.createShader(gl.FRAGMENT_SHADER);
+			let fshader = gl.createShader(gl.FRAGMENT_SHADER);
 			gl.shaderSource(fshader, fss);
 			gl.compileShader(fshader);
 			if(!gl.getShaderParameter(fshader, gl.COMPILE_STATUS)) {
@@ -303,7 +310,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			}
 			ret.fshader = fshader ;
 			
-			var program = gl.createProgram();
+			let program = gl.createProgram();
 			gl.attachShader(program, vshader);
 			gl.attachShader(program, fshader);
 			gl.linkProgram(program);
@@ -313,44 +320,44 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 			ret.program = program ;
 			gl.useProgram(program);
 		
-			var vr = parse_shader(vss) ;	
+			let vr = parse_shader(vss) ;	
 //			console.log(vr) ;
 			ret.vs_att = {} ;	
-			for(var i in vr.att) {
+			for(let i in vr.att) {
 				vr.att[i].pos = gl.getAttribLocation(program,vr.att[i].name) ;
 				ret.vs_att[vr.att[i].name] = vr.att[i] ;
 			}
 			ret.vs_uni = {} ;
-			for(var i in vr.uni) {
+			for(let i in vr.uni) {
 				vr.uni[i].pos = gl.getUniformLocation(program,vr.uni[i].name) ;
 				vr.uni[i].cache = null 
 				ret.vs_uni[vr.uni[i].name] = vr.uni[i] ;
 			}
 		
-			var fr = parse_shader(fss) ;	
+			let fr = parse_shader(fss) ;	
 //			console.log(fr);	
 			ret.fs_uni = {} ;
-			for(var i in fr.uni) {
+			for(let i in fr.uni) {
 				fr.uni[i].pos = gl.getUniformLocation(program,fr.uni[i].name) ;
 				fr.uni[i].cache = null 
 				ret.fs_uni[fr.uni[i].name] = fr.uni[i] ;
 			}
 			resolve(ret) ;
-		}).catch(function(err){
+		}).catch((err)=>{
 			reject(err) ;
 		}) ;
 	})
 }
 WWG.prototype.Render.prototype.setUniValues = function(data) {
 	if(data.vs_uni) {
-		for(var i in data.vs_uni) {
+		for(let i in data.vs_uni) {
 			if(this.vs_uni[i]) {
 				this.setUnivec(this.vs_uni[i], data.vs_uni[i]) ;
 			}  ;
 		}
 	}
 	if(data.fs_uni) {
-		for(var i in data.fs_uni) {
+		for(let i in data.fs_uni) {
 			if(this.fs_uni[i]) {
 				this.setUnivec(this.fs_uni[i], data.fs_uni[i]) ;
 			}  ;
@@ -360,17 +367,20 @@ WWG.prototype.Render.prototype.setUniValues = function(data) {
 }
 WWG.prototype.Render.prototype.genTex = function(img,option) {
 	if(!option) option={flevel:0} ;
-	var gl = this.gl ;
-	var tex = gl.createTexture();
+	let gl = this.gl ;
+	const formatstr = {"rgb":gl.RGB,"gray":gl.LUMINANCE,"grayalpha":gl.LUMINANCE_ALPHA}
+	let format = (option.format && formatstr[option.format])?formatstr[option.format]:gl.RGBA
+
+	let tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
 	if(option.isarray) {
 		if(img instanceof Float32Array ) 
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,gl.RGBA, gl.FLOAT, img,0);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, option.width,option.height,0,format, gl.FLOAT, img,0);
 		else 
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,gl.RGBA, gl.UNSIGNED_BYTE, img);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, option.width,option.height,0,format, gl.UNSIGNED_BYTE, img);
 		 option.flevel = 0 
 		 option.nomipmap = true
-	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, img);
+	} else 	gl.texImage2D(gl.TEXTURE_2D, 0, format, format,gl.UNSIGNED_BYTE, img);
 
 	if(!option.nomipmap) gl.generateMipmap(gl.TEXTURE_2D);
 	//NEAREST LINEAR NEAREST_MIPMAP_NEAREST NEAREST_MIPMAP_LINEAR LINEAR_MIPMAP_NEAREST LINEAR_MIPMAP_LINEAR
@@ -406,29 +416,28 @@ WWG.prototype.Render.prototype.genTex = function(img,option) {
 }
 WWG.prototype.Render.prototype.loadTex = function(tex) {
 //	console.log( tex);
-	var self = this ;
-	var gl = this.gl ;
+	let gl = this.gl ;
 
-	return new Promise(function(resolve,reject) {
+	return new Promise((resolve,reject)=> {
 		if(tex.src) {
 			if(tex.opt && tex.opt.cors) {
-				self.wwg.loadImageAjax(tex.src).then(function(img) {
-					resolve( self.genTex(img,tex.opt)) ;
+				this.wwg.loadImageAjax(tex.src).then((img)=>{
+					resolve( this.genTex(img,tex.opt)) ;
 				}).catch((err)=>reject(err));
 			} else {
-				var img = new Image() ;
-				img.onload = function() {
-					resolve( self.genTex(img,tex.opt) ) ;
+				let img = new Image() ;
+				img.onload = ()=> {
+					resolve( this.genTex(img,tex.opt) ) ;
 				}
-				img.onerror = function() {
+				img.onerror = ()=> {
 					reject("cannot load image") ;
 				}
 				img.src = tex.src ;
 			}
 		} else if(tex.img instanceof Image) {
-			resolve( self.genTex(tex.img,tex.opt) ) 
+			resolve( this.genTex(tex.img,tex.opt) ) 
 		} else if(tex.video ) {
-			resolve( self.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
+			resolve( this.genTex(tex.video,{nomipmap:true,flevel:0,repeat:2}) ) 
 		} else if(tex.buffer) {
 			if(tex.mrt!=undefined) {
 				resolve( tex.buffer.fb.t[tex.mrt])
@@ -437,23 +446,26 @@ WWG.prototype.Render.prototype.loadTex = function(tex) {
 		} else if(tex.texture) {
 			resolve( tex.texture) ;
 		} else if(tex.canvas) {
-			resolve( self.genTex(tex.canvas,tex.opt)) ;
+			resolve( this.genTex(tex.canvas,tex.opt)) ;
 		} else if(tex.array) {
 			tex.opt.isarray = true ;
-			resolve( self.genTex(tex.array,tex.opt)) ;
+			resolve( this.genTex(tex.array,tex.opt)) ;
 		} else {
 			reject("no image")
 		}
 	})
 }
 WWG.prototype.Render.prototype.getTexIndex = function(name) {
-	for(var i=0;i<this.data.texture.length;i++) {
+	if(!this.data.texture) return null 
+	let i 
+	for(i=0;i<this.data.texture.length;i++) {
 		if(this.data.texture[i].name==name) break;
 	}
-	return i
+	return (i==this.data.texture.length)?null:i
 }
 WWG.prototype.Render.prototype.addTex = function(texdata) {
 	return new Promise((resolve,reject)=>{
+		if(!this.data.texture) this.data.texture = []
 		this.data.texture.push(texdata)
 		this.loadTex(texdata).then((tex)=>{
 			this.texobj.push(tex) ;
@@ -463,33 +475,34 @@ WWG.prototype.Render.prototype.addTex = function(texdata) {
 }
 WWG.prototype.Render.prototype.removeTex = function(tex) {
 	if(typeof tex == "string") tex = this.getTexIndex(tex) 
+	if(tex === null ) return 
 	this.data.texture[tex] = null
 	this.texobj[tex] = null 
 }
 
 WWG.prototype.Render.prototype.frameBuffer = function(os) {
-	var gl = this.gl ;
+	let gl = this.gl ;
 	console.log("create framebuffer "+os.width+"x"+os.height) ;
-	var mrt = os.mrt ;
-	var ttype = gl.UNSIGNED_BYTE ;
-	var tfilter = gl.LINEAR ;
+	let mrt = os.mrt ;
+	let ttype = gl.UNSIGNED_BYTE ;
+	let tfilter = gl.LINEAR ;
 	if(this.wwg.ext_ftex && os.float ) {
 		ttype = gl.FLOAT ;
 		tfilter = gl.NEAREST ;
 		console.log("use float tex") ;
 	}
-	var fblist = [] ;
-	var frameBuffer = gl.createFramebuffer();
+	let fblist = [] ;
+	let frameBuffer = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
 	//depth
-	var renderBuffer = gl.createRenderbuffer();
+	let renderBuffer = gl.createRenderbuffer();
 	gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
 	gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, os.width, os.height);	
 	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderBuffer);
 	//texture
 	if(mrt) {
-		var fTexture = [] ;
-		for(var i=0;i<mrt;i++) {
+		let fTexture = [] ;
+		for(let i=0;i<mrt;i++) {
 			fTexture[i] = gl.createTexture();
 			gl.bindTexture(gl.TEXTURE_2D, fTexture[i]);
 			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, os.width, os.height, 0, gl.RGBA, ttype, null);
@@ -499,7 +512,7 @@ WWG.prototype.Render.prototype.frameBuffer = function(os) {
 			fblist.push(this.wwg.mrt_att + i)		
 		}
 	} else {
-		var fTexture = gl.createTexture()
+		let fTexture = gl.createTexture()
 		gl.bindTexture(gl.TEXTURE_2D, fTexture);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, os.width, os.height, 0, gl.RGBA, ttype, null);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, tfilter);
@@ -510,73 +523,72 @@ WWG.prototype.Render.prototype.frameBuffer = function(os) {
 	gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);	
 
-	var ret = {width:os.width,height:os.height,f:frameBuffer,d:renderBuffer,t:fTexture}
+	let ret = {ox:os.offsetX,oy:os.offsetY,width:os.width,height:os.height,f:frameBuffer,d:renderBuffer,t:fTexture}
 	if(mrt) ret.fblist = fblist ;
 	return ret ;
 }
 WWG.prototype.Render.prototype.setRender =function(data) {
-	var gl = this.gl ;
+	let gl = this.gl ;
 	this.env = data.env ;
 	this.data = data ;
-	var self = this ;
 
-	return new Promise(function(resolve,reject) {
+	return new Promise((resolve,reject)=> {
 		if(!gl) { reject("no init") ;return ;}
-		var pr = [] ;
-		self.setShader({fshader:data.fshader,vshader:data.vshader}).then(function(ret) {
+		let pr = [] ;
+		this.setShader({fshader:data.fshader,vshader:data.vshader}).then((ret)=> {
 			//set program
-			self.vshader = ret.vshader ;
-			self.fshader = ret.fshader ;
-			self.program = ret.program ;
-			self.vs_uni = ret.vs_uni ;
-			self.vs_att = ret.vs_att ;
-			self.fs_uni = ret.fs_uni ;
+			this.vshader = ret.vshader ;
+			this.fshader = ret.fshader ;
+			this.program = ret.program ;
+			this.vs_uni = ret.vs_uni ;
+			this.vs_att = ret.vs_att ;
+			this.fs_uni = ret.fs_uni ;
 			
 			// load textures
 			if(data.texture) {
-				for(var i=0;i<data.texture.length;i++) {
-					pr.push(self.loadTex( data.texture[i])) ;
+				for(let i=0;i<data.texture.length;i++) {
+					pr.push(this.loadTex( data.texture[i])) ;
 				}
 			}
 
-			Promise.all(pr).then(function(result) {
+			Promise.all(pr).then((result)=> {
 //				console.log(result) ;
-				self.texobj = result ;
+				this.texobj = result ;
 				// set initial values
-				if(!self.setUniValues(data)) {
+				if(!this.setUniValues(data)) {
 					reject("no uniform name") ;
 					return ;
 				}
 				
-				if(self.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
-				if(self.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
-				if(!self.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
+				if(this.env.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+				if(this.env.face_cw) gl.frontFace(gl.CW); else gl.frontFace(gl.CCW);
+				if(!this.env.nodepth) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);		
 		
 				//set model 
-				for(var i =0;i<data.model.length;i++) {
-					self.obuf[i] = self.setObj( data.model[i],true) ;
-					if(data.model[i].name) self.modelHash[data.model[i].name] = i ;
+				for(let i =0;i<data.model.length;i++) {
+					data.model[i].obuf = this.setObj( data.model[i],true) ;
+//					if(data.model[i].name) this.modelHash[data.model[i].name] = data.model[i] ;
 				}
-				self.modelCount = data.model.length ;
-//				console.log(self.obuf);
+				this.modelCount = data.model.length ;
+//				console.log(this.obuf);
 				
-				if(self.env.offscreen) {// renderbuffer 
-					if(self.env.offscreen.mrt) { //MRT
-						if(!self.wwg.ext_mrt) reject("MRT not support") ;
+				if(this.env.offscreen) {// renderbuffer 
+					if(this.env.offscreen.mrt) { //MRT
+						if(!this.wwg.ext_mrt) reject("MRT not support") ;
 					}
-					self.fb = self.frameBuffer(self.env.offscreen) ;	
+					this.fb = this.frameBuffer(this.env.offscreen) ;	
 				}
-				resolve(self) ;
+				resolve(this) ;
 				
-			}).catch(function(err) {
+			}).catch((err)=> {
 				reject(err) ;
 			})
-		}).catch(function(err) {reject(err);})
+		}).catch((err)=> {reject(err);})
 	});
 }
 
 WWG.prototype.Render.prototype.clear = function() {
-	var cc = this.env.clear_color ;
+	let cc = this.env.clear_color ;
 	this.gl.clearColor(cc[0],cc[1],cc[2],cc[3]);
 	this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 }
@@ -594,63 +606,64 @@ WWG.prototype.Render.prototype.i32Array = function(ar) {
 	else return new Uint32Array(ar) ;
 }
 WWG.prototype.Render.prototype.setObj = function(obj,flag) {
-	var gl = this.gl
-	var geo = obj.geo ;
-	var inst = obj.inst ;
+	let gl = this.gl
+	let geo = obj.geo ;
+	let inst = obj.inst ;
 	ret = {} ;
-	
+	let vao
 	if(this.wwg.ext_vao) {
-		var vao = this.wwg.vao_create() ;
+		vao = this.wwg.vao_create() ;
 		this.wwg.vao_bind(vao);
 		ret.vao = vao ;
 	}
 	
-	var vbo = gl.createBuffer() 
+	let vbo = gl.createBuffer() 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vbo) ;
 
-	var tl = 0 ;
-	var ats = [] ;
-	for(var i=0;i<geo.vtx_at.length;i++) {
+	let tl = 0 ;
+	let ats = [] ;
+	for(let i=0;i<geo.vtx_at.length;i++) {
 		ats.push( this.vs_att[geo.vtx_at[i]] ) ;
 		tl += this.wwg.vsize[this.vs_att[geo.vtx_at[i]].type] ;
 	}
 
 	ret.ats = ats ;
 	ret.tl = tl ;
-	var ofs = 0 ;
-	for(var i in this.vs_att ) {
-		gl.disableVertexAttribArray(this.vs_att[i].pos);
+	let ofs = 0 ;
+	for(let i in this.vs_att ) {
+		if(this.vs_att[i].pos>=0) gl.disableVertexAttribArray(this.vs_att[i].pos);
 	}
-	for(var i=0;i<ats.length;i++) {
-		var s = this.wwg.vsize[ats[i].type] ;
+	for(let i=0;i<ats.length;i++) {
+		let s = this.wwg.vsize[ats[i].type] ;
 		gl.enableVertexAttribArray(this.vs_att[ats[i].name].pos);
 		gl.vertexAttribPointer(this.vs_att[ats[i].name].pos, s, gl.FLOAT, false, tl*4, ofs);
 		ofs += s*4 ;	
 	} 	
 	ret.vbo = vbo ;
-
+	let ibo
 	if(geo.idx) {
-		var ibo = gl.createBuffer() ;
+		ibo = gl.createBuffer() ;
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo) ;
 		ret.ibo = ibo ;
 	}
+	let ibuf 
 	if(inst) {
-		var ibuf = gl.createBuffer() 
+		ibuf = gl.createBuffer() 
 		gl.bindBuffer(gl.ARRAY_BUFFER, ibuf) ;
-		var tl = 0 ;
-		var ats = [] ;
-		for(var i=0;i<inst.attr.length;i++) {
+		let tl = 0 ;
+		let ats = [] ;
+		for(let i=0;i<inst.attr.length;i++) {
 			ats.push( this.vs_att[inst.attr[i]] ) ;
 			tl += this.wwg.vsize[this.vs_att[inst.attr[i]].type] ;
 		}
 		tl = tl*4 ;
 		ret.iats = ats ;
 		ret.itl = tl ;
-		var ofs = 0 ;
-		for(var i=0;i<ats.length;i++) {
-			var divisor = (inst.divisor)?inst.divisor[i]:1 ;
-			var s = this.wwg.vsize[ats[i].type] ;
-			var pos = this.vs_att[ats[i].name].pos
+		let ofs = 0 ;
+		for(let i=0;i<ats.length;i++) {
+			let divisor = (inst.divisor)?inst.divisor[i]:1 ;
+			let s = this.wwg.vsize[ats[i].type] ;
+			let pos = this.vs_att[ats[i].name].pos
 			gl.enableVertexAttribArray(pos);
 			gl.vertexAttribPointer(pos, s, gl.FLOAT, false, tl, ofs);
 			ofs += s*4 ;
@@ -688,30 +701,48 @@ WWG.prototype.Render.prototype.setObj = function(obj,flag) {
 		
 	return ret ;
 }
+WWG.prototype.Render.prototype.getModels = function() {
+	return this.data.model.filter((m)=>(m!==null))	
+}
 WWG.prototype.Render.prototype.getModelIdx = function(name) {
-	var idx 
+	let idx = false 
 	if(typeof name != 'string') idx = parseInt(name) ;
-	else idx = this.modelHash[name] ;
+	else {
+		for(let i=0;i<this.data.model.length;i++) 	{
+			if(this.data.model[i]===null) continue 
+			if(name==this.data.model[i].name) {idx = i ;break }
+		}
+	}
 	return idx ;	
 }
 // add model
 WWG.prototype.Render.prototype.addModel = function(model) {
+	let idx = false
+	if(model.name) idx = this.getModelIdx(model.name)
+	if(idx!==false ) {
+		this.data.model[idx] = model ;
+		this.data.model[idx].obuf = this.setObj(model,true) ;
+		return 
+	}
 	this.data.model.push(model) ;
-	this.obuf.push(this.setObj(model,true)) ;
+	this.data.model[this.data.model.length-1].obuf = this.setObj(model,true) ;
 	this.modelCount++
-	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
+//	if(model.name) this.modelHash[model.name] = this.data.model.length -1 ;
 }
 // remove model
 WWG.prototype.Render.prototype.removeModel = function(model) {
-	let mi = this.getModelIndex(mode) 
+	let mi = this.getModelIdx(model) 
+	if(mi===false) return false 
+//	delete this.modelHash[this.data.model[mi].name] 
+	this.data.model[mi].obuf = null 
 	this.data.model[mi] = null 
-	this.obuf[mi] = null 
 	this.modelCount--  
+	return true 
 }
 // update attribute buffer 
 WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true) {
-	var idx = this.getModelIdx(name) ;
-	var obuf = this.obuf[idx] ;
+	let idx = this.getModelIdx(name) ;
+	let obuf = this.data.model[idx].obuf ;
 	switch(mode) {
 		case "vbo":	
 			this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.vbo) ;
@@ -726,29 +757,38 @@ WWG.prototype.Render.prototype.updateModel = function(name,mode,buf,subflag=true
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
 }
 WWG.prototype.Render.prototype.updateModelInstance = function(name,buf,count) {
-	var idx = this.getModelIdx(name) ;
-	var obuf = this.obuf[idx] ;
+	let idx = this.getModelIdx(name) ;
+	let obuf = this.data.model[idx].obuf ;
 	this.data.model[idx].inst.count = count ;
 	this.gl.bindBuffer(this.gl.ARRAY_BUFFER, obuf.inst) ; 
 //		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.f32Array(buf))	
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, this.f32Array(buf),this.gl.DYNAMIC_DRAW ) ;
 }
 WWG.prototype.Render.prototype.getModelData =function(name) {
-	var idx = this.getModelIdx(name) ;
+	let idx = this.getModelIdx(name) ;
 	return this.data.model[idx] ;
 }
 // update texture 
 WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 	if(typeof idx == 'string') idx = this.getTexIndex(idx)
-	let tdat = this.data.texture[idx]
+	var tdat = this.data.texture[idx]
 	this.gl.bindTexture(this.gl.TEXTURE_2D, this.texobj[idx]);
+
 	if(tdat.array) {
 		if(!opt) 
-			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
-				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);	
+			if(tdat.array instanceof Float32Array ) 
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA16F, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.FLOAT, tex);
+			else
+				this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, 
+				tdat.opt.width,tdat.opt.height,0,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);	
 		else 
-			this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+			if(tdat.array instanceof Float32Array ) 
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
 				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.FLOAT, tex,opt.ofs);
+			else
+				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, 
+				opt.sx,opt.sy,opt.width,opt.height,this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex,opt.ofs);
 	} else {
 		if(!opt) {
 			this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
@@ -759,17 +799,17 @@ WWG.prototype.Render.prototype.updateTex = function(idx,tex,opt) {
 				this.gl.texSubImage2D(this.gl.TEXTURE_2D, 0, opt.sx,opt.sy , this.gl.RGBA, this.gl.UNSIGNED_BYTE, tex);
 		}
 	}
-	if(this.data.texture[idx].opt && !this.data.texture[idx].opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
+	if(tdat.opt && !tdat.opt.nomipmap) this.gl.generateMipmap(this.gl.TEXTURE_2D);
 }
 //update uniform values
 WWG.prototype.Render.prototype.pushUniValues = function(u) {
 	if(u.vs_uni) {
-		for(var i in u.vs_uni) {
+		for(let i in u.vs_uni) {
 			this.update_uni.vs_uni[i] = u.vs_uni[i] ;
 		}
 	}
 	if(u.fs_uni) {
-		for(var i in u.fs_uni) {
+		for(let i in u.fs_uni) {
 			this.update_uni.fs_uni[i] = u.fs_uni[i] ;
 		}
 	}
@@ -787,20 +827,22 @@ WWG.prototype.Render.prototype.updateUniValues = function(u) {
 WWG.prototype.Render.prototype.draw = function(update,cls) {
 //console.log("draw");
 
-	var gl = this.gl ;
+	let gl = this.gl ;
 	gl.useProgram(this.program);
 	if(this.env.offscreen) {// renderbuffer 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb.f);
 		if(this.env.offscreen.mrt) this.wwg.mrt_draw(this.fb.fblist);
-		gl.viewport(0,0,this.fb.width,this.fb.height) ;
+		gl.viewport(fb.offsetX,fb.offsetY,this.fb.width,this.fb.height) ;
 	}
 	if(!cls) this.clear() ;
-	for(var b=0;b<this.obuf.length;b++) {
-		if(this.obuf[b]==null) continue ;
-		var cmodel = this.data.model[b] ;
+	let models = this.data.model
+	for(let b=0;b<models.length;b++) {
+		if(models[b]===null) continue 
+		let cmodel = models[b] ;
 		if(cmodel.hide) continue ;
-		var geo = cmodel.geo ;
+		if(cmodel.obuf==null) continue ;
 
+		let geo = cmodel.geo ;
 		this.updateUniValues(0) ;
 		this.pushUniValues(this.data) ;
 		this.pushUniValues(cmodel);
@@ -810,37 +852,37 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 			for(let i=0;i<update.length;i++) {
 				this.pushUniValues(update[i]) ;
 				if(update[i].model) {
-					var model =update[i].model[b] ;
+					let model =update[i].model[b] ;
 					if(model) this.pushUniValues(model) ;
 				}
 			}
 		}
 		this.updateUniValues(1)
 
-		var obuf = this.obuf[b] ;
-		var ofs = (geo.ofs>0)?geo.ofs:0 ;
+		let obuf = cmodel.obuf ;
+		let ofs = (geo.ofs>0)?geo.ofs:0 ;
 		if(this.wwg.ext_vao)  this.wwg.vao_bind(obuf.vao);
 		else {
 			gl.bindBuffer(gl.ARRAY_BUFFER, obuf.vbo) ;
-			var aofs = 0 ;
-			for(var i in this.vs_att ) {
+			let aofs = 0 ;
+			for(let i in this.vs_att ) {
 				gl.disableVertexAttribArray(this.vs_att[i].pos);
 			}
-			for(var i=0;i<obuf.ats.length;i++) {
-				var s = this.wwg.vsize[obuf.ats[i].type] ;
+			for(let i=0;i<obuf.ats.length;i++) {
+				let s = this.wwg.vsize[obuf.ats[i].type] ;
 				gl.enableVertexAttribArray(this.vs_att[obuf.ats[i].name].pos);
 				gl.vertexAttribPointer(this.vs_att[obuf.ats[i].name].pos, s, gl.FLOAT, false, obuf.tl*4, aofs);
 				aofs += s*4 ;	
 			}
-			if(this.obuf[b].ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.obuf[b].ibo) ;
-			if(this.obuf[b].inst) {
-				var inst = cmodel.inst ;
-				gl.bindBuffer(gl.ARRAY_BUFFER, this.obuf[b].inst) ;
-				var aofs = 0 ;
-				for(var i=0;i<obuf.iats.length;i++) {
-					var divisor = (inst.divisor)?inst.divisor[i]:1 ;
-					var s = this.wwg.vsize[obuf.iats[i].type] ;
-					var pos = this.vs_att[obuf.iats[i].name].pos
+			if(obuf.ibo) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obuf.ibo) ;
+			if(obuf.inst) {
+				let inst = cmodel.inst ;
+				gl.bindBuffer(gl.ARRAY_BUFFER, obuf.inst) ;
+				let aofs = 0 ;
+				for(let i=0;i<obuf.iats.length;i++) {
+					let divisor = (inst.divisor)?inst.divisor[i]:1 ;
+					let s = this.wwg.vsize[obuf.iats[i].type] ;
+					let pos = this.vs_att[obuf.iats[i].name].pos
 					gl.enableVertexAttribArray(pos);
 					gl.vertexAttribPointer(pos, s, gl.FLOAT, false, obuf.itl, aofs);
 					aofs += s*4 ;
@@ -850,7 +892,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.preFunction) {
 			
-			cmodel.preFunction(gl,cmodel,this.obuf[b]) ;
+			cmodel.preFunction(gl,cmodel,obuf) ;
 		}
 		if(cmodel.blend!==undefined) {
 			gl.enable(gl.BLEND) ;
@@ -859,7 +901,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		if(cmodel.cull!==undefined) {
 			if(cmodel.cull) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
 		}
-		var gmode = this.wwg.dmodes[geo.mode]
+		let gmode = this.wwg.dmodes[geo.mode]
 		if(gmode==undefined) {
 				console.log("Error: illigal draw mode") ;
 				return false ;
