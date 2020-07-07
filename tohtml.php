@@ -1,0 +1,176 @@
+<?php
+$src = json_decode(file_get_contents($_SERVER['QUERY_STRING']),true);
+?>
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width" /> 
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PolygonExplorerPlayer</title>
+<script src="//wakufactory.jp/wgl/pox/js/poxp_all.js?20200623" defer></script>
+<script src="//wakufactory.jp/wgl/pox/js/poxp_view.js?20200623"></script>
+<script>
+function $(e){return document.getElementById(e)}
+onload = function() {
+function main(POX) {
+<?=$src['m']?>
+}
+const vshader = `<?=$src['vs']?>`
+const fshader = `<?=$src['fs']?>`
+	POXP.init(()=>{
+		$("loading").style.display = "none" ;		
+	}, {m:main,vs:vshader,fs:fshader})
+}
+</script>
+<style>
+body,html {
+	margin:0 ;
+	width:100% ;
+	height:100% ;
+}
+body {
+	box-sizing: border-box ;
+	font-family:sans-serif ;
+	background-color:black;
+}
+canvas {
+	width:100% ;
+	height:100% ;
+}
+#cc {
+	position:absolute ;
+	width:17rem ;
+	top:0;
+	left:0;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.4 ;
+}
+#pui input[type=range] {
+	width:10rem ;
+}
+#pui div.t {
+	float:left;
+	width:3rem ;
+	padding-left:0.2rem ;
+	overflow:hidden ;
+}
+#loading {
+	position:absolute ;
+	top:0;
+	left:0;
+	width:100% ;
+	height:100% ;	
+}
+#loading img {
+	margin-top:calc(50vh - 33px) ;
+	margin-left:calc(50vw  - 33px);
+}
+#footer {
+	position:absolute ;
+	top:calc(100% - 2rem) ;
+	color:#888 ;
+}
+#footer a {
+	color:#888 ;	
+}
+/* swicth (single checkbox) */
+.oswitch input {
+	display:none ;
+}
+.oswitch .sbtn {
+	font-family:"apple color emoji",sans-serif;
+}
+.oswitch input[type=checkbox] + .sbtn:before {
+	content: "⏸" 
+}
+.oswitch input[type=checkbox]:checked + .sbtn:before {
+	content: "▶️" ;
+}
+#bc {
+	position:absolute ;
+	height:20vw ;
+	bottom:1rem;
+	left:0;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.4 ;
+	font-size:5vw ;	
+	user-select: none;
+	-webkit-user-select: none;
+}
+#bc button {
+	font-size:2vw ;
+}
+div.pad {
+	position:absolute ;
+	height:9.7rem ;
+	bottom:0rem;
+	color:#eee ;
+	background-color:#222 ;
+	opacity:0.6 ;
+	vertical-align:baseline;
+	font-size:10px ;	
+	user-select: none;
+	-webkit-user-select: none;
+}
+#padl {
+	left:0;	
+}
+#padr {
+	right:0;
+}
+div.pad button {
+	background-color:#aaa ;
+}
+div.pad button:hover {
+	background-color:#fff ;
+}
+#vrbtn {
+	position:absolute ;
+	width:50px ;
+	height:50px ;
+	top:0;
+	left:calc( 100% - 50px ) ;
+	opacity: 0.8 ;
+	background-color:#ccc;
+	background-position: center;
+	background-image:url("img/goggle.png") ;
+	background-repeat:no-repeat;
+}
+</style>
+</head>
+<body>
+<div id=cc>
+<label><input type=checkbox id=isstereo>stereo</label>
+<label><input type=checkbox id=camselect>gcam</label>
+<span class=oswitch><label><input type=checkbox id=pause><span class=sbtn></span></label></span>
+[<span id="fps"></span>FPS]
+<div id=pui></div>
+</div>
+<div id=loading><img src="img/guruguru.gif"></div>
+<div class=pad id=padl>
+<table>
+<tr><td colspan=3 align=center><button id=bc_trig data-key=0>TRIG</button></td></tr>
+<tr><td></td><td><button id=bc_u data-key="2" data-dir=2>⬆️</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="2" data-dir=0>⬅️</button></td><td></td><td><button id=bc_r data-key="2" data-dir=1>➡️</button></td></tr>
+<tr><td></td><td><button id=bc_d data-key="2" data-dir=3>⬇️</button></td><td></td></tr>
+<tr><td><button id=bc_g data-key=1>G</button></td><td><button id=bc_b data-key=5>Y</button></td><td><button id=bc_a data-key=4>X</button></td></tr>
+</table>
+</div>
+<div class=pad id=padr>
+<table>
+<tr><td colspan=3 align=center><button id=bc_trig data-key=0>TRIG</button></td></tr>
+<tr><td></td><td><button id=bc_u data-key="2" data-dir=2>⬆️</button></td><td></td></tr>
+<tr><td><button id=bc_l data-key="2" data-dir=0>⬅️</button></td><td></td><td><button id=bc_r data-key="2" data-dir=1>➡️</button></td></tr>
+<tr><td></td><td><button id=bc_d data-key="2" data-dir=3>⬇️</button></td><td></td></tr>
+<tr><td><button id=bc_g data-key=1>G</button></td><td><button id=bc_b data-key=5>B</button></td><td><button id=bc_a data-key=4>A</button></td></tr>
+</table>
+</div>
+<div id=vrbtn></div>
+<canvas id="screen1"></canvas>
+<div id=footer></div>
+</body>
+</html>
