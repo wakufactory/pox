@@ -14,8 +14,8 @@ class WWModel {
 	let wz = (param.wz)?param.wz:1.0 ;
 	let div = (param.div)?param.div:10 ;
 	let divx = (param.divx)?param.divx:div ;
-	let divy = (param.divx)?param.divy:div ;
-	let divz = (param.divx)?param.divz:div ;
+	let divy = (param.divy)?param.divy:div ;
+	let divz = (param.divz)?param.divz:div ;
 	let ninv = (param.ninv)?-1:1 ;
 	let p = [] ;
 	let n = [] ;
@@ -124,7 +124,7 @@ class WWModel {
 		}	
 		break ;
 	case "cylinder":
-		let divy = (param.divy)?param.divy:1
+		divy = (param.divy)?param.divy:1
 		for(let i = 0 ; i <= div ; ++i) {
 			let v = i / (0.0+div);
 			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
