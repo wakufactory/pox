@@ -73,7 +73,7 @@ WWG.prototype.init2 = function(canvas,opt) {
 	this.ext_inst = true ;
 	this.inst_divisor = function(p,d){this.gl.vertexAttribDivisor(p, d)}
 	this.inst_draw = function(m,l,s,o,c){this.gl.drawElementsInstanced(m,l, s, o, c);}
-	this.inst_drawa = function(m,s,o,c) {this.gl.drawArrayInstanced(m, s, o, c);}
+	this.inst_drawa = function(m,s,o,c) {this.gl.drawArraysInstanced(m, s, o, c);}
 	this.ext_anis = gl.getExtension("EXT_texture_filter_anisotropic");
 	if(this.ext_anis) this.ext_anis_max = gl.getParameter(this.ext_anis.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
 	this.ext_ftex = true ;
@@ -244,10 +244,10 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 
 		for(i=0;i<l.length;i++) {
 			let ln = l[i] ;
-			if( ln.match(/^\s*#define\s*([^\s]+)\s*([^\s]+)/)) {
+			if( ln.match(/^\s*#define\s*([^\s]+)\s+([^\s]+)/)) {
 				def[RegExp.$1.trim()] = RegExp.$2.trim()
 			}
-			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
+			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s+([0-9a-z_]+)(\[[^\]]+\])?/i)) {
 				let u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
@@ -258,7 +258,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
 			}
-			if( ln.match(/^\s*(?:attribute|in)\s*([0-9a-z]+)\s*([0-9a-z_]+)/i)) {
+			if( ln.match(/^\s*(?:attribute|in)\s+([0-9a-z]+)\s*([0-9a-z_]+)/i)) {
 				att.push( {type:RegExp.$1,name:RegExp.$2}) ;
 			}
 		}
@@ -908,7 +908,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.inst) {
 			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
-			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
+			else this.wwg.inst_drawa(gmode, ofs,(geo.count>0)?geo.count:geo.vtx.length/obuf.tl, cmodel.inst.count);
 		} else {
 			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
 			else gl.drawArrays(gmode, ofs,
