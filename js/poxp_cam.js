@@ -64,8 +64,17 @@ setCam(cam) {
 	this.cama = false 
 }
 getCam() {
-	let bpos = [this.cam.camCX,this.cam.camCY,this.cam.camCZ]
-	return {origin:bpos,position:this.cam.campos,head:this.cam.headVec.slice(),hpos:this.cam.position}
+	const ret = {
+		basePos:[this.cam.camCX,this.cam.camCY,this.cam.camCZ],
+		baseRot:[this.cam.camRX,this.cam.camRY,this.cam.camRZ],
+		position:Array.from(this.cam.campos),
+		headVec:Array.from(this.cam.headVec),
+	}
+	if(this.cam.orientation) ret.headOri = Array.from(this.cam.orientation)
+	else ret.headOri = [0,0,0,1]
+	if(this.cam.position) ret.headPos = Array.from(this.cam.position)
+	else ret.headPos = [0,0,0]
+	return ret 
 }
 vrchange(f) {
 	if(f) {
@@ -282,7 +291,15 @@ setPad(gpad,gpad2) {
 				this.pvx = false 
 		}
 		if(this.cam.padRot && gp.dpad[0]>0) {
-			this.cam.camRY += ((axes[0]>0)?1:-1) * this.cam.rotAngle
+			let rot = ((axes[0]>0)?1:-1) * this.cam.rotAngle
+			this.cam.camRY += rot
+			if(false && this.cam.position) {
+				let th = rot * RAD 
+				this.cam.camCX += Math.cos(th)*this.cam.position[0]+ Math.sin(th)*this.cam.position[2]
+				this.cam.camCZ += -Math.sin(th)*this.cam.position[0]+ Math.cos(th)*this.cam.position[2]
+				console.log(Math.cos(th)*this.cam.position[0]+ Math.sin(th)*this.cam.position[2]
+				,-Math.sin(th)*this.cam.position[0]+ Math.cos(th)*this.cam.position[2])
+			}
 		}
 	}
 }
@@ -344,7 +361,7 @@ getMtx(scale,sf) {
 			cy = cam.camCY + -Math.sin(cam.camRX*RAD)*1 ; 
 			cz = cam.camCZ + -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)	
 			let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0).rotate(-this.cam.camRZ,0,0,1)
-			upx = Math.sin(cam.camRZ*RAD)
+			upx = -Math.sin(cam.camRZ*RAD)
 			upy = Math.cos(cam.camRZ*RAD)
 			this.cam.headVec = cmat.multVec4(0,0,-1,0)
 		} else  {
@@ -410,11 +427,9 @@ getMtx(scale,sf) {
  
 		this.tempM.makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
-//			.translate(-this.cam.position[0],0,-this.cam.position[2])
 			.rotate(cam.camRX,1,0,0)
 			.rotate(cam.camRY,0,1,0)
 			.rotate(cam.camRZ,0,0,1)
-//			.translate(this.cam.position[0],0,this.cam.position[2])
 
 		this.camV[0].load(this.vrv[0])
 		if(this.leftCorrMtx) this.camV[0].multRight(this.leftCorrMtx)
@@ -440,10 +455,12 @@ getMtx(scale,sf) {
 			let l = Math.hypot(cx,cy,cz)
 			cx /= l ,cy /=l, cz /= l 
 		}
-		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.tempM.invert() 
+//		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+//		cmat.translate(cam.camCX,cam.camCY,cam.camCZ)
+		let cmat = this.tempM 
 		this.cam.headVec = cmat.multVec4(cx,cy,cz,0)
-		cmat.translate(cam.camCX,cam.camCY,cam.camCZ)
-		this.cam.campos = cmat.multVec4(this.cam.position[0],this.cam.position[1],this.cam.position[2],1)
+		this.cam.campos = cmat.multVec4(this.cam.position[0],this.cam.position[1],this.cam.position[2],1).slice(0,3)
 
 		let ivr = new Mat4().load(this.camV[1]).invert() ;
 		let ivl = new Mat4().load(this.camV[0]).invert() ;

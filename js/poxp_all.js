@@ -73,7 +73,7 @@ WWG.prototype.init2 = function(canvas,opt) {
 	this.ext_inst = true ;
 	this.inst_divisor = function(p,d){this.gl.vertexAttribDivisor(p, d)}
 	this.inst_draw = function(m,l,s,o,c){this.gl.drawElementsInstanced(m,l, s, o, c);}
-	this.inst_drawa = function(m,s,o,c) {this.gl.drawArrayInstanced(m, s, o, c);}
+	this.inst_drawa = function(m,s,o,c) {this.gl.drawArraysInstanced(m, s, o, c);}
 	this.ext_anis = gl.getExtension("EXT_texture_filter_anisotropic");
 	if(this.ext_anis) this.ext_anis_max = gl.getParameter(this.ext_anis.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
 	this.ext_ftex = true ;
@@ -244,10 +244,10 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 
 		for(i=0;i<l.length;i++) {
 			let ln = l[i] ;
-			if( ln.match(/^\s*#define\s*([^\s]+)\s*([^\s]+)/)) {
+			if( ln.match(/^\s*#define\s*([^\s]+)\s+([^\s]+)/)) {
 				def[RegExp.$1.trim()] = RegExp.$2.trim()
 			}
-			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s*([0-9a-z_]+)(\[[^\]]+\])?/i)) {
+			if( ln.match(/^\s*uniform\s*([0-9a-z]+)\s+([0-9a-z_]+)(\[[^\]]+\])?/i)) {
 				let u = {type:RegExp.$1,name:RegExp.$2} ;
 				if(RegExp.$3!="") {
 					u.type = u.type+"v" ;
@@ -258,7 +258,7 @@ WWG.prototype.Render.prototype.setShader = function(data) {
 				if(u.type=="sampler2D") u.texunit = tu++ ;
 				uni.push(u) ;
 			}
-			if( ln.match(/^\s*(?:attribute|in)\s*([0-9a-z]+)\s*([0-9a-z_]+)/i)) {
+			if( ln.match(/^\s*(?:attribute|in)\s+([0-9a-z]+)\s*([0-9a-z_]+)/i)) {
 				att.push( {type:RegExp.$1,name:RegExp.$2}) ;
 			}
 		}
@@ -908,7 +908,7 @@ WWG.prototype.Render.prototype.draw = function(update,cls) {
 		}
 		if(cmodel.inst) {
 			if(geo.idx) this.wwg.inst_draw(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
-			else this.wwg.inst_drawa(gmode, gl.UNSIGNED_SHORT, ofs, cmodel.inst.count);
+			else this.wwg.inst_drawa(gmode, ofs,(geo.count>0)?geo.count:geo.vtx.length/obuf.tl, cmodel.inst.count);
 		} else {
 			if(geo.idx) gl.drawElements(gmode, geo.idx.length, (obuf.i32)?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT, ofs);
 			else gl.drawArrays(gmode, ofs,
@@ -949,8 +949,8 @@ class WWModel {
 	let wz = (param.wz)?param.wz:1.0 ;
 	let div = (param.div)?param.div:10 ;
 	let divx = (param.divx)?param.divx:div ;
-	let divy = (param.divx)?param.divy:div ;
-	let divz = (param.divx)?param.divz:div ;
+	let divy = (param.divy)?param.divy:div ;
+	let divz = (param.divz)?param.divz:div ;
 	let ninv = (param.ninv)?-1:1 ;
 	let p = [] ;
 	let n = [] ;
@@ -1059,7 +1059,7 @@ class WWModel {
 		}	
 		break ;
 	case "cylinder":
-		let divy = (param.divy)?param.divy:1
+		divy = (param.divy)?param.divy:1
 		for(let i = 0 ; i <= div ; ++i) {
 			let v = i / (0.0+div);
 			let z = Math.sin(PHI * v)*wz, x = Math.cos(PHI * v)*wx;
@@ -4949,8 +4949,17 @@ setCam(cam) {
 	this.cama = false 
 }
 getCam() {
-	let bpos = [this.cam.camCX,this.cam.camCY,this.cam.camCZ]
-	return {origin:bpos,position:this.cam.campos,head:this.cam.headVec.slice(),hpos:this.cam.position}
+	const ret = {
+		basePos:[this.cam.camCX,this.cam.camCY,this.cam.camCZ],
+		baseRot:[this.cam.camRX,this.cam.camRY,this.cam.camRZ],
+		position:Array.from(this.cam.campos),
+		headVec:Array.from(this.cam.headVec),
+	}
+	if(this.cam.orientation) ret.headOri = Array.from(this.cam.orientation)
+	else ret.headOri = [0,0,0,1]
+	if(this.cam.position) ret.headPos = Array.from(this.cam.position)
+	else ret.headPos = [0,0,0]
+	return ret 
 }
 vrchange(f) {
 	if(f) {
@@ -5167,7 +5176,15 @@ setPad(gpad,gpad2) {
 				this.pvx = false 
 		}
 		if(this.cam.padRot && gp.dpad[0]>0) {
-			this.cam.camRY += ((axes[0]>0)?1:-1) * this.cam.rotAngle
+			let rot = ((axes[0]>0)?1:-1) * this.cam.rotAngle
+			this.cam.camRY += rot
+			if(false && this.cam.position) {
+				let th = rot * RAD 
+				this.cam.camCX += Math.cos(th)*this.cam.position[0]+ Math.sin(th)*this.cam.position[2]
+				this.cam.camCZ += -Math.sin(th)*this.cam.position[0]+ Math.cos(th)*this.cam.position[2]
+				console.log(Math.cos(th)*this.cam.position[0]+ Math.sin(th)*this.cam.position[2]
+				,-Math.sin(th)*this.cam.position[0]+ Math.cos(th)*this.cam.position[2])
+			}
 		}
 	}
 }
@@ -5229,7 +5246,7 @@ getMtx(scale,sf) {
 			cy = cam.camCY + -Math.sin(cam.camRX*RAD)*1 ; 
 			cz = cam.camCZ + -Math.cos(cam.camRY*RAD)*1*Math.cos(cam.camRX*RAD)	
 			let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0).rotate(-this.cam.camRZ,0,0,1)
-			upx = Math.sin(cam.camRZ*RAD)
+			upx = -Math.sin(cam.camRZ*RAD)
 			upy = Math.cos(cam.camRZ*RAD)
 			this.cam.headVec = cmat.multVec4(0,0,-1,0)
 		} else  {
@@ -5295,11 +5312,9 @@ getMtx(scale,sf) {
  
 		this.tempM.makeIdentity()
 			.translate(-cam.camCX,-cam.camCY,-cam.camCZ)
-//			.translate(-this.cam.position[0],0,-this.cam.position[2])
 			.rotate(cam.camRX,1,0,0)
 			.rotate(cam.camRY,0,1,0)
 			.rotate(cam.camRZ,0,0,1)
-//			.translate(this.cam.position[0],0,this.cam.position[2])
 
 		this.camV[0].load(this.vrv[0])
 		if(this.leftCorrMtx) this.camV[0].multRight(this.leftCorrMtx)
@@ -5325,10 +5340,12 @@ getMtx(scale,sf) {
 			let l = Math.hypot(cx,cy,cz)
 			cx /= l ,cy /=l, cz /= l 
 		}
-		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+		this.tempM.invert() 
+//		let cmat = new Mat4().rotate(-this.cam.camRX,1,0,0).rotate(-this.cam.camRY,0,1,0)
+//		cmat.translate(cam.camCX,cam.camCY,cam.camCZ)
+		let cmat = this.tempM 
 		this.cam.headVec = cmat.multVec4(cx,cy,cz,0)
-		cmat.translate(cam.camCX,cam.camCY,cam.camCZ)
-		this.cam.campos = cmat.multVec4(this.cam.position[0],this.cam.position[1],this.cam.position[2],1)
+		this.cam.campos = cmat.multVec4(this.cam.position[0],this.cam.position[1],this.cam.position[2],1).slice(0,3)
 
 		let ivr = new Mat4().load(this.camV[1]).invert() ;
 		let ivl = new Mat4().load(this.camV[0]).invert() ;
